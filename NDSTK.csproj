@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Umbraco.Cms"/>
+    <PackageReference Include="Umbraco.Cms" Version="18.1.1" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -20,7 +20,8 @@
       Note: DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU is only honored when AppLocalIcu is absent from runtimeconfig.json
       (verified on .NET 10) — the general .NET 9 env-var-precedence rule does not apply to this knob, since it is
       resolved by the native host before the CLR boots. Use one of the two override paths above instead.
-      Keep UmbracoAppLocalIcuVersion in sync with the referenced Microsoft.ICU.ICU4C.Runtime package version.
+      UmbracoAppLocalIcuVersion drives both the Microsoft.ICU.ICU4C.Runtime package version and the AppLocalIcu
+      runtime config value below, so the two cannot drift apart.
     -->
     <UmbracoUseAppLocalIcu Condition="'$(UmbracoUseAppLocalIcu)' == '' and ($(RuntimeIdentifier.StartsWith('linux')) or $(RuntimeIdentifier.StartsWith('win')) or ('$(RuntimeIdentifier)' == '' and !$([MSBuild]::IsOSPlatform('osx'))))">true</UmbracoUseAppLocalIcu>
     <UmbracoUseAppLocalIcu Condition="'$(UmbracoUseAppLocalIcu)' == ''">false</UmbracoUseAppLocalIcu>
@@ -28,7 +29,7 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(UmbracoUseAppLocalIcu)' == 'true'">
-    <PackageReference Include="Microsoft.ICU.ICU4C.Runtime"/>
+    <PackageReference Include="Microsoft.ICU.ICU4C.Runtime" Version="$(UmbracoAppLocalIcuVersion)" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="$(UmbracoAppLocalIcuVersion)" />
   </ItemGroup>
 
