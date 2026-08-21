@@ -101,7 +101,14 @@
     </main>
 
     <footer>
-        @footerText
+        <p>@footerText</p>
+        <p>
+            <button type="button" class="btn-link" data-consent-open>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Footer.Link", "Cookieinställningar"))</button>
+            @if (settings?.Value<IPublishedContent>("cookiePolicyPage") is IPublishedContent cookiePage)
+            {
+                <a href="@cookiePage.Url()">@cookiePage.Name</a>
+            }
+        </p>
     </footer>
 </body>
 </html>

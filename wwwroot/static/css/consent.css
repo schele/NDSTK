@@ -242,3 +242,11 @@
     .cookie-table code {
         word-break: break-all;
     }
+
+footer .btn-link {
+    color: white;
+}
+
+footer p {
+    margin: 0.25rem 0;
+}

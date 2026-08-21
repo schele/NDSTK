@@ -56,12 +56,14 @@ internal sealed class NdstkContentSeeder(
         error.SetValue("metaRobots", Dropdown("NOINDEX,NOFOLLOW"));
         contentService.Save(error, UserId);
 
-        IContent settings = SeedSettings(start, articles, login);
+        IContent cookiePolicy = SeedCookiePolicy(start);
+
+        IContent settings = SeedSettings(start, articles, login, cookiePolicy);
         SeedStartPage(start, articles);
 
         // Publishing is strictly top down: Umbraco refuses to publish a node whose ancestors
         // are still unpublished.
-        foreach (IContent node in new[] { start, settings, articles, login, error }.Concat(posts))
+        foreach (IContent node in new[] { start, settings, articles, login, error, cookiePolicy }.Concat(posts))
         {
             Publish(node);
         }
@@ -99,12 +101,13 @@ internal sealed class NdstkContentSeeder(
         return [.. created];
     }
 
-    private IContent SeedSettings(IContent start, IContent articles, IContent login)
+    private IContent SeedSettings(IContent start, IContent articles, IContent login, IContent cookiePolicy)
     {
         IContent settings = Create("Settings", start.Id, "settings", Nodes.Settings);
         settings.SetValue("siteName", "NDSTK");
         settings.SetValue("menu", NodeList(articles));
         settings.SetValue("loginPage", Node(login));
+        settings.SetValue("cookiePolicyPage", Node(cookiePolicy));
         settings.SetValue("footerText", $"© {DateTime.UtcNow.Year} NDSTK Tennis Club — Serve. Volley. Repeat.");
         settings.SetValue("sidebarWidgets", BlockList(
             Block(ElementTypes.CtaWidget,
@@ -121,6 +124,46 @@ internal sealed class NdstkContentSeeder(
 
         contentService.Save(settings, UserId);
         return settings;
+    }
+
+    private IContent SeedCookiePolicy(IContent start)
+    {
+        IContent policy = Create("Cookies", start.Id, "cookiePolicy", Nodes.CookiePolicy);
+        policy.SetValue("heading", "Kakor på ndstk.se");
+        policy.SetValue("introduction",
+            "<p>Vi använder kakor (cookies) för att sajten ska fungera. Nedan ser du exakt vilka kakor vi " +
+            "sätter, varför, och hur länge de sparas.</p>");
+        policy.SetValue("outro",
+            "<p>Du kan även blockera och radera kakor i din webbläsares inställningar. Har du frågor, " +
+            "kontakta oss på <a href=\"mailto:info@ndstk.se\">info@ndstk.se</a>. Du kan läsa mer om kakor " +
+            "hos Integritetsskyddsmyndigheten.</p>");
+
+        // Only what this site genuinely sets today. An invented table would be worse than a short one.
+        policy.SetValue("cookies", BlockList(
+            Block(ElementTypes.CookieDefinition,
+                ("cookieName", "ndstk-consent"),
+                ("provider", "NDSTK"),
+                ("category", Dropdown("necessary")),
+                ("purpose", "Sparar ditt val av kakor så att vi inte behöver fråga igen."),
+                ("duration", "12 månader"),
+                ("storageType", Dropdown("Cookie"))),
+            Block(ElementTypes.CookieDefinition,
+                ("cookieName", ".AspNetCore.Antiforgery.*"),
+                ("provider", "NDSTK"),
+                ("category", Dropdown("necessary")),
+                ("purpose", "Skyddar formulär mot förfalskade anrop."),
+                ("duration", "Session"),
+                ("storageType", Dropdown("Cookie"))),
+            Block(ElementTypes.CookieDefinition,
+                ("cookieName", "UMB_MEMBER"),
+                ("provider", "NDSTK"),
+                ("category", Dropdown("necessary")),
+                ("purpose", "Håller dig inloggad som medlem efter inloggning med BankID."),
+                ("duration", "Session"),
+                ("storageType", Dropdown("Cookie")))));
+
+        contentService.Save(policy, UserId);
+        return policy;
     }
 
     private void SeedStartPage(IContent start, IContent articles)
