@@ -247,6 +247,11 @@ footer .btn-link {
     color: white;
 }
 
+footer a {
+    color: white;
+    text-decoration: underline;
+}
+
 footer p {
     margin: 0.25rem 0;
 }
