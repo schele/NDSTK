@@ -1,0 +1,112 @@
+@using Microsoft.Extensions.Options
+@using Umbraco.Cms.Core.Models.Blocks
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inject IConsentState Consent
+@inject IOptions<ConsentOptions> ConsentSettings
+
+@{
+    var settings = ConsentSettings.Value;
+    var settingsNode = Model?.Root()?.ChildrenOfType("settings").FirstOrDefault();
+    var policyPage = settingsNode?.Value<IPublishedContent>("cookiePolicyPage");
+    var granted = Consent.Decision?.Granted ?? new HashSet<ConsentCategory>();
+    var showBar = Consent.NeedsDecision;
+
+    // Cookies declared per category, feeding the <details> that spec §10 requires inside each
+    // fieldset ("so people can inspect without navigating away"). Every step of this chain can be
+    // absent right now - no cookiePolicyPage property on Settings yet, no page picked once it exists,
+    // no cookies block on that page, an unparsable category value on a block - so this must degrade to
+    // "no cookies for this category" rather than throw or log.
+    var cookiesByCategory = ConsentCategories.All.ToDictionary(
+        category => category,
+        _ => new List<(string Name, string Purpose)>());
+
+    var cookieBlocks = policyPage?.Value<BlockListModel>("cookies");
+    if (cookieBlocks is not null)
+    {
+        foreach (BlockListItem block in cookieBlocks)
+        {
+            var wireCategory = block.Content.Value<string>("category");
+            if (ConsentCategories.TryParse(wireCategory, out var parsedCategory))
+            {
+                var cookieName = block.Content.Value<string>("cookieName");
+                if (string.IsNullOrWhiteSpace(cookieName) is false)
+                {
+                    var purpose = block.Content.Value<string>("purpose") ?? string.Empty;
+                    cookiesByCategory[parsedCategory].Add((cookieName, purpose));
+                }
+            }
+        }
+    }
+}
+
+@if (showBar)
+{
+    <div class="consent-bar" role="region" aria-label="@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Label", "Samtycke till kakor"))" data-consent-bar>
+        <div class="consent-bar__text">
+            <h2>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Heading", "Vi använder kakor"))</h2>
+            <p>
+                @(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Body", string.Empty))
+                @if (policyPage is not null)
+                {
+                    <a href="@policyPage.Url()">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.PolicyLink", "Läs mer"))</a>
+                }
+            </p>
+        </div>
+        <div class="consent-bar__actions">
+            <button type="button" class="btn-primary" data-consent-action="accept-all">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.AcceptAll", "Godkänn alla"))</button>
+            <button type="button" class="btn-secondary" data-consent-action="reject-all">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.RejectAll", "Neka alla"))</button>
+            <button type="button" class="btn-link" data-consent-open>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Customise", "Anpassa"))</button>
+        </div>
+    </div>
+}
+
+<dialog id="consent-dialog" class="consent-dialog" aria-labelledby="consent-dialog-heading">
+    <form method="dialog" class="consent-dialog__form" data-consent-form>
+        <h2 id="consent-dialog-heading">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Settings.Heading", "Inställningar för kakor"))</h2>
+
+        @foreach (var category in ConsentCategories.All)
+        {
+            var wire = ConsentCategories.ToWireName(category);
+            var isNecessary = category == ConsentCategory.Necessary;
+            var inputId = $"consent-cat-{wire}";
+            var categoryCookies = cookiesByCategory[category];
+            <fieldset class="consent-category">
+                <legend>@(Umbraco.GetDictionaryValueOrDefault($"Cookies.Category.{category}.Name", wire))</legend>
+                <div class="consent-category__row">
+                    <input type="checkbox"
+                           id="@inputId"
+                           value="@wire"
+                           data-consent-category-input
+                           checked="@(isNecessary || granted.Contains(category))"
+                           disabled="@isNecessary" />
+                    <label for="@inputId">
+                        @(Umbraco.GetDictionaryValueOrDefault($"Cookies.Category.{category}.Description", string.Empty))
+                    </label>
+                </div>
+                @if (categoryCookies.Count > 0)
+                {
+                    <details class="consent-category__cookies">
+                        <summary>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Category.Cookies", "Kakor i den här kategorin"))</summary>
+                        <ul>
+                            @foreach (var cookie in categoryCookies)
+                            {
+                                <li><strong>@cookie.Name</strong> — @cookie.Purpose</li>
+                            }
+                        </ul>
+                    </details>
+                }
+            </fieldset>
+        }
+
+        <div class="consent-dialog__actions">
+            <button type="button" class="btn-primary" data-consent-action="custom">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Save", "Spara val"))</button>
+            <button type="button" class="btn-secondary" data-consent-close>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Cancel", "Avbryt"))</button>
+        </div>
+    </form>
+</dialog>
+
+<script src="~/static/js/consent.js" defer
+        data-consent-endpoint="/api/consent"
+        data-consent-cookie="@settings.CookieName"
+        data-consent-version="@settings.PolicyVersion"
+        data-consent-mode="@(string.IsNullOrWhiteSpace(settings.GoogleMeasurementId) ? "off" : "on")"></script>

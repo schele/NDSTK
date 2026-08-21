@@ -1,0 +1,207 @@
+/* Consent bar
+   A bar rather than a blocking modal: the "no cookies before a choice" guarantee is enforced
+   server-side, so blocking the page buys nothing and costs a great deal of accessibility. */
+.consent-bar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 1000;
+    background: white;
+    border-top: 3px solid var(--accent);
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.15);
+    padding: 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 100%;
+}
+
+.consent-bar__text {
+    flex: 1 1 22rem;
+}
+
+    .consent-bar__text h2 {
+        color: var(--primary);
+        margin: 0 0 0.35rem;
+        font-size: 1.15rem;
+    }
+
+    .consent-bar__text p {
+        margin: 0;
+        font-size: 0.95rem;
+    }
+
+.consent-bar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+/* Accept and reject must be visually equal. Same box, different colour - nothing else. */
+.btn-secondary {
+    display: inline-block;
+    background: var(--primary);
+    color: white;
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 1rem;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 1rem;
+}
+
+    .btn-secondary:hover {
+        text-decoration: underline;
+    }
+
+.consent-bar .btn-primary,
+.consent-bar .btn-secondary,
+.consent-dialog .btn-primary,
+.consent-dialog .btn-secondary {
+    margin-top: 0;
+    border: none;
+    font-size: 1rem;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    padding: 0.6rem 0.4rem;
+    color: var(--primary);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* Settings dialog - native <dialog>, so focus trap, Esc and the inert backdrop come from the platform */
+.consent-dialog {
+    border: none;
+    border-radius: 8px;
+    padding: 0;
+    max-width: 34rem;
+    width: calc(100% - 2rem);
+    color: var(--text);
+    background: white;
+}
+
+.consent-dialog::backdrop {
+    background: rgba(0, 31, 84, 0.6);
+}
+
+.consent-dialog__form {
+    padding: 1.5rem;
+}
+
+    .consent-dialog__form h2 {
+        color: var(--primary);
+        margin: 0 0 1rem;
+        border-bottom: 2px solid var(--accent);
+        padding-bottom: 0.5rem;
+    }
+
+.consent-category {
+    border: 1px solid #d5d7db;
+    border-radius: 6px;
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem 1rem;
+}
+
+    .consent-category legend {
+        color: var(--primary);
+        font-weight: 700;
+        padding: 0 0.35rem;
+    }
+
+.consent-category__row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    font-size: 0.95rem;
+}
+
+    .consent-category__row input {
+        margin-top: 0.2rem;
+        width: 1.15rem;
+        height: 1.15rem;
+        flex: 0 0 auto;
+    }
+
+/* Per-category cookie list - lets a visitor inspect what a category covers without leaving the
+   dialog for the policy page. */
+.consent-category__cookies {
+    margin-top: 0.6rem;
+    font-size: 0.9rem;
+}
+
+    .consent-category__cookies summary {
+        color: var(--primary);
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    .consent-category__cookies ul {
+        margin: 0.5rem 0 0;
+        padding-left: 1.25rem;
+    }
+
+    .consent-category__cookies li {
+        margin-bottom: 0.35rem;
+    }
+
+.consent-dialog__actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1.25rem;
+}
+
+/* Visible focus everywhere - this is a keyboard-driven component by design */
+.consent-bar :focus-visible,
+.consent-dialog :focus-visible,
+.consent-embed :focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Blocked embed placeholder */
+.consent-embed--blocked {
+    background: var(--bg);
+    border: 1px dashed var(--primary);
+    border-radius: 6px;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.consent-embed iframe {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 0;
+    border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .consent-bar {
+        animation: consent-bar-in 200ms ease-out;
+    }
+
+    @keyframes consent-bar-in {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+    }
+}
+
+@media (max-width: 700px) {
+    .consent-bar__actions {
+        width: 100%;
+    }
+
+        .consent-bar__actions button {
+            flex: 1 1 auto;
+        }
+}
