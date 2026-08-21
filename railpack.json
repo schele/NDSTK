@@ -3,9 +3,11 @@
   "steps": {
     "build": {
       "commands": [
+        "echo '--- build context root (is this a clean checkout?) ---'; ls -la",
         "echo '--- stale dirs in build context ---'; ls -d out bin obj 2>/dev/null || echo 'none'",
         "echo '--- stray assemblies in build context ---'; find . -maxdepth 3 -name '*.dll' -not -path './obj/*' -not -path './bin/*' -not -path './out/*' | head -20; true",
         "echo '--- Program.cs being built ---'; head -12 Program.cs",
+        "echo -n 'Program.cs fingerprint: '; md5sum Program.cs; echo -n 'CreateUmbracoBuilder is on line: '; grep -n CreateUmbracoBuilder Program.cs | head -1",
         "rm -rf obj bin out",
         "dotnet publish NDSTK.csproj -c Release -o out",
         "echo -n 'CsvHelper entries in deps.json (expect 0): '; grep -o '\"CsvHelper[^\"]*\"' out/NDSTK.deps.json | sort -u | wc -l",
