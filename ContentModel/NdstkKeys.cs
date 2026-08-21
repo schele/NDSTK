@@ -16,6 +16,7 @@ internal static class NdstkKeys
         internal static readonly Guid Article = new("873307ad-a321-492a-9cac-17cfa0a388f8");
         internal static readonly Guid Error = new("6e7f09a6-b03e-4f67-b67d-afb1bef71f87");
         internal static readonly Guid Login = new("90fb6c48-3265-44be-a980-853595d75eb7");
+        internal static readonly Guid CookiePolicy = new("85504a4c-d7d4-4dc2-89ad-d5b3de6016c0");
     }
 
     internal static class DocumentTypes
@@ -27,6 +28,7 @@ internal static class NdstkKeys
         internal static readonly Guid Article = new("3056ddc9-9d8c-4a48-a8cf-64105023fc76");
         internal static readonly Guid Error = new("783208f3-b0bd-4b0f-9465-64c2d9ee1c7b");
         internal static readonly Guid Login = new("a97dd1d3-c8a1-4a8f-94f2-16c02d5f5909");
+        internal static readonly Guid CookiePolicy = new("cc364eaf-944c-4964-8a06-61927c5b3a30");
     }
 
     /// <summary>Element types used as Block List blocks.</summary>
@@ -39,6 +41,7 @@ internal static class NdstkKeys
         internal static readonly Guid CtaWidget = new("e1e50001-0000-4000-8000-000000000005");
         internal static readonly Guid ContactWidget = new("e1e50001-0000-4000-8000-000000000006");
         internal static readonly Guid TagsWidget = new("e1e50001-0000-4000-8000-000000000007");
+        internal static readonly Guid CookieDefinition = new("e1e50001-0000-4000-8000-000000000008");
     }
 
     /// <summary>Data types this site adds on top of the Umbraco defaults.</summary>
@@ -48,6 +51,9 @@ internal static class NdstkKeys
         internal static readonly Guid SidebarWidgetBlocks = new("da7a0001-0000-4000-8000-000000000002");
         internal static readonly Guid MenuPicker = new("da7a0001-0000-4000-8000-000000000003");
         internal static readonly Guid MetaRobots = new("da7a0001-0000-4000-8000-000000000004");
+        internal static readonly Guid CookieCategory = new("da7a0001-0000-4000-8000-000000000005");
+        internal static readonly Guid StorageType = new("da7a0001-0000-4000-8000-000000000006");
+        internal static readonly Guid CookieRegistry = new("da7a0001-0000-4000-8000-000000000007");
     }
 
     /// <summary>Umbraco's built-in data types, reused as-is.</summary>
@@ -73,5 +79,6 @@ internal static class NdstkKeys
         internal static readonly Guid Articles = new("c0117e17-0000-4000-8000-000000000003");
         internal static readonly Guid Login = new("c0117e17-0000-4000-8000-000000000004");
         internal static readonly Guid Error = new("c0117e17-0000-4000-8000-000000000005");
+        internal static readonly Guid CookiePolicy = new("c0117e17-0000-4000-8000-000000000006");
     }
 }

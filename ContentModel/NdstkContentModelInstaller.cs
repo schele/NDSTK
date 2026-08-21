@@ -35,6 +35,12 @@ internal sealed class NdstkContentModelInstaller(
             BuiltInDataTypes.ContentPicker,
             BuiltInDataTypes.Numeric);
 
+        // The cookie category / storage type dropdowns must exist - and be preloaded - before
+        // InstallElementTypesAsync, because the cookie definition element type binds to them and
+        // factory.Property throws if a data type was not preloaded first.
+        await InstallCookieDataTypesAsync();
+        await factory.PreloadDataTypesAsync(DataTypes.CookieCategory, DataTypes.StorageType);
+
         await InstallElementTypesAsync();
         await InstallDataTypesAsync();
         await InstallDocumentTypesAsync(templates);
@@ -58,6 +64,7 @@ internal sealed class NdstkContentModelInstaller(
             (Templates.Article, "Article", "Article"),
             (Templates.Error, "Error", "Error"),
             (Templates.Login, "Login", "Login"),
+            (Templates.CookiePolicy, "Cookie policy", "CookiePolicy"),
         ];
 
         Dictionary<Guid, ITemplate> templates = [];
@@ -79,6 +86,41 @@ internal sealed class NdstkContentModelInstaller(
 
         logger.LogWarning("View file {Path} is missing; registering an empty template for '{Alias}'.", path, alias);
         return "@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage" + Environment.NewLine;
+    }
+
+    // ---------------------------------------------------- cookie registry data types
+
+    /// <summary>
+    /// The two dropdowns the cookie definition element type binds to. These have to be created -
+    /// and preloaded - before <see cref="InstallElementTypesAsync"/> runs, which is earlier than
+    /// data types are normally installed; see the ordering note in <see cref="InstallAsync"/>.
+    /// </summary>
+    private async Task InstallCookieDataTypesAsync()
+    {
+        // These are the wire names from ConsentCategories.ToWireName, not display labels: the
+        // cookie policy page groups declared cookies by this value, so it must match exactly.
+        // Display names come from Umbraco dictionary items, added in a later task.
+        await factory.EnsureDataTypeAsync(
+            DataTypes.CookieCategory,
+            "NDSTK - Cookie category",
+            Constants.PropertyEditors.Aliases.DropDownListFlexible,
+            "Umb.PropertyEditorUi.Dropdown",
+            new Dictionary<string, object>
+            {
+                ["multiple"] = false,
+                ["items"] = new[] { "necessary", "preferences", "statistics", "marketing" },
+            });
+
+        await factory.EnsureDataTypeAsync(
+            DataTypes.StorageType,
+            "NDSTK - Storage type",
+            Constants.PropertyEditors.Aliases.DropDownListFlexible,
+            "Umb.PropertyEditorUi.Dropdown",
+            new Dictionary<string, object>
+            {
+                ["multiple"] = false,
+                ["items"] = new[] { "Cookie", "localStorage", "sessionStorage", "Pixel" },
+            });
     }
 
     // ------------------------------------------------------------ element types
@@ -130,6 +172,15 @@ internal sealed class NdstkContentModelInstaller(
             "Sidebar box with the tag pills.",
             factory.Property(BuiltInDataTypes.Textstring, "heading", "Heading", sortOrder: 0),
             factory.Property(BuiltInDataTypes.Tags, "tags", "Tags", sortOrder: 1));
+
+        await EnsureElementTypeAsync(ElementTypes.CookieDefinition, "cookieDefinition", "Cookie", "icon-lock",
+            "One declared cookie, shown in the cookie policy table.",
+            factory.Property(BuiltInDataTypes.Textstring, "cookieName", "Name", "Literal name or pattern, e.g. _ga_*", 0),
+            factory.Property(BuiltInDataTypes.Textstring, "provider", "Provider", "NDSTK, Google, YouTube…", 1),
+            factory.Property(DataTypes.CookieCategory, "category", "Category", sortOrder: 2),
+            factory.Property(BuiltInDataTypes.Textarea, "purpose", "Purpose", sortOrder: 3),
+            factory.Property(BuiltInDataTypes.Textstring, "duration", "Duration", "\"12 månader\", \"Session\"", 4),
+            factory.Property(DataTypes.StorageType, "storageType", "Storage type", sortOrder: 5));
     }
 
     private Task<IContentType> EnsureElementTypeAsync(
@@ -205,6 +256,19 @@ internal sealed class NdstkContentModelInstaller(
                 ["multiple"] = false,
                 ["items"] = new[] { "INDEX,FOLLOW", "INDEX,NOFOLLOW", "NOINDEX,FOLLOW", "NOINDEX,NOFOLLOW" },
             });
+
+        // Unlike the cookie category / storage type dropdowns above, this Block List belongs here
+        // rather than in InstallCookieDataTypesAsync: it references the cookieDefinition element
+        // type by key, so it must be created after InstallElementTypesAsync has run.
+        await factory.EnsureDataTypeAsync(
+            DataTypes.CookieRegistry,
+            "NDSTK - Cookie registry",
+            Constants.PropertyEditors.Aliases.BlockList,
+            "Umb.PropertyEditorUi.BlockList",
+            new Dictionary<string, object>
+            {
+                ["blocks"] = new object[] { Block(ElementTypes.CookieDefinition, "Cookie") },
+            });
     }
 
     private static Dictionary<string, object> Block(Guid elementTypeKey, string label) => new()
@@ -222,7 +286,8 @@ internal sealed class NdstkContentModelInstaller(
             DataTypes.StartContentBlocks,
             DataTypes.SidebarWidgetBlocks,
             DataTypes.MenuPicker,
-            DataTypes.MetaRobots);
+            DataTypes.MetaRobots,
+            DataTypes.CookieRegistry);
 
         IContentType baseType = await factory.EnsureContentTypeAsync(
             DocumentTypes.Base, "base", "Base", "icon-brick", type =>
@@ -255,7 +320,9 @@ internal sealed class NdstkContentModelInstaller(
                     factory.Property(DataTypes.MenuPicker, "menu", "Header menu", sortOrder: 1),
                     factory.Property(BuiltInDataTypes.ContentPicker, "loginPage", "Login page", "Target of the Logga in button in the sidebar.", 2),
                     factory.Property(DataTypes.SidebarWidgetBlocks, "sidebarWidgets", "Sidebar widgets", sortOrder: 3),
-                    factory.Property(BuiltInDataTypes.Textstring, "footerText", "Footer text", sortOrder: 4));
+                    factory.Property(BuiltInDataTypes.Textstring, "footerText", "Footer text", sortOrder: 4),
+                    factory.Property(BuiltInDataTypes.ContentPicker, "cookiePolicyPage", "Cookie policy page",
+                        "Linked from the consent banner and the footer.", 5));
             });
 
         await factory.EnsureContentTypeAsync(
@@ -299,13 +366,26 @@ internal sealed class NdstkContentModelInstaller(
                     factory.Property(BuiltInDataTypes.Textstring, "subText", "Sub text", sortOrder: 2));
             });
 
+        await factory.EnsureContentTypeAsync(
+            DocumentTypes.CookiePolicy, "cookiePolicy", "Cookie policy", "icon-lock", type =>
+            {
+                type.AddContentType(baseType);
+                NdstkContentTypeFactory.UseTemplate(type, templates[Templates.CookiePolicy]);
+                NdstkContentTypeFactory.AddGroup(type, DeriveKey(DocumentTypes.CookiePolicy, 1), "content", "Content", 0,
+                    factory.Property(BuiltInDataTypes.Textstring, "heading", "Heading", "Falls back to the node name.", 0),
+                    factory.Property(BuiltInDataTypes.RichtextEditor, "introduction", "Introduction", sortOrder: 1),
+                    factory.Property(DataTypes.CookieRegistry, "cookies", "Declared cookies", sortOrder: 2),
+                    factory.Property(BuiltInDataTypes.RichtextEditor, "outro", "Closing text", sortOrder: 3));
+            });
+
         // Second pass: every type exists now, so the structure can reference it.
         await factory.SetAllowedChildrenAsync(
             DocumentTypes.Start,
             (DocumentTypes.Settings, "settings"),
             (DocumentTypes.Articles, "articles"),
             (DocumentTypes.Login, "login"),
-            (DocumentTypes.Error, "error"));
+            (DocumentTypes.Error, "error"),
+            (DocumentTypes.CookiePolicy, "cookiePolicy"));
 
         await factory.SetAllowedChildrenAsync(
             DocumentTypes.Articles,
