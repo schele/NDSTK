@@ -61,7 +61,8 @@
 .consent-bar .btn-primary,
 .consent-bar .btn-secondary,
 .consent-dialog .btn-primary,
-.consent-dialog .btn-secondary {
+.consent-dialog .btn-secondary,
+.consent-embed .btn-primary {
     margin-top: 0;
     border: none;
     font-size: 1rem;
