@@ -33,7 +33,9 @@ public static class ConsentCookieCodec
             ConsentId = decision.ConsentId,
         };
 
-        return Uri.EscapeDataString(JsonSerializer.Serialize(dto, SerializerOptions));
+        // Plain JSON: Response.Cookies.Append already URL-encodes the cookie value once. Encoding
+        // here too would double-encode it, which the banner's single decodeURIComponent could not undo.
+        return JsonSerializer.Serialize(dto, SerializerOptions);
     }
 
     public static ConsentDecision? Decode(string? cookieValue)

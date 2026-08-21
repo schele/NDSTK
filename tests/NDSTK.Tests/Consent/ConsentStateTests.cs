@@ -13,7 +13,12 @@ public class ConsentStateTests
 
         if (cookieValue is not null)
         {
-            httpContext.Request.Headers.Cookie = $"{options.CookieName}={cookieValue}";
+            // A real browser echoes back exactly the percent-encoded text the Set-Cookie response
+            // gave it. ConsentCookieCodec.Encode returns plain JSON (task-3 fix round 1: the cookie
+            // layer, not the codec, does the one encoding pass), so this helper must apply that
+            // encoding itself to build a realistic raw Cookie header — otherwise characters like
+            // '"' and ',' break RFC 6265 cookie-value grammar before ConsentState ever sees them.
+            httpContext.Request.Headers.Cookie = $"{options.CookieName}={Uri.EscapeDataString(cookieValue)}";
         }
 
         return new ConsentState(

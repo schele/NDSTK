@@ -33,19 +33,25 @@ await app.BootUmbracoAsync();
 
 app.UseHttpsRedirection();
 
-app.UseRateLimiter();
-
-app.UseUmbraco()
+// UseUmbraco().WithMiddleware(...) runs UseRouting() (plus Umbraco's own auth/session/website
+// middleware) internally before returning, and WithEndpoints(...) below is what finally calls
+// UseEndpoints(). UseRateLimiter() has to sit after routing has resolved an endpoint (it reads
+// [EnableRateLimiting] from the matched endpoint's metadata) and before that endpoint actually
+// runs, so the chain is split here instead of composed as one fluent expression.
+var umbracoEndpointBuilder = app.UseUmbraco()
     .WithMiddleware(u =>
     {
         u.UseBackOffice();
         u.UseWebsite();
-    })
-    .WithEndpoints(u =>
-    {
-        u.UseBackOfficeEndpoints();
-        u.UseWebsiteEndpoints();
     });
+
+app.UseRateLimiter();
+
+umbracoEndpointBuilder.WithEndpoints(u =>
+{
+    u.UseBackOfficeEndpoints();
+    u.UseWebsiteEndpoints();
+});
 
 app.MapControllers();
 
