@@ -9,6 +9,8 @@ builder.Configuration
 
 builder.Services.AddRateLimiter(rateLimiter =>
 {
+    rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
     rateLimiter.AddPolicy(NDSTK.Consent.ConsentRateLimiting.PolicyName, httpContext =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
             httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
