@@ -145,9 +145,11 @@
             activateScripts();
             updateConsentMode();
             announce();
+            return true;
         }).catch(function (error) {
             // Leave the bar in place: a failed request must not read as a recorded choice.
             if (window.console) { console.error(error); }
+            return false;
         });
     }
 
@@ -155,19 +157,28 @@
         if (action === 'accept-all') { return send(action, ['preferences', 'statistics', 'marketing']); }
         if (action === 'reject-all') { return send(action, []); }
         if (action === 'withdrawn') {
-            return send(action, []).then(function () { window.location.reload(); });
+            // Reload only on success: `send` resolves false (never rejects) on a failed
+            // request, and a failed withdrawal must not look like a completed one.
+            return send(action, []).then(function (succeeded) {
+                if (succeeded) { window.location.reload(); }
+            });
         }
         return send('custom', selectedCategories());
     }
 
     document.addEventListener('click', function (event) {
-        var opener = event.target.closest('[data-consent-open]');
+        var target = event.target;
+        // This handler lives at the document level for the life of the page, so guard against
+        // any click target that is not an Element (e.g. a Text node reached via composed paths).
+        if (!target || typeof target.closest !== 'function') { return; }
+
+        var opener = target.closest('[data-consent-open]');
         if (opener) { event.preventDefault(); open(); return; }
 
-        var closer = event.target.closest('[data-consent-close]');
+        var closer = target.closest('[data-consent-close]');
         if (closer) { event.preventDefault(); close(); return; }
 
-        var actor = event.target.closest('[data-consent-action]');
+        var actor = target.closest('[data-consent-action]');
         if (actor) { event.preventDefault(); decide(actor.getAttribute('data-consent-action')); }
     });
 

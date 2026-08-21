@@ -17,6 +17,13 @@
     max-width: 100%;
 }
 
+/* `hidden` alone loses to the author-origin `display: flex` above - the UA stylesheet's
+   `[hidden] { display: none }` carries no `!important`, so it needs an explicit override here
+   to actually hide the bar once a decision is recorded. */
+.consent-bar[hidden] {
+    display: none;
+}
+
 .consent-bar__text {
     flex: 1 1 22rem;
 }
