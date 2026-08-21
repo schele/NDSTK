@@ -54,7 +54,7 @@ internal sealed class NdstkDictionaryInstaller(
         ("Cookies.Embed.Blocked.Body",
             "Det här innehållet kommer från en annan tjänst och kräver ditt samtycke.",
             "This content comes from another service and needs your consent."),
-        ("Cookies.Embed.Blocked.Button", "Visa innehål", "Show content"),
+        ("Cookies.Embed.Blocked.Button", "Visa innehåll", "Show content"),
         ("Cookies.Policy.CurrentChoice", "Ditt nuvarande val", "Your current choice"),
         ("Cookies.Policy.NoChoice", "Du har inte gjort något val än.", "You have not made a choice yet."),
         ("Cookies.Policy.Reopen", "Ändra inställningar", "Change settings"),

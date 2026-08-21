@@ -20,6 +20,8 @@ internal sealed class NdstkContentModelInstaller(
     public async Task InstallAsync()
     {
         await languages.InstallAsync();
+        // Dictionary translations reference the sv and en-GB ILanguage objects the language installer creates,
+        // so this must run after languages are configured.
         await dictionary.InstallAsync();
 
         Dictionary<Guid, ITemplate> templates = await InstallTemplatesAsync();
