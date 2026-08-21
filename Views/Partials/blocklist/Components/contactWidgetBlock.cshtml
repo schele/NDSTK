@@ -1,0 +1,22 @@
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Core.Models.Blocks.BlockListItem>
+@{
+    var content = Model.Content;
+    var heading = content.Value<string>("heading");
+    var email = content.Value<string>("email");
+    var phone = content.Value<string>("phone");
+}
+
+<div class="widget">
+    @if (!string.IsNullOrWhiteSpace(heading))
+    {
+        <h3>@heading</h3>
+    }
+    @if (!string.IsNullOrWhiteSpace(email))
+    {
+        <p>E-post: <a href="mailto:@email" class="email">@email</a></p>
+    }
+    @if (!string.IsNullOrWhiteSpace(phone))
+    {
+        <p>Telefon: <a href="tel:@phone" class="email">@phone</a></p>
+    }
+</div>

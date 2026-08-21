@@ -1,0 +1,31 @@
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Core.Models.Blocks.BlockListItem>
+@{
+    var content = Model.Content;
+    var heading = content.Value<string>("heading");
+    var source = content.Value<IPublishedContent>("source");
+    var take = content.Value<int>("maxItems");
+    if (take <= 0)
+    {
+        take = 3;
+    }
+
+    var posts = (source?.ChildrenOfType("article") ?? [])
+        .OrderByDescending(x => x.Value<DateTime?>("publishDate") ?? x.CreateDate)
+        .Take(take)
+        .ToList();
+}
+
+@if (!string.IsNullOrWhiteSpace(heading))
+{
+    <h2>@heading</h2>
+}
+
+@foreach (var post in posts)
+{
+    var date = post.Value<DateTime?>("publishDate") ?? post.CreateDate;
+    <article class="post">
+        <h2><a href="@post.Url()">@(post.Value<string>("heading").IfNullOrWhiteSpace(post.Name))</a></h2>
+        <small>@date.ToString("d MMMM yyyy")</small>
+        <p>@(post.Value<string>("summary"))</p>
+    </article>
+}

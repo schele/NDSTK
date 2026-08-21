@@ -1,0 +1,13 @@
+﻿@using Umbraco.Cms.Core.Models.Blocks
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Root.cshtml";
+    var blocks = Model.Value<BlockListModel>("contentBlocks");
+}
+
+<div class="content-blocks">
+    @foreach (var block in blocks ?? Enumerable.Empty<BlockListItem>())
+    {
+        @await Html.PartialAsync($"blocklist/Components/{block.Content.ContentType.Alias}", block)
+    }
+</div>

@@ -1,0 +1,104 @@
+﻿@using Umbraco.Cms.Core.Models.Blocks
+@using Umbraco.Cms.Core.Services
+@using Umbraco.Cms.Core.Web
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+
+@inject ILanguageService LanguageService
+@inject IUmbracoContextAccessor UmbracoContextAccessor
+
+@{
+    var umbracoContext = UmbracoContextAccessor.GetRequiredUmbracoContext();
+    var currentCulture = umbracoContext.PublishedRequest?.Culture;
+    var currentPage = umbracoContext.PublishedRequest?.PublishedContent;
+
+    // A language only belongs in the switcher once this page can actually be reached in it.
+    // Umbraco hands back "#" for a culture with no route - no domain bound, or invariant content -
+    // and an option pointing at "#" would just be a dead end.
+    var languages = (await LanguageService.GetAllAsync())
+        .Select(language => new { language.IsoCode, Url = currentPage?.Url(language.IsoCode) })
+        .Where(language => string.IsNullOrEmpty(language.Url) is false && language.Url != "#")
+        .ToList();
+
+    var root = Model?.Root() ?? Umbraco.ContentAtRoot().FirstOrDefault();
+    var settings = root?.ChildrenOfType("settings").FirstOrDefault();
+
+    var siteName = settings?.Value<string>("siteName").IfNullOrWhiteSpace("NDSTK");
+    var footerText = settings?.Value<string>("footerText")
+        .IfNullOrWhiteSpace($"© {DateTime.UtcNow.Year} NDSTK Tennis Club — Serve. Volley. Repeat.");
+    var menu = settings?.Value<IEnumerable<IPublishedContent>>("menu") ?? [];
+    var loginPage = settings?.Value<IPublishedContent>("loginPage");
+    var widgets = settings?.Value<BlockListModel>("sidebarWidgets");
+
+    var metaTitle = Model?.Value<string>("metaTitle").IfNullOrWhiteSpace(Model?.Name).IfNullOrWhiteSpace(siteName);
+    var metaDescription = Model?.Value<string>("metaDescription");
+    var metaAuthor = Model?.Value<string>("metaAuthor");
+    var metaRobots = Model?.Value<string>("metaRobots").IfNullOrWhiteSpace("INDEX,FOLLOW");
+    var metaKeywords = string.Join(",", Model?.Value<IEnumerable<string>>("metaKeywords") ?? []);
+}
+
+<!DOCTYPE html>
+<html lang="@(currentCulture ?? "sv")">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="@metaDescription" />
+    <meta name="keywords" content="@metaKeywords" />
+    <meta name="robots" content="@metaRobots" />
+    <meta name="author" content="@metaAuthor" />
+    <title>@metaTitle</title>
+    <link href="~/static/css/site.css" rel="stylesheet" />
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div class="logo">
+                <a href="@(root?.Url() ?? "/")"><img src="~/static/img/ndstk-logo.png" alt="@siteName" /></a>
+            </div>
+            <nav>
+                <ul>
+                    <li><a href="/umbraco" target="_blank">backoffice</a></li>
+                    @if (languages.Count > 1)
+                    {
+                        <li>
+                            <select class="language-selector" onchange="window.location.href=this.value">
+                                @foreach (var language in languages)
+                                {
+                                    <option value="@language.Url" selected="@(currentCulture == language.IsoCode)">@language.IsoCode.ToUpperInvariant()</option>
+                                }
+                            </select>
+                        </li>
+                    }
+                    @foreach (var item in menu)
+                    {
+                        <li><a href="@item.Url()" title="@item.Name">@item.Name?.ToUpperInvariant()</a></li>
+                    }
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        @* Left column - the page's own content *@
+        @RenderBody()
+
+        @* Right column - site-wide widgets, configured on the Settings node *@
+        <aside>
+            @if (loginPage is not null)
+            {
+                <div class="widget widget--highlight">
+                    <h3>Medlem</h3>
+                    <p><a href="@loginPage.Url()" class="btn-primary">Logga in</a></p>
+                </div>
+            }
+            @foreach (var widget in widgets ?? Enumerable.Empty<BlockListItem>())
+            {
+                @await Html.PartialAsync($"blocklist/Components/{widget.Content.ContentType.Alias}", widget)
+            }
+        </aside>
+    </main>
+
+    <footer>
+        @footerText
+    </footer>
+</body>
+</html>

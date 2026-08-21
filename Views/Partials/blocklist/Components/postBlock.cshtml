@@ -1,0 +1,27 @@
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Core.Models.Blocks.BlockListItem>
+@{
+    var content = Model.Content;
+    var heading = content.Value<string>("heading");
+    var date = content.Value<DateTime?>("date");
+    var text = content.Value<string>("text");
+    var link = content.Value<IEnumerable<Umbraco.Cms.Core.Models.Link>>("link")?.FirstOrDefault();
+}
+
+<article class="post">
+    @if (!string.IsNullOrWhiteSpace(heading))
+    {
+        <h2>@heading</h2>
+    }
+    @if (date.HasValue && date.Value != default)
+    {
+        <small>@date.Value.ToString("d MMMM yyyy")</small>
+    }
+    @if (!string.IsNullOrWhiteSpace(text))
+    {
+        <p>@text</p>
+    }
+    @if (link is not null && !string.IsNullOrWhiteSpace(link.Url))
+    {
+        <p><a href="@link.Url" target="@link.Target">@link.Name</a></p>
+    }
+</article>

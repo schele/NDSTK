@@ -1,0 +1,17 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Root.cshtml";
+}
+
+<div class="content-blocks">
+    <section class="hero">
+        <div class="hero-content">
+            <h1>@(Model.Value<string>("heading").IfNullOrWhiteSpace(Model.Name))</h1>
+            <p>@(Model.Value<string>("description"))</p>
+        </div>
+    </section>
+
+    <article class="post">
+        <p>@(Model.Value<string>("subText"))</p>
+    </article>
+</div>

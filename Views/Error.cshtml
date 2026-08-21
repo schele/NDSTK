@@ -1,0 +1,14 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Root.cshtml";
+}
+
+<div class="content-blocks">
+    <section class="hero">
+        <div class="hero-content">
+            <h1>@(Model.Value<string>("heading").IfNullOrWhiteSpace("Sidan kan inte hittas"))</h1>
+            <p>@(Model.Value<string>("text"))</p>
+            <a href="@(Model.Root()?.Url() ?? "/")" class="btn-primary">Till startsidan</a>
+        </div>
+    </section>
+</div>

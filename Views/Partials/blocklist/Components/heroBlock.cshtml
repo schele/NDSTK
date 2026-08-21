@@ -1,0 +1,26 @@
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Core.Models.Blocks.BlockListItem>
+@{
+    var content = Model.Content;
+    var heading = content.Value<string>("heading");
+    var text = content.Value<string>("text");
+    var link = content.Value<IEnumerable<Umbraco.Cms.Core.Models.Link>>("link")?.FirstOrDefault();
+    var image = content.Value<IPublishedContent>("backgroundImage");
+    var style = image is null ? null : $"background-image:url('{image.Url()}');";
+}
+
+<section class="hero" style="@style">
+    <div class="hero-content">
+        @if (!string.IsNullOrWhiteSpace(heading))
+        {
+            <h1>@heading</h1>
+        }
+        @if (!string.IsNullOrWhiteSpace(text))
+        {
+            <p>@text</p>
+        }
+        @if (link is not null && !string.IsNullOrWhiteSpace(link.Url))
+        {
+            <a href="@link.Url" target="@link.Target" class="btn-primary">@link.Name</a>
+        }
+    </div>
+</section>

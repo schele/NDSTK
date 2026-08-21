@@ -1,0 +1,19 @@
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Core.Models.Blocks.BlockListItem>
+@{
+    var content = Model.Content;
+    var heading = content.Value<string>("heading");
+    var tags = content.Value<IEnumerable<string>>("tags") ?? [];
+}
+
+<div class="widget">
+    @if (!string.IsNullOrWhiteSpace(heading))
+    {
+        <h3>@heading</h3>
+    }
+    <div class="tags">
+        @foreach (var tag in tags)
+        {
+            <span class="tag">@tag</span>
+        }
+    </div>
+</div>

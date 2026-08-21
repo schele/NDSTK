@@ -1,0 +1,35 @@
+﻿@using Umbraco.Cms.Core.Strings
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Root.cshtml";
+    var date = Model.Value<DateTime?>("publishDate") ?? Model.CreateDate;
+    var image = Model.Value<IPublishedContent>("image");
+    var tags = Model.Value<IEnumerable<string>>("tags") ?? [];
+}
+
+<div class="content-blocks">
+    <article class="post">
+        <h1>@(Model.Value<string>("heading").IfNullOrWhiteSpace(Model.Name))</h1>
+        <small>@date.ToString("d MMMM yyyy")</small>
+
+        @if (image is not null)
+        {
+            <p><img src="@image.Url()" alt="@Model.Name" style="max-width:100%;height:auto;border-radius:6px;" /></p>
+        }
+
+        @(Model.Value<IHtmlEncodedString>("body"))
+    </article>
+
+    @if (tags.Any())
+    {
+        <div class="widget">
+            <h3>Tags</h3>
+            <div class="tags">
+                @foreach (var tag in tags)
+                {
+                    <span class="tag">@tag</span>
+                }
+            </div>
+        </div>
+    }
+</div>
