@@ -16,6 +16,7 @@ public sealed class NdstkContentModelComposer : IComposer
     {
         builder.Services.AddSingleton<NdstkContentTypeFactory>();
         builder.Services.AddSingleton<NdstkLanguageInstaller>();
+        builder.Services.AddSingleton<NdstkDictionaryInstaller>();
         builder.Services.AddSingleton<NdstkContentModelInstaller>();
         builder.Services.AddSingleton<NdstkContentSeeder>();
 

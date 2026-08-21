@@ -13,12 +13,14 @@ namespace NDSTK.ContentModel;
 internal sealed class NdstkContentModelInstaller(
     NdstkContentTypeFactory factory,
     NdstkLanguageInstaller languages,
+    NdstkDictionaryInstaller dictionary,
     IHostEnvironment hostEnvironment,
     ILogger<NdstkContentModelInstaller> logger)
 {
     public async Task InstallAsync()
     {
         await languages.InstallAsync();
+        await dictionary.InstallAsync();
 
         Dictionary<Guid, ITemplate> templates = await InstallTemplatesAsync();
 

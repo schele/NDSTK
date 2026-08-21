@@ -481,5 +481,8 @@ umbraco-package-schema.json
 # Media files
 /wwwroot/media/
 
+# ModelsBuilder auto-generated files (local build artifact, never committed)
+/umbraco/models/
+
 # Server-only secrets (DB connection string, etc) - never commit
 appsettings.Secrets.json
