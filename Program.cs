@@ -1,6 +1,12 @@
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
+// Server-only secrets (DB connection string, etc). Never committed, so absent locally and in CI.
+// Environment variables are re-applied afterwards so they still take precedence over the file.
+builder.Configuration
+    .AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
+
 builder.CreateUmbracoBuilder()
     .AddBackOffice()
     .AddWebsite()

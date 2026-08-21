@@ -480,3 +480,6 @@ umbraco-package-schema.json
 
 # Media files
 /wwwroot/media/
+
+# Server-only secrets (DB connection string, etc) - never commit
+appsettings.Secrets.json
