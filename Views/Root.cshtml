@@ -1,10 +1,13 @@
 ﻿@using Umbraco.Cms.Core.Models.Blocks
 @using Umbraco.Cms.Core.Services
 @using Umbraco.Cms.Core.Web
+@using Microsoft.Extensions.Options
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 
 @inject ILanguageService LanguageService
 @inject IUmbracoContextAccessor UmbracoContextAccessor
+@inject IConsentState Consent
+@inject IOptions<ConsentOptions> ConsentSettings
 
 @{
     var umbracoContext = UmbracoContextAccessor.GetRequiredUmbracoContext();
@@ -39,6 +42,12 @@
 <!DOCTYPE html>
 <html lang="@(currentCulture ?? "sv")">
 <head>
+    @if (string.IsNullOrWhiteSpace(ConsentSettings.Value.GoogleMeasurementId) is false)
+    {
+        <script>@Html.Raw(ConsentModeScript.Defaults())@Html.Raw(ConsentModeScript.Update(Consent))</script>
+        <consent-script category="Statistics" async
+                        src="https://www.googletagmanager.com/gtag/js?id=@ConsentSettings.Value.GoogleMeasurementId"></consent-script>
+    }
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="@metaDescription" />
