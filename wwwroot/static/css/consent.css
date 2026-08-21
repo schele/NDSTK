@@ -213,3 +213,32 @@
             flex: 1 1 auto;
         }
 }
+
+/* Cookie policy tables. Wide content scrolls inside its own container so the page body never does. */
+.cookie-table-wrapper {
+    overflow-x: auto;
+}
+
+.cookie-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+    .cookie-table th,
+    .cookie-table td {
+        text-align: left;
+        vertical-align: top;
+        padding: 0.5rem 0.65rem;
+        border-bottom: 1px solid #d5d7db;
+    }
+
+    .cookie-table th {
+        color: var(--primary);
+        border-bottom: 2px solid var(--accent);
+        white-space: nowrap;
+    }
+
+    .cookie-table code {
+        word-break: break-all;
+    }

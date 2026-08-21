@@ -1,4 +1,95 @@
+@using Umbraco.Cms.Core.Models.Blocks
+@using Umbraco.Cms.Core.Strings
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inject IConsentState Consent
 @{
     Layout = "Root.cshtml";
+
+    var declared = Model.Value<BlockListModel>("cookies") ?? new BlockListModel([]);
+    var byCategory = declared
+        .GroupBy(block => block.Content.Value<string>("category") ?? "necessary")
+        .ToDictionary(group => group.Key, group => group.ToList());
+
+    var granted = Consent.Decision?.Granted ?? new HashSet<ConsentCategory>();
 }
+
+<div class="content-blocks">
+    <article class="post">
+        <h1>@(Model.Value<string>("heading").IfNullOrWhiteSpace(Model.Name))</h1>
+        @(Model.Value<IHtmlEncodedString>("introduction"))
+    </article>
+
+    <article class="post">
+        <h2>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Policy.CurrentChoice", "Ditt nuvarande val"))</h2>
+        @if (Consent.NeedsDecision)
+        {
+            <p>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Policy.NoChoice", "Du har inte gjort något val än."))</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var category in ConsentCategories.All)
+                {
+                    var name = Umbraco.GetDictionaryValueOrDefault($"Cookies.Category.{category}.Name",
+                        ConsentCategories.ToWireName(category));
+                    var isOn = category == ConsentCategory.Necessary || granted.Contains(category);
+                    <li>@name: <strong>@(isOn ? "på" : "av")</strong></li>
+                }
+            </ul>
+        }
+        <p>
+            <button type="button" class="btn-primary" data-consent-open>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Policy.Reopen", "Ändra inställningar"))</button>
+            @if (Consent.NeedsDecision is false)
+            {
+                <button type="button" class="btn-secondary" data-consent-action="withdrawn">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Policy.Withdraw", "Återkalla samtycke"))</button>
+            }
+        </p>
+    </article>
+
+    @foreach (var category in ConsentCategories.All)
+    {
+        var wire = ConsentCategories.ToWireName(category);
+        if (byCategory.TryGetValue(wire, out var cookies) is false || cookies.Count == 0)
+        {
+            continue;
+        }
+
+        <article class="post">
+            <h2>@(Umbraco.GetDictionaryValueOrDefault($"Cookies.Category.{category}.Name", wire))</h2>
+            <p>@(Umbraco.GetDictionaryValueOrDefault($"Cookies.Category.{category}.Description", string.Empty))</p>
+
+            <div class="cookie-table-wrapper">
+                <table class="cookie-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Name", "Namn"))</th>
+                            <th scope="col">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Provider", "Leverantör"))</th>
+                            <th scope="col">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Purpose", "Syfte"))</th>
+                            <th scope="col">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Duration", "Lagringstid"))</th>
+                            <th scope="col">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Type", "Typ"))</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cookie in cookies)
+                        {
+                            <tr>
+                                <td><code>@(cookie.Content.Value<string>("cookieName"))</code></td>
+                                <td>@(cookie.Content.Value<string>("provider"))</td>
+                                <td>@(cookie.Content.Value<string>("purpose"))</td>
+                                <td>@(cookie.Content.Value<string>("duration"))</td>
+                                <td>@(cookie.Content.Value<string>("storageType"))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    }
+
+    @if (Model.Value<IHtmlEncodedString>("outro") is not null)
+    {
+        <article class="post">
+            @(Model.Value<IHtmlEncodedString>("outro"))
+        </article>
+    }
+</div>
