@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "steps": {
+    "build": {
+      "commands": [
+        "rm -rf obj bin",
+        "dotnet publish NDSTK.csproj -c Release -o out"
+      ]
+    }
+  }
+}
