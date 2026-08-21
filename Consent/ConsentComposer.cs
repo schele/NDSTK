@@ -15,5 +15,7 @@ public sealed class ConsentComposer : IComposer
             .BindConfiguration(ConsentOptions.SectionName);
 
         builder.Services.AddScoped<IConsentState, ConsentState>();
+
+        builder.Services.AddSingleton<ConsentCookieWriter>();
     }
 }

@@ -7,6 +7,19 @@ builder.Configuration
     .AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
 
+builder.Services.AddRateLimiter(rateLimiter =>
+{
+    rateLimiter.AddPolicy(NDSTK.Consent.ConsentRateLimiting.PolicyName, httpContext =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+});
+
 builder.CreateUmbracoBuilder()
     .AddBackOffice()
     .AddWebsite()
@@ -20,6 +33,8 @@ await app.BootUmbracoAsync();
 
 app.UseHttpsRedirection();
 
+app.UseRateLimiter();
+
 app.UseUmbraco()
     .WithMiddleware(u =>
     {
@@ -31,5 +46,7 @@ app.UseUmbraco()
         u.UseBackOfficeEndpoints();
         u.UseWebsiteEndpoints();
     });
+
+app.MapControllers();
 
 await app.RunAsync();
