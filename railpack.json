@@ -3,8 +3,14 @@
   "steps": {
     "build": {
       "commands": [
-        "rm -rf obj bin",
-        "dotnet publish NDSTK.csproj -c Release -o out"
+        "echo '--- stale dirs in build context ---'; ls -d out bin obj 2>/dev/null || echo 'none'",
+        "echo '--- stray assemblies in build context ---'; find . -maxdepth 3 -name '*.dll' -not -path './obj/*' -not -path './bin/*' -not -path './out/*' | head -20; true",
+        "echo '--- Program.cs being built ---'; head -12 Program.cs",
+        "rm -rf obj bin out",
+        "dotnet publish NDSTK.csproj -c Release -o out",
+        "echo -n 'CsvHelper entries in deps.json (expect 0): '; grep -o '\"CsvHelper[^\"]*\"' out/NDSTK.deps.json | sort -u | wc -l",
+        "echo -n 'Umbraco.Forms entries in deps.json (expect 0): '; grep -o '\"Umbraco.Forms[^\"]*\"' out/NDSTK.deps.json | sort -u | wc -l",
+        "echo -n 'stray Forms/Csv files in out/ (expect 0): '; ls out | grep -icE 'forms|csvhelper'; true"
       ]
     }
   }
