@@ -7,6 +7,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      tests/ holds its own project (NDSTK.Tests.csproj), nested under this project's directory.
+      Left unexcluded, the SDK's default **/*.cs glob would also pull in the test project's
+      sources and its generated obj/bin output once it has been built, breaking this build with
+      duplicate assembly attributes and references the test project needs but this one doesn't.
+    -->
+    <Compile Remove="tests/**" />
+    <Content Remove="tests/**" />
+    <EmbeddedResource Remove="tests/**" />
+    <None Remove="tests/**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Esatto.Umbraco.Backoffice.ContentTreeDragAndDrop" Version="2.0.0" />
     <PackageReference Include="Esatto.Umbraco.Backoffice.DictionaryFilterValues" Version="1.0.3" />
     <PackageReference Include="Esatto.Umbraco.Backoffice.MediaTreeDragAndDrop" Version="1.0.1" />
