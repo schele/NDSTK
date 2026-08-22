@@ -149,7 +149,16 @@
     //    which layer 1 cannot. After it, user activation exists and layer 1 handles the rest.
     if (dialog) {
         dialog.addEventListener('cancel', function (event) {
-            if (needsDecision) { event.preventDefault(); }
+            if (needsDecision === false) { return; }
+
+            event.preventDefault();
+
+            // Escape was swallowed, so the dialog stays put - but the keypress has switched the
+            // browser into keyboard modality, which makes :focus-visible start matching whatever
+            // already had focus. A control the visitor merely clicked (focused without a ring)
+            // suddenly grows one, reading as though Escape had selected it. Moving focus to the
+            // non-interactive heading leaves nothing for a ring to be drawn on.
+            focusHeading();
         });
 
         dialog.addEventListener('close', function () {
