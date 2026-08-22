@@ -53,60 +53,66 @@
         <h2 id="consent-dialog-heading" tabindex="-1" autofocus>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Heading", "Vi använder kakor"))</h2>
         <p>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Body", string.Empty))</p>
 
-        @foreach (var category in ConsentCategories.All)
-        {
-            var wire = ConsentCategories.ToWireName(category);
-            var isNecessary = category == ConsentCategory.Necessary;
-            var inputId = $"consent-cat-{wire}";
-            var categoryCookies = cookiesByCategory[category];
-            <fieldset class="consent-category">
-                <legend>@(Umbraco.GetDictionaryValueOrDefault($"Cookies.Category.{category}.Name", wire))</legend>
-                <div class="consent-category__row">
-                    <input type="checkbox"
-                           id="@inputId"
-                           value="@wire"
-                           data-consent-category-input
-                           checked="@(isNecessary || granted.Contains(category))"
-                           disabled="@isNecessary" />
-                    <label for="@inputId">
-                        @(Umbraco.GetDictionaryValueOrDefault($"Cookies.Category.{category}.Description", string.Empty))
-                    </label>
-                </div>
-                @if (categoryCookies.Count > 0)
-                {
-                    <details class="consent-category__cookies">
-                        <summary>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Category.Cookies", "Kakor i den här kategorin"))</summary>
-                        @foreach (var cookie in categoryCookies)
-                        {
-                            <dl class="consent-cookie">
-                                <dt>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Name", "Namn"))</dt>
-                                <dd>@cookie.Name</dd>
-                                @if (string.IsNullOrWhiteSpace(cookie.Provider) is false)
-                                {
-                                    <dt>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Provider", "Leverantör"))</dt>
-                                    <dd>@cookie.Provider</dd>
-                                }
-                                @if (string.IsNullOrWhiteSpace(cookie.Purpose) is false)
-                                {
-                                    <dt>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Purpose", "Syfte"))</dt>
-                                    <dd>@cookie.Purpose</dd>
-                                }
-                                @if (string.IsNullOrWhiteSpace(cookie.Duration) is false)
-                                {
-                                    <dt>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Duration", "Lagringstid"))</dt>
-                                    <dd>@cookie.Duration</dd>
-                                }
-                                @if (string.IsNullOrWhiteSpace(cookie.StorageType) is false)
-                                {
-                                    <dt>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Type", "Typ"))</dt>
-                                    <dd>@cookie.StorageType</dd>
-                                }
-                            </dl>
-                        }
-                    </details>
-                }
-            </fieldset>
-        }
+        @* First run shows only the two symmetric all-or-nothing choices, so a modal the visitor
+           cannot dismiss stays short. Per-category choice sits behind the settings affordance:
+           revealed by the Customise button on first run, and already open whenever the dialog is
+           reopened from the footer link. Server-rendered, so there is no flash of the wrong state. *@
+        <div class="consent-dialog__categories" data-consent-categories hidden="@needsDecision">
+            @foreach (var category in ConsentCategories.All)
+            {
+                var wire = ConsentCategories.ToWireName(category);
+                var isNecessary = category == ConsentCategory.Necessary;
+                var inputId = $"consent-cat-{wire}";
+                var categoryCookies = cookiesByCategory[category];
+                <fieldset class="consent-category">
+                    <legend>@(Umbraco.GetDictionaryValueOrDefault($"Cookies.Category.{category}.Name", wire))</legend>
+                    <div class="consent-category__row">
+                        <input type="checkbox"
+                               id="@inputId"
+                               value="@wire"
+                               data-consent-category-input
+                               checked="@(isNecessary || granted.Contains(category))"
+                               disabled="@isNecessary" />
+                        <label for="@inputId">
+                            @(Umbraco.GetDictionaryValueOrDefault($"Cookies.Category.{category}.Description", string.Empty))
+                        </label>
+                    </div>
+                    @if (categoryCookies.Count > 0)
+                    {
+                        <details class="consent-category__cookies">
+                            <summary>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Category.Cookies", "Kakor i den här kategorin"))</summary>
+                            @foreach (var cookie in categoryCookies)
+                            {
+                                <dl class="consent-cookie">
+                                    <dt>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Name", "Namn"))</dt>
+                                    <dd>@cookie.Name</dd>
+                                    @if (string.IsNullOrWhiteSpace(cookie.Provider) is false)
+                                    {
+                                        <dt>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Provider", "Leverantör"))</dt>
+                                        <dd>@cookie.Provider</dd>
+                                    }
+                                    @if (string.IsNullOrWhiteSpace(cookie.Purpose) is false)
+                                    {
+                                        <dt>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Purpose", "Syfte"))</dt>
+                                        <dd>@cookie.Purpose</dd>
+                                    }
+                                    @if (string.IsNullOrWhiteSpace(cookie.Duration) is false)
+                                    {
+                                        <dt>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Duration", "Lagringstid"))</dt>
+                                        <dd>@cookie.Duration</dd>
+                                    }
+                                    @if (string.IsNullOrWhiteSpace(cookie.StorageType) is false)
+                                    {
+                                        <dt>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Table.Type", "Typ"))</dt>
+                                        <dd>@cookie.StorageType</dd>
+                                    }
+                                </dl>
+                            }
+                        </details>
+                    }
+                </fieldset>
+            }
+        </div>
 
         <p class="consent-status" role="status" aria-live="polite" hidden data-consent-status></p>
 
@@ -115,7 +121,15 @@
             @* Reject shares accept's class deliberately: identical treatment, distinguished only by
                label, so neither option is nudged. *@
             <button type="button" class="btn-primary" data-consent-action="reject-all">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.RejectAll", "Neka alla"))</button>
-            <button type="button" class="btn-primary" data-consent-action="custom">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Save", "Spara val"))</button>
+            @* First run: reveals the category section and swaps itself for Save. On a reopen the
+               categories are already on screen, so there is nothing to reveal and it is not rendered. *@
+            @if (needsDecision)
+            {
+                <button type="button" class="btn-primary" data-consent-customise>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Customise", "Anpassa"))</button>
+            }
+            @* Saving a partial selection only means something once the categories are visible, so on
+               first run this stays hidden until Customise is pressed. *@
+            <button type="button" class="btn-primary" data-consent-action="custom" hidden="@needsDecision">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Save", "Spara val"))</button>
             @if (needsDecision is false)
             {
                 <button type="button" class="btn-primary" data-consent-close>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Cancel", "Avbryt"))</button>

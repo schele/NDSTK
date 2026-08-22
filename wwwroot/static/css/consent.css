@@ -153,6 +153,13 @@
         margin: 0.1rem 0 0;
     }
 
+/* An author-origin `display` beats the user agent's `[hidden] { display: none }`, and
+   .btn-primary sets `display: inline-block` - so `hidden` alone would leave the Save button and the
+   category section on screen. Stated once for the whole dialog rather than per element. */
+.consent-dialog [hidden] {
+    display: none;
+}
+
 .consent-dialog__actions {
     display: flex;
     gap: 0.75rem;

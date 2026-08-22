@@ -93,6 +93,32 @@
     }
 
     /**
+     * First run renders Accept all and Reject all only, plus the control that reveals per-category
+     * choice. Revealing swaps that control for Save and moves focus into the section it opened: the
+     * control the visitor just activated is about to be hidden, and focus left on a hidden element
+     * falls out of the modal entirely.
+     */
+    function revealCategories(trigger) {
+        if (!dialog) { return; }
+
+        var categories = dialog.querySelector('[data-consent-categories]');
+        var save = dialog.querySelector('[data-consent-action="custom"]');
+
+        if (categories) { categories.hidden = false; }
+        if (save) { save.hidden = false; }
+        if (trigger) { trigger.hidden = true; }
+
+        var firstInput = categories
+            && categories.querySelector('[data-consent-category-input]:not([disabled])');
+
+        if (firstInput && typeof firstInput.focus === 'function') {
+            firstInput.focus({ preventScroll: true });
+        } else {
+            focusHeading();
+        }
+    }
+
+    /**
      * @param {boolean} isReopen True only when reopening because the dialog was closed with no
      *   decision recorded. The focus reclaim is armed for that case ONLY: on a first open there is
      *   no restoration to fight, and arming it would steal the visitor's first deliberate click.
@@ -346,6 +372,9 @@
 
         var opener = target.closest('[data-consent-open]');
         if (opener) { event.preventDefault(); open(); return; }
+
+        var customiser = target.closest('[data-consent-customise]');
+        if (customiser) { event.preventDefault(); revealCategories(customiser); return; }
 
         var closer = target.closest('[data-consent-close]');
         if (closer) { event.preventDefault(); close(); return; }
