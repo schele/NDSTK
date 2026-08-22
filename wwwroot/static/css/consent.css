@@ -1,53 +1,5 @@
-/* Consent bar
-   A bar rather than a blocking modal: the "no cookies before a choice" guarantee is enforced
-   server-side, so blocking the page buys nothing and costs a great deal of accessibility. */
-.consent-bar {
-    position: fixed;
-    inset: auto 0 0 0;
-    z-index: 1000;
-    background: white;
-    border-top: 3px solid var(--accent);
-    box-shadow: 0 -2px 12px rgba(0,0,0,0.15);
-    padding: 1.25rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem 2rem;
-    align-items: center;
-    justify-content: space-between;
-    max-width: 100%;
-}
-
-/* `hidden` alone loses to the author-origin `display: flex` above - the UA stylesheet's
-   `[hidden] { display: none }` carries no `!important`, so it needs an explicit override here
-   to actually hide the bar once a decision is recorded. */
-.consent-bar[hidden] {
-    display: none;
-}
-
-.consent-bar__text {
-    flex: 1 1 22rem;
-}
-
-    .consent-bar__text h2 {
-        color: var(--primary);
-        margin: 0 0 0.35rem;
-        font-size: 1.15rem;
-    }
-
-    .consent-bar__text p {
-        margin: 0;
-        font-size: 0.95rem;
-    }
-
-.consent-bar__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    align-items: center;
-}
-
 /* Failure feedback for a save/withdraw request. Not an error banner in its own right - same text
-   colour as the rest of the bar/dialog - the message content is what signals "this went wrong". */
+   colour as the rest of the dialog - the message content is what signals "this went wrong". */
 .consent-status {
     flex: 1 1 100%;
     margin: 0;
@@ -78,8 +30,6 @@
         text-decoration: underline;
     }
 
-.consent-bar .btn-primary,
-.consent-bar .btn-secondary,
 .consent-dialog .btn-primary,
 .consent-dialog .btn-secondary,
 .consent-embed .btn-primary {
@@ -100,12 +50,15 @@
     cursor: pointer;
 }
 
-/* Settings dialog - native <dialog>, so focus trap, Esc and the inert backdrop come from the platform */
+/* First-run and settings dialog - a single native <dialog>, so focus trap, Esc and the inert
+   backdrop come from the platform. */
 .consent-dialog {
     border: none;
     border-radius: 8px;
     padding: 0;
     max-width: 34rem;
+    max-height: 90vh;
+    overflow-y: auto;
     width: calc(100% - 2rem);
     color: var(--text);
     background: white;
@@ -115,15 +68,19 @@
     background: rgba(0, 31, 84, 0.6);
 }
 
-.consent-dialog__form {
+.consent-dialog__body {
     padding: 1.5rem;
 }
 
-    .consent-dialog__form h2 {
+    .consent-dialog__body h2 {
         color: var(--primary);
         margin: 0 0 1rem;
         border-bottom: 2px solid var(--accent);
         padding-bottom: 0.5rem;
+    }
+
+    .consent-dialog__body > p {
+        margin: 0 0 1rem;
     }
 
 .consent-category {
@@ -153,8 +110,8 @@
         flex: 0 0 auto;
     }
 
-/* Per-category cookie list - lets a visitor inspect what a category covers without leaving the
-   dialog for the policy page. */
+/* Per-category cookie facts - lets a visitor inspect what a category covers without leaving the
+   dialog. Collapsed by default (see the <details> in the markup) to keep the modal compact. */
 .consent-category__cookies {
     margin-top: 0.6rem;
     font-size: 0.9rem;
@@ -166,13 +123,30 @@
         font-weight: 600;
     }
 
-    .consent-category__cookies ul {
+/* One definition list per cookie - stacked label/value pairs rather than a table, so the facts
+   stay readable at phone widths inside a modal a visitor cannot skip. */
+.consent-cookie {
+    margin: 0.6rem 0 0;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg);
+    border-radius: 4px;
+}
+
+    .consent-cookie dt {
         margin: 0.5rem 0 0;
-        padding-left: 1.25rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
     }
 
-    .consent-category__cookies li {
-        margin-bottom: 0.35rem;
+    .consent-cookie dt:first-child {
+        margin-top: 0;
+    }
+
+    .consent-cookie dd {
+        margin: 0.1rem 0 0;
     }
 
 .consent-dialog__actions {
@@ -183,7 +157,6 @@
 }
 
 /* Visible focus everywhere - this is a keyboard-driven component by design */
-.consent-bar :focus-visible,
 .consent-dialog :focus-visible,
 .consent-embed :focus-visible {
     outline: 3px solid var(--primary);
@@ -204,27 +177,6 @@
     aspect-ratio: 16 / 9;
     border: 0;
     border-radius: 6px;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-    .consent-bar {
-        animation: consent-bar-in 200ms ease-out;
-    }
-
-    @keyframes consent-bar-in {
-        from { transform: translateY(100%); }
-        to { transform: translateY(0); }
-    }
-}
-
-@media (max-width: 700px) {
-    .consent-bar__actions {
-        width: 100%;
-    }
-
-        .consent-bar__actions button {
-            flex: 1 1 auto;
-        }
 }
 
 /* Cookie policy tables. Wide content scrolls inside its own container so the page body never does. */

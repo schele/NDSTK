@@ -15,6 +15,7 @@
     var cookieName = script.getAttribute('data-consent-cookie') || 'ndstk-consent';
     var policyVersion = parseInt(script.getAttribute('data-consent-version') || '1', 10);
     var consentModeEnabled = script.getAttribute('data-consent-mode') === 'on';
+    var needsDecision = script.getAttribute('data-consent-needs-decision') === 'true';
     var errorMessage = script.getAttribute('data-consent-error-message') || 'Något gick fel. Försök igen.';
     var rateLimitedMessage = script.getAttribute('data-consent-rate-limited-message')
         || 'Du har försökt för många gånger. Vänta en stund och försök igen.';
@@ -55,14 +56,43 @@
     }
 
     var dialog = document.getElementById('consent-dialog');
-    var bar = document.querySelector('[data-consent-bar]');
+
+    /**
+     * True once the dialog actually occupies space in the layout - not merely `open`. Guards
+     * against a zero-height dialog (a stylesheet conflict, or one stripped by a browser
+     * extension) leaving the visitor stuck behind a dimmed, unusable page.
+     */
+    function isDisplayed(element) {
+        var box = element.getBoundingClientRect();
+        return box.width > 0 && box.height > 0;
+    }
 
     function open() {
         if (!dialog) { return; }
-        if (typeof dialog.showModal === 'function') {
-            dialog.showModal();
-        } else {
+
+        var dialogSupported = typeof HTMLDialogElement === 'function'
+            && typeof dialog.showModal === 'function';
+
+        if (!dialogSupported) {
+            // No native modal <dialog> support: still offer the choice, just not modally -
+            // an unusable site is worse than a non-blocking one.
+            if (window.console) {
+                console.warn('ndstk-consent: dialog.showModal is not supported; showing the cookie choice without blocking the page.');
+            }
             dialog.setAttribute('open', 'open');
+            return;
+        }
+
+        dialog.showModal();
+
+        if (!isDisplayed(dialog)) {
+            // showModal() ran but the dialog is not actually visible (a CSS conflict, a browser
+            // extension removed it, etc.). A dimmed, invisible modal traps the visitor worse
+            // than no consent UI at all, so fail open instead.
+            if (window.console) {
+                console.warn('ndstk-consent: the consent dialog could not be displayed; leaving the page usable.');
+            }
+            dialog.close();
         }
     }
 
@@ -75,7 +105,16 @@
         }
     }
 
-    /** Turn inert `type="text/plain"` placeholders into live scripts for the granted categories. */
+    // While no decision has been made yet, there is nothing to cancel back to: suppress the
+    // Escape key (which fires a cancelable 'cancel' event on a modal <dialog>) so the choice
+    // cannot be dismissed for free. Once a decision exists, Escape behaves normally.
+    if (dialog) {
+        dialog.addEventListener('cancel', function (event) {
+            if (needsDecision) { event.preventDefault(); }
+        });
+    }
+
+    /** Turn inert type="text/plain" placeholders into live scripts for the granted categories. */
     function activateScripts() {
         var blocked = document.querySelectorAll('script[type="text/plain"][data-consent-category]');
 
@@ -178,14 +217,13 @@
             return response.json();
         }).then(function () {
             close();
-            if (bar) { bar.hidden = true; }
             clearStatus();
             activateScripts();
             updateConsentMode();
             announce();
             return true;
         }).catch(function (error) {
-            // Leave the bar in place: a failed request must not read as a recorded choice.
+            // Leave the dialog in place: a failed request must not read as a recorded choice.
             if (window.console) { console.error(error); }
             showStatus(error && error.status === 429 ? rateLimitedMessage : errorMessage);
             return false;
@@ -235,6 +273,9 @@
     // Anything already granted from a previous visit becomes live on this page load too.
     activateScripts();
     updateConsentMode();
+
+    // No decision yet: block the site until one is made.
+    if (needsDecision) { open(); }
 
     window.ndstkConsent = {
         open: open,
