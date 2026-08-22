@@ -35,6 +35,11 @@ await app.BootUmbracoAsync();
 
 app.UseHttpsRedirection();
 
+// Narrowly scoped to front-end HTML (see the middleware's own remarks for why): registered this
+// early so its Response.OnStarting callback is queued well before anything downstream starts
+// writing the response body.
+app.UseMiddleware<NDSTK.Consent.VaryByConsentCookieMiddleware>();
+
 // UseUmbraco().WithMiddleware(...) runs UseRouting() (plus Umbraco's own auth/session/website
 // middleware) internally before returning, and WithEndpoints(...) below is what finally calls
 // UseEndpoints(). UseRateLimiter() has to sit after routing has resolved an endpoint (it reads
