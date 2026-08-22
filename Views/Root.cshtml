@@ -44,7 +44,14 @@
 <head>
     @if (string.IsNullOrWhiteSpace(ConsentSettings.Value.GoogleMeasurementId) is false)
     {
-        <script>@Html.Raw(ConsentModeScript.Defaults())@Html.Raw(ConsentModeScript.Update(Consent))</script>
+        @* Consent default must run before anything else Google-related. Update runs again here,
+           synchronously, straight after Defaults - even though consent.js also calls it once the
+           page has loaded - because Defaults leaves a 500ms wait_for_update window during which
+           gtag.js (once it loads) would otherwise see only the "denied" defaults. Emitting the real
+           per-request state immediately closes that window rather than relying on consent.js's later
+           call, which may run after gtag.js has already sent its first, wrongly-denied signals.
+           Do not delete this as a duplicate of consent.js's call. *@
+        <script>@Html.Raw(ConsentModeScript.Defaults())@Html.Raw(ConsentModeScript.Update(Consent))@Html.Raw(ConsentModeScript.Config(ConsentSettings.Value.GoogleMeasurementId!))</script>
         <consent-script category="Statistics" async
                         src="https://www.googletagmanager.com/gtag/js?id=@ConsentSettings.Value.GoogleMeasurementId"></consent-script>
     }

@@ -1,9 +1,10 @@
 using System.Text;
+using System.Text.Json;
 
 namespace NDSTK.Consent;
 
 /// <summary>
-/// Builds the Google Consent Mode v2 <c>default</c> and <c>update</c> calls.
+/// Builds the Google Consent Mode v2 <c>default</c>, <c>update</c> and tag <c>config</c> calls.
 /// </summary>
 /// <remarks>
 /// The default call must run before any Google tag loads, which is why it is emitted inline in
@@ -43,6 +44,19 @@ public static class ConsentModeScript
             .Append("});")
             .ToString();
     }
+
+    /// <summary>
+    /// Registers the destination and fires the initial page view. Safe to emit unconditionally
+    /// alongside <see cref="Defaults"/> and <see cref="Update"/>, even before - or if never - the
+    /// actual gtag.js library loads: <c>gtag()</c> only pushes onto <c>dataLayer</c>, which the
+    /// <see cref="Defaults"/> preamble defines regardless of whether the library is present, so this
+    /// call simply waits in the queue until (and unless) the tag loads and replays it.
+    /// </summary>
+    public static string Config(string measurementId) =>
+        // JsonSerializer's default encoder escapes '<', '>', '&' and other HTML-sensitive characters,
+        // which is what makes it safe to splice a JSON string literal into an inline <script> block
+        // without a separate JavaScript/HTML encoding step.
+        $"gtag('js',new Date());gtag('config',{JsonSerializer.Serialize(measurementId)});";
 
     private static string Signal(bool granted) => granted ? "granted" : "denied";
 }
