@@ -24,6 +24,9 @@
     // handler from reopening an invisible modal in a loop.
     var blockingAbandoned = false;
 
+    // Armed by open(); consumed by the first focus change after it. See the 'focusin' handler.
+    var reclaimFocus = false;
+
     var listeners = [];
 
     function readCookie() {
@@ -71,6 +74,18 @@
         return box.width > 0 && box.height > 0;
     }
 
+    /**
+     * Put focus on the dialog's heading. The heading carries tabindex="-1" and is not interactive,
+     * so focus starts inside the dialog - keeping the focus trap and screen-reader announcement -
+     * without any control appearing pre-selected.
+     */
+    function focusHeading() {
+        if (!dialog || dialog.open === false) { return; }
+
+        var heading = dialog.querySelector('#consent-dialog-heading');
+        if (heading && typeof heading.focus === 'function') { heading.focus(); }
+    }
+
     function open() {
         if (!dialog) { return; }
 
@@ -88,6 +103,15 @@
         }
 
         dialog.showModal();
+
+        // Closing a <dialog> restores focus to whatever was focused before it opened, and that can
+        // land after this handler has run - stealing focus back to the control the visitor had
+        // clicked, which then shows a focus ring on, say, the cookie-list summary. Racing it with a
+        // timer is unreliable, so arm a one-shot reclaim instead: focus the heading now, then take
+        // focus back from whatever grabs it next. Ordering-independent, and it disarms immediately
+        // so ordinary tabbing afterwards is untouched.
+        focusHeading();
+        reclaimFocus = true;
 
         if (!isDisplayed(dialog)) {
             // showModal() ran but the dialog is not actually visible (a CSS conflict, a browser
@@ -128,6 +152,15 @@
             // blockingAbandoned means open() already determined the dialog cannot be displayed and
             // closed it on purpose. Reopening then would loop forever on an invisible modal.
             if (needsDecision && blockingAbandoned === false) { open(); }
+        });
+
+        // The one-shot reclaim armed by open(). Fires for the browser's post-close focus
+        // restoration and hands focus back to the heading, then disarms.
+        dialog.addEventListener('focusin', function (event) {
+            if (reclaimFocus === false) { return; }
+
+            reclaimFocus = false;
+            if (event.target !== dialog.querySelector('#consent-dialog-heading')) { focusHeading(); }
         });
     }
 
