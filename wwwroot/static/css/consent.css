@@ -11,7 +11,31 @@
     display: none;
 }
 
-/* Accept and reject must be visually equal. Same box, different colour - nothing else. */
+/* Accept and reject share .btn-primary, so they are genuinely identical and distinguished only by
+   their labels. An earlier version gave reject the solid navy .btn-secondary: the box metrics
+   matched, but --accent is far more salient than --primary on white, so equal size with unequal
+   colour salience is not equal weight - and the navy button read as "already selected". */
+
+/* Subordinate action: "Spara val" and "Avbryt" only matter once the checkboxes have been touched,
+   so they must not compete with the two one-click choices. Transparent with a navy outline. */
+.btn-outline {
+    display: inline-block;
+    background: transparent;
+    color: var(--primary);
+    padding: 0.6rem 1.2rem;
+    border: 2px solid var(--primary);
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 1rem;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+    .btn-outline:hover {
+        background: var(--primary);
+        color: white;
+    }
+
 .btn-secondary {
     display: inline-block;
     background: var(--primary);
@@ -38,6 +62,10 @@
     font-size: 1rem;
     font-family: inherit;
     cursor: pointer;
+}
+
+.consent-dialog .btn-outline {
+    margin-top: 0;
 }
 
 .btn-link {

@@ -107,11 +107,13 @@
 
         <div class="consent-dialog__actions">
             <button type="button" class="btn-primary" data-consent-action="accept-all">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.AcceptAll", "Godkänn alla"))</button>
-            <button type="button" class="btn-secondary" data-consent-action="reject-all">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.RejectAll", "Neka alla"))</button>
-            <button type="button" class="btn-primary" data-consent-action="custom">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Save", "Spara val"))</button>
+            @* Reject shares accept's class deliberately: identical treatment, distinguished only by
+               label, so neither option is nudged. *@
+            <button type="button" class="btn-primary" data-consent-action="reject-all">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.RejectAll", "Neka alla"))</button>
+            <button type="button" class="btn-outline" data-consent-action="custom">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Save", "Spara val"))</button>
             @if (needsDecision is false)
             {
-                <button type="button" class="btn-secondary" data-consent-close>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Cancel", "Avbryt"))</button>
+                <button type="button" class="btn-outline" data-consent-close>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Cancel", "Avbryt"))</button>
             }
         </div>
     </div>
