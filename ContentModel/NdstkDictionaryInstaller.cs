@@ -11,6 +11,11 @@ namespace NDSTK.ContentModel;
 /// <remarks>
 /// Dictionary items are culture-variant regardless of document type variance, which is what lets the
 /// banner be bilingual while the content types remain invariant.
+/// <para>
+/// Every item is filed under a single <see cref="ParentKey" /> node. Umbraco dictionary keys are
+/// global rather than path-based, so nesting is presentation only - it keeps 33 items from sitting
+/// loose at the root of the Dictionary tree without changing a single lookup.
+/// </para>
 /// </remarks>
 internal sealed class NdstkDictionaryInstaller(
     IDictionaryItemService dictionaryItemService,
@@ -18,6 +23,9 @@ internal sealed class NdstkDictionaryInstaller(
     ILogger<NdstkDictionaryInstaller> logger)
 {
     private static readonly Guid UserKey = Constants.Security.SuperUserKey;
+
+    /// <summary>Parent node for every item below. Holds no translations: it is a folder, not a label.</summary>
+    private const string ParentKey = "Cookie.Banner";
 
     /// <summary>Key, Swedish, English. Swedish first because it is the default language.</summary>
     private static readonly (string Key, string Sv, string En)[] Items =
@@ -82,11 +90,20 @@ internal sealed class NdstkDictionaryInstaller(
             return;
         }
 
+        Guid? parentId = await EnsureParentAsync();
+
         var created = 0;
+        var adopted = 0;
         foreach ((string key, string sv, string en) in Items)
         {
-            if (await dictionaryItemService.ExistsAsync(key))
+            IDictionaryItem? existing = await dictionaryItemService.GetAsync(key);
+            if (existing is not null)
             {
+                if (await TryAdoptAsync(existing, parentId))
+                {
+                    adopted++;
+                }
+
                 continue;
             }
 
@@ -100,7 +117,7 @@ internal sealed class NdstkDictionaryInstaller(
                 translations.Add(new DictionaryTranslation(english, en));
             }
 
-            var item = new DictionaryItem(key) { Translations = translations };
+            var item = new DictionaryItem(parentId, key) { Translations = translations };
 
             var attempt = await dictionaryItemService.CreateAsync(item, UserKey);
             if (attempt.Success is false)
@@ -116,5 +133,66 @@ internal sealed class NdstkDictionaryInstaller(
         {
             logger.LogInformation("Seeded {Count} cookie dictionary items.", created);
         }
+
+        if (adopted > 0)
+        {
+            logger.LogInformation(
+                "Filed {Count} existing cookie dictionary items under '{Parent}'.", adopted, ParentKey);
+        }
+    }
+
+    /// <summary>
+    /// Returns the id of the parent node, creating it if absent. Returns null when it cannot be
+    /// created: seeding the text still matters more than where the items sit in the tree.
+    /// </summary>
+    private async Task<Guid?> EnsureParentAsync()
+    {
+        IDictionaryItem? existing = await dictionaryItemService.GetAsync(ParentKey);
+        if (existing is not null)
+        {
+            return existing.Key;
+        }
+
+        // No translations. The tree labels a node by its key, so this reads as "Cookie.Banner" while
+        // staying invisible to Umbraco.GetDictionaryValue - nothing renders it.
+        var parent = new DictionaryItem(ParentKey) { Translations = [] };
+
+        var attempt = await dictionaryItemService.CreateAsync(parent, UserKey);
+        if (attempt.Success is false)
+        {
+            logger.LogWarning(
+                "Could not create the '{Parent}' dictionary parent: {Status}. Items stay at the root.",
+                ParentKey,
+                attempt.Status);
+            return null;
+        }
+
+        return attempt.Result?.Key;
+    }
+
+    /// <summary>
+    /// Files an item that is still at the root under the parent - the one-off tidy for items seeded
+    /// before this grouping existed. An item an editor has deliberately moved somewhere else is left
+    /// where they put it: this seeder creates and tidies, it does not enforce a shape on every boot.
+    /// </summary>
+    private async Task<bool> TryAdoptAsync(IDictionaryItem item, Guid? parentId)
+    {
+        if (parentId is null || item.ParentId is not null)
+        {
+            return false;
+        }
+
+        var attempt = await dictionaryItemService.MoveAsync(item, parentId, UserKey);
+        if (attempt.Success)
+        {
+            return true;
+        }
+
+        logger.LogWarning(
+            "Could not file dictionary item {Key} under '{Parent}': {Status}.",
+            item.ItemKey,
+            ParentKey,
+            attempt.Status);
+        return false;
     }
 }
