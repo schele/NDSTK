@@ -86,7 +86,12 @@
         if (heading && typeof heading.focus === 'function') { heading.focus(); }
     }
 
-    function open() {
+    /**
+     * @param {boolean} isReopen True only when reopening because the dialog was closed with no
+     *   decision recorded. The focus reclaim is armed for that case ONLY: on a first open there is
+     *   no restoration to fight, and arming it would steal the visitor's first deliberate click.
+     */
+    function open(isReopen) {
         if (!dialog) { return; }
 
         var dialogSupported = typeof HTMLDialogElement === 'function'
@@ -106,12 +111,11 @@
 
         // Closing a <dialog> restores focus to whatever was focused before it opened, and that can
         // land after this handler has run - stealing focus back to the control the visitor had
-        // clicked, which then shows a focus ring on, say, the cookie-list summary. Racing it with a
-        // timer is unreliable, so arm a one-shot reclaim instead: focus the heading now, then take
-        // focus back from whatever grabs it next. Ordering-independent, and it disarms immediately
-        // so ordinary tabbing afterwards is untouched.
+        // clicked, which then shows a focus ring on it. Racing it with a timer is unreliable, so on
+        // a reopen arm a one-shot reclaim instead: focus the heading, then take focus back from
+        // whatever grabs it next. Ordering-independent, and it disarms immediately.
         focusHeading();
-        reclaimFocus = true;
+        if (isReopen === true) { reclaimFocus = true; }
 
         if (!isDisplayed(dialog)) {
             // showModal() ran but the dialog is not actually visible (a CSS conflict, a browser
@@ -151,7 +155,7 @@
         dialog.addEventListener('close', function () {
             // blockingAbandoned means open() already determined the dialog cannot be displayed and
             // closed it on purpose. Reopening then would loop forever on an invisible modal.
-            if (needsDecision && blockingAbandoned === false) { open(); }
+            if (needsDecision && blockingAbandoned === false) { open(true); }
         });
 
         // The one-shot reclaim armed by open(). Fires for the browser's post-close focus
@@ -160,7 +164,12 @@
             if (reclaimFocus === false) { return; }
 
             reclaimFocus = false;
-            if (event.target !== dialog.querySelector('#consent-dialog-heading')) { focusHeading(); }
+            if (event.target === dialog.querySelector('#consent-dialog-heading')) { return; }
+
+            // Blur first: that clears the ring the browser has already drawn on the control,
+            // rather than leaving it painted while focus moves elsewhere.
+            if (event.target && typeof event.target.blur === 'function') { event.target.blur(); }
+            focusHeading();
         });
     }
 
