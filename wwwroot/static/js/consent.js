@@ -83,7 +83,13 @@
         if (!dialog || dialog.open === false) { return; }
 
         var heading = dialog.querySelector('#consent-dialog-heading');
-        if (heading && typeof heading.focus === 'function') { heading.focus(); }
+        if (!heading || typeof heading.focus !== 'function') { return; }
+
+        // preventScroll matters: the dialog scrolls internally, and focusing an element scrolls it
+        // into view by default. Without this, pressing Escape part-way down the cookie list yanked
+        // the dialog back to the top. Older browsers ignore the options object and simply scroll,
+        // which is the pre-existing behaviour rather than a new failure.
+        heading.focus({ preventScroll: true });
     }
 
     /**
