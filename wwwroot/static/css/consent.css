@@ -184,11 +184,20 @@
     margin-top: 1.25rem;
 }
 
-/* Visible focus everywhere - this is a keyboard-driven component by design */
+/* Visible focus everywhere - this is a keyboard-driven component by design. Do not remove: a
+   consent dialog that blocks the page and gives no focus indication is unusable by keyboard. */
 .consent-dialog :focus-visible,
 .consent-embed :focus-visible {
     outline: 3px solid var(--primary);
     outline-offset: 2px;
+}
+
+/* The heading takes focus when the dialog opens, purely so focus starts inside the dialog. It is
+   not interactive and cannot be tabbed to, so a ring on it would signal a control that is not
+   there. Every actual control keeps its ring via the rule above. */
+.consent-dialog__body h2:focus,
+.consent-dialog__body h2:focus-visible {
+    outline: none;
 }
 
 /* Blocked embed placeholder */

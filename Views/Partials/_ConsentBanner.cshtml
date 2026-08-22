@@ -45,7 +45,12 @@
 
 <dialog id="consent-dialog" class="consent-dialog" aria-labelledby="consent-dialog-heading">
     <div class="consent-dialog__body">
-        <h2 id="consent-dialog-heading">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Heading", "Vi använder kakor"))</h2>
+        @* showModal() always moves focus, to the first autofocus element or else the first focusable
+           one. Without this it landed on the first <summary> and drew a focus ring, which read as a
+           control being pre-selected. Focusing the heading instead keeps focus inside the dialog -
+           so screen readers announce it and the focus trap holds - while no control looks chosen.
+           tabindex="-1" makes a non-interactive element focusable without adding it to the tab order. *@
+        <h2 id="consent-dialog-heading" tabindex="-1" autofocus>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Heading", "Vi använder kakor"))</h2>
         <p>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Body", string.Empty))</p>
 
         @foreach (var category in ConsentCategories.All)
