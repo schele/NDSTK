@@ -11,8 +11,9 @@ namespace NDSTK.ContentModel;
 /// <summary>
 /// Fills a brand new site with the start page from the previous NDSTK build - hero, news list,
 /// sidebar widgets, settings and a few articles - so the design is visible without any manual
-/// setup. Runs only while the content tree is completely empty, so it never touches a site that
-/// already has content.
+/// setup. The full seed runs only while the content tree is completely empty, so it never rewrites
+/// a site that already has content. Against an already-installed site it does exactly one thing -
+/// see <see cref="EnsureCookiePolicyPage"/> - and touches nothing else.
 /// </summary>
 internal sealed class NdstkContentSeeder(
     IContentService contentService,
@@ -31,6 +32,11 @@ internal sealed class NdstkContentSeeder(
     {
         if (contentService.GetRootContent().Any())
         {
+            // The tree already has content from before this feature existed, so none of the
+            // full first-run seeding below applies - but the site still needs somewhere for the
+            // consent banner's "read more" link to point at. This is the only part of an
+            // already-installed site this seeder ever touches.
+            EnsureCookiePolicyPage();
             return;
         }
 
@@ -126,6 +132,34 @@ internal sealed class NdstkContentSeeder(
         return settings;
     }
 
+    /// <summary>
+    /// Runs on every start against a site that already has content, so an install that predates
+    /// this feature does not end up with a consent banner and no page for it to link to. Idempotent:
+    /// once the page exists, this just finds it by key and does nothing on every later restart.
+    /// </summary>
+    private void EnsureCookiePolicyPage()
+    {
+        if (contentService.GetById(Nodes.CookiePolicy) is not null)
+        {
+            return;
+        }
+
+        IContent? root = contentService.GetRootContent().FirstOrDefault();
+        if (root is null)
+        {
+            // Nothing to parent it to. Should not happen given the caller only reaches here when
+            // GetRootContent().Any() was true, but a stale/mutated read is not worth a crash.
+            return;
+        }
+
+        IContent policy = SeedCookiePolicy(root);
+        Publish(policy);
+
+        logger.LogInformation(
+            "Created and published the cookie policy page '{Name}' under '{Root}' for an already-installed site.",
+            policy.Name, root.Name);
+    }
+
     private IContent SeedCookiePolicy(IContent start)
     {
         IContent policy = Create("Cookies", start.Id, "cookiePolicy", Nodes.CookiePolicy);
@@ -136,7 +170,7 @@ internal sealed class NdstkContentSeeder(
         policy.SetValue("outro",
             "<p>Du kan även blockera och radera kakor i din webbläsares inställningar. Har du frågor, " +
             "kontakta oss på <a href=\"mailto:info@ndstk.se\">info@ndstk.se</a>. Du kan läsa mer om kakor " +
-            "hos Integritetsskyddsmyndigheten.</p>");
+            "hos <a href=\"https://www.imy.se/\">Integritetsskyddsmyndigheten</a>.</p>");
 
         // Only what this site genuinely sets today. An invented table would be worse than a short one.
         policy.SetValue("cookies", BlockList(
