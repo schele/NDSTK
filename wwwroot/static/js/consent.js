@@ -217,6 +217,12 @@
             return response.json();
         }).then(function () {
             close();
+
+            // A decision now demonstrably exists (the server accepted it and set the cookie):
+            // Escape and the cancel affordance behave normally on any future reopen this page.
+            // The Cancel button itself is server-rendered and stays absent until the next
+            // navigation - only Escape-suppression needs to be lifted here.
+            needsDecision = false;
             clearStatus();
             activateScripts();
             updateConsentMode();
