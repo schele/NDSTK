@@ -13,6 +13,12 @@ namespace NDSTK.Consent.TagHelpers;
 [HtmlTargetElement("consent-script")]
 public sealed class ConsentScriptTagHelper(IConsentState consent) : TagHelper
 {
+    /// <summary>The consent category this element is gated on.</summary>
+    /// <remarks>
+    /// In Razor, the attribute value must exactly match the PascalCase enum member name, e.g.
+    /// <c>category="Statistics"</c>, not <c>category="statistics"</c>. Tag-helper attribute
+    /// codegen binds this case-sensitively, so a lowercase value fails at compile time with CS0117.
+    /// </remarks>
     [HtmlAttributeName("category")]
     public ConsentCategory Category { get; set; } = ConsentCategory.Marketing;
 
