@@ -6,9 +6,18 @@
     Layout = "Root.cshtml";
 
     var declared = Model.Value<BlockListModel>("cookies") ?? new BlockListModel([]);
-    var byCategory = declared
-        .GroupBy(block => block.Content.Value<string>("category") ?? "necessary")
-        .ToDictionary(group => group.Key, group => group.ToList());
+
+    // A null or unrecognised category must not default to "necessary": that would show a cookie as
+    // needing no consent while the gating code would never grant it. Unparsable entries are dropped,
+    // matching how _ConsentBanner.cshtml handles the same data.
+    var byCategory = ConsentCategories.All.ToDictionary(category => category, _ => new List<BlockListItem>());
+    foreach (var block in declared)
+    {
+        if (ConsentCategories.TryParse(block.Content.Value<string>("category"), out var parsedCategory))
+        {
+            byCategory[parsedCategory].Add(block);
+        }
+    }
 
     var granted = Consent.Decision?.Granted ?? new HashSet<ConsentCategory>();
 }
@@ -49,7 +58,8 @@
     @foreach (var category in ConsentCategories.All)
     {
         var wire = ConsentCategories.ToWireName(category);
-        if (byCategory.TryGetValue(wire, out var cookies) is false || cookies.Count == 0)
+        var cookies = byCategory[category];
+        if (cookies.Count == 0)
         {
             continue;
         }
