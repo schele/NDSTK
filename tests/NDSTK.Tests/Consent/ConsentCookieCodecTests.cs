@@ -28,8 +28,11 @@ public class ConsentCookieCodecTests
     {
         var encoded = ConsentCookieCodec.Encode(Decision(ConsentCategory.Necessary, ConsentCategory.Marketing));
 
-        Assert.DoesNotContain("necessary", Uri.UnescapeDataString(encoded));
-        Assert.Contains("marketing", Uri.UnescapeDataString(encoded));
+        // Encode produces plain JSON - Response.Cookies.Append does the one and only URL-encoding
+        // pass - so asserting against the escaped form here would hide a regression back to double
+        // encoding.
+        Assert.DoesNotContain("necessary", encoded);
+        Assert.Contains("marketing", encoded);
     }
 
     [Fact]
@@ -55,13 +58,26 @@ public class ConsentCookieCodecTests
     [Fact]
     public void Ignores_unknown_categories()
     {
-        var json = Uri.EscapeDataString(
-            """{"v":1,"t":"2026-08-21T09:12:33+00:00","c":["statistics","telepathy"],"id":"abc123"}""");
+        // Plain JSON, exactly the shape Request.Cookies hands to Decode in production - never
+        // percent-encoded, since the framework already decoded it once by the time Decode sees it.
+        var json = """{"v":1,"t":"2026-08-21T09:12:33+00:00","c":["statistics","telepathy"],"id":"abc123"}""";
 
         ConsentDecision? decoded = ConsentCookieCodec.Decode(json);
 
         Assert.NotNull(decoded);
         Assert.Equal([ConsentCategory.Statistics], decoded.Granted.ToArray());
+    }
+
+    [Fact]
+    public void A_url_encoded_cookie_value_does_not_decode_to_a_decision()
+    {
+        // Pins the corrected contract: if Decode is ever made to unescape again - reintroducing the
+        // double-decode bug - a value that has already been through one round of percent-encoding
+        // would start parsing successfully again. It must not.
+        var encoded = ConsentCookieCodec.Encode(Decision(ConsentCategory.Statistics));
+        var doubleEncoded = Uri.EscapeDataString(encoded);
+
+        Assert.Null(ConsentCookieCodec.Decode(doubleEncoded));
     }
 
     [Fact]

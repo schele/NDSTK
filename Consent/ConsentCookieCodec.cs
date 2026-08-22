@@ -47,8 +47,11 @@ public static class ConsentCookieCodec
 
         try
         {
-            var json = Uri.UnescapeDataString(cookieValue);
-            ConsentCookieDto? dto = JsonSerializer.Deserialize<ConsentCookieDto>(json, SerializerOptions);
+            // Plain JSON in, plain JSON out: Request.Cookies already URL-decodes the raw header once,
+            // so unescaping here too would be a second decode. A value that has been through an extra
+            // round of percent-encoding (i.e. does not start with '{') is exactly the shape a
+            // double-encode bug would produce, and it must fail to parse rather than silently succeed.
+            ConsentCookieDto? dto = JsonSerializer.Deserialize<ConsentCookieDto>(cookieValue, SerializerOptions);
 
             if (dto is null || dto.Version <= 0 || string.IsNullOrWhiteSpace(dto.ConsentId))
             {
@@ -67,7 +70,7 @@ public static class ConsentCookieCodec
 
             return new ConsentDecision(dto.Version, dto.DecidedAt, granted, dto.ConsentId);
         }
-        catch (Exception exception) when (exception is JsonException or UriFormatException or ArgumentException)
+        catch (Exception exception) when (exception is JsonException or ArgumentException)
         {
             return null;
         }
