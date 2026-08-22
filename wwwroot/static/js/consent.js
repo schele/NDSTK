@@ -20,6 +20,10 @@
     var rateLimitedMessage = script.getAttribute('data-consent-rate-limited-message')
         || 'Du har försökt för många gånger. Vänta en stund och försök igen.';
 
+    // Set only when open() finds the dialog cannot actually be displayed. Stops the 'close'
+    // handler from reopening an invisible modal in a loop.
+    var blockingAbandoned = false;
+
     var listeners = [];
 
     function readCookie() {
@@ -92,6 +96,7 @@
             if (window.console) {
                 console.warn('ndstk-consent: the consent dialog could not be displayed; leaving the page usable.');
             }
+            blockingAbandoned = true;
             dialog.close();
         }
     }
@@ -105,12 +110,24 @@
         }
     }
 
-    // While no decision has been made yet, there is nothing to cancel back to: suppress the
-    // Escape key (which fires a cancelable 'cancel' event on a modal <dialog>) so the choice
-    // cannot be dismissed for free. Once a decision exists, Escape behaves normally.
+    // While no decision has been made yet, there is nothing to cancel back to, so Escape must not
+    // dismiss the choice. Two layers are needed, because one is not enough:
+    //
+    // 1. preventDefault() on 'cancel'. This works once the visitor has interacted with the page,
+    //    but browsers deliberately ignore it for a dialog opened WITHOUT user activation - which is
+    //    exactly our case, since the dialog opens on load. That is anti-abuse behaviour by design
+    //    (a page must not be able to trap you), so it cannot be argued with.
+    // 2. Reopen on 'close' whenever no decision has been recorded. That covers the first Escape,
+    //    which layer 1 cannot. After it, user activation exists and layer 1 handles the rest.
     if (dialog) {
         dialog.addEventListener('cancel', function (event) {
             if (needsDecision) { event.preventDefault(); }
+        });
+
+        dialog.addEventListener('close', function () {
+            // blockingAbandoned means open() already determined the dialog cannot be displayed and
+            // closed it on purpose. Reopening then would loop forever on an invisible modal.
+            if (needsDecision && blockingAbandoned === false) { open(); }
         });
     }
 
@@ -216,13 +233,17 @@
             }
             return response.json();
         }).then(function () {
-            close();
-
             // A decision now demonstrably exists (the server accepted it and set the cookie):
             // Escape and the cancel affordance behave normally on any future reopen this page.
             // The Cancel button itself is server-rendered and stays absent until the next
             // navigation - only Escape-suppression needs to be lifted here.
+            //
+            // This must be cleared BEFORE close(), because the 'close' handler reopens the dialog
+            // whenever it closes with no decision recorded. Closing first would bounce it straight
+            // back open on the success path.
             needsDecision = false;
+
+            close();
             clearStatus();
             activateScripts();
             updateConsentMode();
