@@ -46,6 +46,19 @@
     align-items: center;
 }
 
+/* Failure feedback for a save/withdraw request. Not an error banner in its own right - same text
+   colour as the rest of the bar/dialog - the message content is what signals "this went wrong". */
+.consent-status {
+    flex: 1 1 100%;
+    margin: 0;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.consent-status[hidden] {
+    display: none;
+}
+
 /* Accept and reject must be visually equal. Same box, different colour - nothing else. */
 .btn-secondary {
     display: inline-block;

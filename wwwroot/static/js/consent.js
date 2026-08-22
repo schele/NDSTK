@@ -15,6 +15,9 @@
     var cookieName = script.getAttribute('data-consent-cookie') || 'ndstk-consent';
     var policyVersion = parseInt(script.getAttribute('data-consent-version') || '1', 10);
     var consentModeEnabled = script.getAttribute('data-consent-mode') === 'on';
+    var errorMessage = script.getAttribute('data-consent-error-message') || 'Något gick fel. Försök igen.';
+    var rateLimitedMessage = script.getAttribute('data-consent-rate-limited-message')
+        || 'Du har försökt för många gånger. Vänta en stund och försök igen.';
 
     var listeners = [];
 
@@ -126,6 +129,36 @@
         });
     }
 
+    function statusElements() {
+        return document.querySelectorAll('[data-consent-status]');
+    }
+
+    function actionButtons() {
+        return document.querySelectorAll('[data-consent-action]');
+    }
+
+    /** role="status"/aria-live elements, so screen reader users hear a failure too, not just see it. */
+    function showStatus(message) {
+        Array.prototype.forEach.call(statusElements(), function (element) {
+            element.textContent = message;
+            element.hidden = false;
+        });
+    }
+
+    function clearStatus() {
+        Array.prototype.forEach.call(statusElements(), function (element) {
+            element.textContent = '';
+            element.hidden = true;
+        });
+    }
+
+    /** Prevents a double-click (or a slow request plus an impatient second click) from firing twice. */
+    function setActionButtonsDisabled(disabled) {
+        Array.prototype.forEach.call(actionButtons(), function (button) {
+            button.disabled = disabled;
+        });
+    }
+
     function send(action, categories) {
         return fetch(endpoint, {
             method: 'POST',
@@ -137,11 +170,16 @@
                 culture: document.documentElement.lang || null
             })
         }).then(function (response) {
-            if (!response.ok) { throw new Error('Consent request failed: ' + response.status); }
+            if (!response.ok) {
+                var error = new Error('Consent request failed: ' + response.status);
+                error.status = response.status;
+                throw error;
+            }
             return response.json();
         }).then(function () {
             close();
             if (bar) { bar.hidden = true; }
+            clearStatus();
             activateScripts();
             updateConsentMode();
             announce();
@@ -149,21 +187,33 @@
         }).catch(function (error) {
             // Leave the bar in place: a failed request must not read as a recorded choice.
             if (window.console) { console.error(error); }
+            showStatus(error && error.status === 429 ? rateLimitedMessage : errorMessage);
             return false;
         });
     }
 
     function decide(action) {
-        if (action === 'accept-all') { return send(action, ['preferences', 'statistics', 'marketing']); }
-        if (action === 'reject-all') { return send(action, []); }
-        if (action === 'withdrawn') {
+        clearStatus();
+        setActionButtonsDisabled(true);
+
+        var result;
+        if (action === 'accept-all') { result = send(action, ['preferences', 'statistics', 'marketing']); }
+        else if (action === 'reject-all') { result = send(action, []); }
+        else if (action === 'withdrawn') {
             // Reload only on success: `send` resolves false (never rejects) on a failed
             // request, and a failed withdrawal must not look like a completed one.
-            return send(action, []).then(function (succeeded) {
+            result = send(action, []).then(function (succeeded) {
                 if (succeeded) { window.location.reload(); }
+                return succeeded;
             });
+        } else {
+            result = send('custom', selectedCategories());
         }
-        return send('custom', selectedCategories());
+
+        return result.then(function (succeeded) {
+            setActionButtonsDisabled(false);
+            return succeeded;
+        });
     }
 
     document.addEventListener('click', function (event) {

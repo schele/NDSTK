@@ -57,6 +57,7 @@
             <button type="button" class="btn-secondary" data-consent-action="reject-all">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.RejectAll", "Neka alla"))</button>
             <button type="button" class="btn-link" data-consent-open>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Customise", "Anpassa"))</button>
         </div>
+        <p class="consent-status" role="status" aria-live="polite" hidden data-consent-status></p>
     </div>
 }
 
@@ -98,6 +99,8 @@
             </fieldset>
         }
 
+        <p class="consent-status" role="status" aria-live="polite" hidden data-consent-status></p>
+
         <div class="consent-dialog__actions">
             <button type="button" class="btn-primary" data-consent-action="custom">@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Save", "Spara val"))</button>
             <button type="button" class="btn-secondary" data-consent-close>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Cancel", "Avbryt"))</button>
@@ -109,4 +112,6 @@
         data-consent-endpoint="/api/consent"
         data-consent-cookie="@settings.CookieName"
         data-consent-version="@settings.PolicyVersion"
-        data-consent-mode="@(string.IsNullOrWhiteSpace(settings.GoogleMeasurementId) ? "off" : "on")"></script>
+        data-consent-mode="@(string.IsNullOrWhiteSpace(settings.GoogleMeasurementId) ? "off" : "on")"
+        data-consent-error-message="@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.Error", "Något gick fel. Försök igen."))"
+        data-consent-rate-limited-message="@(Umbraco.GetDictionaryValueOrDefault("Cookies.Banner.RateLimited", "Du har försökt för många gånger. Vänta en stund och försök igen."))"></script>
