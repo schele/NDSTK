@@ -17,6 +17,15 @@ public sealed class BookingRecord
     [Index(IndexTypes.NonClustered, Name = "IX_ndstkBooking_MemberKey")]
     public Guid MemberKey { get; set; }
 
+    /// <summary>
+    /// The child this place is for. Nullable only so the migration can add the column before the
+    /// backfill fills it in; every row written after the backfill has one.
+    /// </summary>
+    [Column(nameof(ParticipantKey))]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    [Index(IndexTypes.NonClustered, Name = "IX_ndstkBooking_ParticipantKey")]
+    public Guid? ParticipantKey { get; set; }
+
     [Column(nameof(ClassKey))]
     [Index(IndexTypes.NonClustered, Name = "IX_ndstkBooking_ClassKey")]
     public Guid ClassKey { get; set; }

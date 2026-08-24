@@ -34,6 +34,13 @@ public sealed class PaymentRecord
     [Column(nameof(MembershipFeeOre))]
     public int MembershipFeeOre { get; set; }
 
+    /// <summary>
+    /// The family supplement part of the total. Kept separate so the backoffice can answer "how
+    /// much, and for what" without inferring anything from the total.
+    /// </summary>
+    [Column(nameof(FamilyFeeOre))]
+    public int FamilyFeeOre { get; set; }
+
     [Column(nameof(ClassFeeOre))]
     public int ClassFeeOre { get; set; }
 

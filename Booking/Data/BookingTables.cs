@@ -6,4 +6,5 @@ internal static class BookingTables
     internal const string Booking = "ndstkBooking";
     internal const string Payment = "ndstkPayment";
     internal const string Credit = "ndstkBookingCredit";
+    internal const string Participant = "ndstkParticipant";
 }
