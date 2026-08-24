@@ -1,0 +1,11 @@
+@{
+    // Every hand-written view here also sets this inline, so this file exists for the one view
+    // NDSTK does not write: Esatto.Umbraco.Backoffice.CookieBanner installs a physical
+    // Views/CookiePolicy.cshtml on first boot and deliberately sets no Layout, on the stated
+    // assumption that the consuming site has a _ViewStart. Without this file the cookie policy
+    // page renders with no <html>, no stylesheet and no chrome - and, because Root.cshtml is what
+    // carries <consent-banner />, no consent dialog in the DOM. The policy page's own "change
+    // settings" button would then be a dead control, silently: the package's consent.js opens with
+    // `if (!dialog) { return; }`.
+    Layout = "Root.cshtml";
+}
