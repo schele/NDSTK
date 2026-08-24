@@ -1,0 +1,66 @@
+/* NDSTK's theming of Esatto.Umbraco.Backoffice.CookieBanner.
+ *
+ * The package ships a self-sufficient stylesheet and documents exactly one supported way to
+ * re-theme it: redeclare its --consent-* tokens, never override its rules. Everything below is
+ * either a token redeclaration or a rule about NDSTK's own footer, which the package knows
+ * nothing about. If a future change here needs a `.consent-*` selector, that is the signal the
+ * package is missing a token - add the token there rather than an override here.
+ *
+ * Load order matters and is set in Root.cshtml: site.css, then <consent-head />, then this file.
+ * The package declares its tokens on :root, so an override of equal specificity only wins by
+ * being declared later.
+ */
+
+:root {
+    /* Map the package onto NDSTK's palette: navy --primary, yellow --accent. */
+    --consent-heading: var(--primary);
+    --consent-text: var(--text);
+    --consent-muted: var(--muted);
+    --consent-surface-subtle: var(--bg);
+    --consent-focus: var(--primary);
+
+    /* The 2px emphasis rule under dialog headings and table headers, in brand yellow. */
+    --consent-rule: var(--accent);
+
+    /* Navy scrim rather than the package's neutral one, so the page behind the dialog does not
+       read as somebody else's brand. Matches --primary #001F54 at the package's own 0.6 alpha. */
+    --consent-backdrop: rgba(0, 31, 84, 0.6);
+
+    /* Every decision button is yellow-on-navy. Accept and reject share the primary treatment, so
+       they stay genuinely identical and are distinguished only by their labels - a more salient
+       button beside a quieter one reads as "already selected", which is not a free choice.
+       Secondary is deliberately given the same fill rather than the package's outlined variant:
+       the only secondary control on this site is Withdraw on the policy page, and an outlined
+       button there looked unfinished next to the filled one beside it. */
+    --consent-btn-primary-bg: var(--accent);
+    --consent-btn-primary-fg: var(--primary);
+    --consent-btn-primary-border: var(--accent);
+    --consent-btn-secondary-bg: var(--accent);
+    --consent-btn-secondary-fg: var(--primary);
+    --consent-btn-secondary-border: var(--accent);
+    --consent-btn-link-fg: var(--primary);
+}
+
+/* The footer is solid navy, so the near-navy default would be invisible there. Scoping the token
+   to the footer is the package's documented route - the same button keeps its normal colour on
+   the policy page, where the background is light. */
+footer {
+    --consent-btn-link-fg: white;
+}
+
+/* site.css's `a:hover` resolves to var(--primary) - navy - which vanishes against the navy
+   footer, so a footer link disappeared on hover. `footer a` alone does not fix it: a:hover is a
+   hover-state rule and wins on hover regardless of source order, so the hover state has to be
+   named explicitly. Nothing to do with the package; this bug predates it. */
+footer a,
+footer a:hover,
+footer a:focus-visible {
+    color: white;
+    text-decoration: underline;
+}
+
+/* The footer now carries two paragraphs (the notice, then the consent controls) rather than one
+   bare text node, and site.css's default paragraph margins are too loose for that. */
+footer p {
+    margin: 0.25rem 0;
+}

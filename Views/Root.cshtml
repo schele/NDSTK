@@ -29,6 +29,14 @@
     var loginPage = settings?.Value<IPublishedContent>("loginPage");
     var widgets = settings?.Value<BlockListModel>("sidebarWidgets");
 
+    // The package resolves its own policy page internally, but that resolver is package-internal,
+    // so the footer link below does its own by-type lookup. DescendantsOfType comes from
+    // FriendlyPublishedContentExtensions, which resolves the navigation and published-status
+    // services itself - nothing needs injecting here, exactly as ChildrenOfType above.
+    var cookiePage = Umbraco.ContentAtRoot()
+        .SelectMany(node => node.DescendantsOfType("cookiePolicy"))
+        .FirstOrDefault(page => page.IsPublished());
+
     var metaTitle = Model?.Value<string>("metaTitle").IfNullOrWhiteSpace(Model?.Name).IfNullOrWhiteSpace(siteName);
     var metaDescription = Model?.Value<string>("metaDescription");
     var metaAuthor = Model?.Value<string>("metaAuthor");
@@ -47,8 +55,16 @@
     <meta name="author" content="@metaAuthor" />
     <title>@metaTitle</title>
     <link href="~/static/css/site.css" rel="stylesheet" />
+    <consent-head />
+    @* After <consent-head /> deliberately. The package themes through --consent-* custom
+       properties declared on :root, so an override of equal specificity only wins by being
+       declared later - putting this link first would silently lose every token. *@
+    <link href="~/static/css/consent-overrides.css" rel="stylesheet" />
 </head>
 <body>
+    @* First in <body> so the dialog is reachable in DOM tab order. *@
+    <consent-banner />
+
     <header>
         <div class="header-container">
             <div class="logo">
@@ -98,7 +114,14 @@
     </main>
 
     <footer>
-        @footerText
+        <p>@footerText</p>
+        <p>
+            <button type="button" class="consent-btn consent-btn--link" data-consent-open>@(Umbraco.GetDictionaryValueOrDefault("Cookies.Footer.Link", "Cookieinställningar"))</button>
+            @if (cookiePage is not null)
+            {
+                <a href="@cookiePage.Url()">@cookiePage.Name</a>
+            }
+        </p>
     </footer>
 </body>
 </html>

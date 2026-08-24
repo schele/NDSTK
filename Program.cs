@@ -1,4 +1,6 @@
 
+using Esatto.Umbraco.Backoffice.CookieBanner;
+
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // Server-only secrets (DB connection string, etc). Never committed, so absent locally and in CI.
@@ -17,6 +19,10 @@ WebApplication app = builder.Build();
 
 
 await app.BootUmbracoAsync();
+
+// Maps the endpoint the consent dialog posts decisions to. Must sit after BootUmbracoAsync()
+// and before UseUmbraco(); without it the dialog renders but Accept and Reject do nothing.
+app.UseCookieConsent();
 
 app.UseHttpsRedirection();
 
