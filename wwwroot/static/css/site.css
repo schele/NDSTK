@@ -464,3 +464,128 @@ footer {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* Mocked Swish payment */
+.swish {
+    max-width: 380px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.swish__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.swish__logo {
+    height: 2rem;
+    width: auto;
+}
+
+/* Says plainly that no money moves. Nobody should mistake this for a real payment. */
+.swish__demo {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--accent);
+    color: var(--primary);
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-weight: 700;
+}
+
+.swish__amount {
+    font-size: 2.4rem;
+    margin: 0.25rem 0 1rem;
+    color: var(--primary);
+}
+
+.swish__lines {
+    list-style: none;
+    margin: 0 0 1rem;
+    padding: 0;
+    text-align: left;
+    font-size: 0.95rem;
+}
+
+    .swish__lines li {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.35rem 0;
+        border-bottom: 1px dashed #ddd;
+    }
+
+.swish__what {
+    font-weight: 600;
+    margin: 0 0 1rem;
+}
+
+.swish__qr {
+    width: 160px;
+    height: 160px;
+    margin: 0 auto 1rem;
+    border: 3px solid var(--primary);
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    background:
+        repeating-linear-gradient(90deg, var(--primary) 0 8px, transparent 8px 16px),
+        repeating-linear-gradient(0deg, var(--primary) 0 8px, transparent 8px 16px);
+    background-color: #fff;
+}
+
+.swish__qr-inner {
+    background: #fff;
+    padding: 0.4rem 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--primary);
+}
+
+.swish__reference {
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+    .swish__reference code {
+        font-size: 0.75rem;
+        word-break: break-all;
+    }
+
+.swish__hold {
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.swish__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    align-items: center;
+    margin: 1.2rem 0;
+}
+
+.swish__note {
+    font-size: 0.8rem;
+    color: var(--muted);
+    border-top: 1px solid #ddd;
+    padding-top: 0.8rem;
+}
+
+.booking-list__cancel {
+    background: none;
+    border: 1px solid #b00020;
+    color: #b00020;
+    border-radius: 3px;
+    padding: 0.15rem 0.5rem;
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+    .booking-list__cancel:hover {
+        background: #fdecee;
+    }

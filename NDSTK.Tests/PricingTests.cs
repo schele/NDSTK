@@ -53,6 +53,44 @@ public class PricingTests
         Assert.Equal(15_000, quote.MembershipDueOre);
     }
 
+    // A lapsed member renews on their next booking - but the welcome price is once per account for
+    // life, so renewal is the full class price. 150 + 200, never 150 + 100.
+    [Fact]
+    public void A_lapsed_member_renewing_pays_the_fee_plus_the_full_class_price()
+    {
+        BookingQuote quote = Pricing.Quote(
+            Member(Today.AddDays(-1), discountUsed: true), Prices, useCredit: false, Today);
+
+        Assert.Equal(15_000, quote.MembershipDueOre);
+        Assert.Equal(20_000, quote.ClassFeeOre);
+        Assert.Equal(35_000, quote.TotalOre);
+    }
+
+    // The one case where a lapsed member does get the welcome price: they never had it. Someone who
+    // registered, never booked, and let a comped membership lapse is still a first-timer.
+    [Fact]
+    public void A_lapsed_member_who_never_used_the_discount_still_gets_it()
+    {
+        BookingQuote quote = Pricing.Quote(
+            Member(Today.AddDays(-1), discountUsed: false), Prices, useCredit: false, Today);
+
+        Assert.Equal(15_000, quote.MembershipDueOre);
+        Assert.Equal(10_000, quote.ClassFeeOre);
+        Assert.Equal(25_000, quote.TotalOre);
+    }
+
+    // Expiry is a cliff, not a taper: a year lapsed costs the same as a day lapsed.
+    [Fact]
+    public void How_long_ago_the_membership_lapsed_does_not_change_the_price()
+    {
+        BookingQuote yesterday = Pricing.Quote(
+            Member(Today.AddDays(-1), discountUsed: true), Prices, useCredit: false, Today);
+        BookingQuote longAgo = Pricing.Quote(
+            Member(Today.AddDays(-900), discountUsed: true), Prices, useCredit: false, Today);
+
+        Assert.Equal(yesterday.TotalOre, longAgo.TotalOre);
+    }
+
     [Fact]
     public void Paid_up_member_spending_a_credit_owes_nothing_and_skips_payment()
     {

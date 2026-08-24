@@ -3,7 +3,9 @@ using Microsoft.Extensions.Options;
 using NDSTK.Booking.Domain;
 using Umbraco.Cms.Core.Configuration.Models;
 using Umbraco.Cms.Core.Mail;
+using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.Email;
+using Umbraco.Cms.Core.Services;
 
 namespace NDSTK.Booking.Services;
 
@@ -19,6 +21,7 @@ namespace NDSTK.Booking.Services;
 /// </remarks>
 public sealed class BookingMailService(
     IEmailSender emailSender,
+    IMemberService memberService,
     IOptionsMonitor<GlobalSettings> globalSettings,
     IHostEnvironment hostEnvironment,
     ILogger<BookingMailService> logger)
@@ -28,6 +31,24 @@ public sealed class BookingMailService(
 
     public Task SendVerificationAsync(string toEmail, string verificationUrl)
         => SendAsync(toEmail, MailTemplates.Verification(verificationUrl));
+
+    /// <summary>
+    /// Reminds a member about a class. Takes the member's key rather than an address because the
+    /// reminder job works from booking rows, which carry the key and not the email.
+    /// </summary>
+    public async Task SendClassReminderAsync(
+        Guid memberKey, string classTitle, DateTime startUtc, string? location)
+    {
+        IMember? member = (await memberService.GetByKeysAsync(memberKey)).FirstOrDefault();
+        if (member?.Email is not { Length: > 0 } email)
+        {
+            logger.LogWarning(
+                "Cannot send a reminder to member {MemberKey}: no email address on record.", memberKey);
+            return;
+        }
+
+        await SendAsync(email, MailTemplates.ClassReminder(classTitle, startUtc, location, null));
+    }
 
     private async Task SendAsync(string toEmail, MailContent content)
     {

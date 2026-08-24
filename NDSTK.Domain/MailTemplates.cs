@@ -35,6 +35,42 @@ public static class MailTemplates
                 """));
     }
 
+    /// <summary>
+    /// Sent by the reminder job the configured number of hours before a class.
+    /// </summary>
+    /// <remarks>
+    /// The time is rendered in Swedish local time, not UTC. A reminder that said "16:00" for a class
+    /// that starts at 18:00 would send members to the courts two hours early - which is the whole
+    /// reason the stored instant is UTC and the display is converted.
+    /// </remarks>
+    public static MailContent ClassReminder(
+        string classTitle, DateTime startUtc, string? location, string? portalUrl)
+    {
+        var title = WebUtility.HtmlEncode(classTitle);
+        DateTime local = SwedishTime.ToSwedish(startUtc);
+        var when = local.ToString("dddd d MMMM 'kl.' HH:mm", Swedish);
+
+        var locationLine = string.IsNullOrWhiteSpace(location)
+            ? string.Empty
+            : $"<p>Plats: {WebUtility.HtmlEncode(location)}</p>";
+
+        var portalLine = string.IsNullOrWhiteSpace(portalUrl)
+            ? string.Empty
+            : $"""<p><a href="{WebUtility.HtmlEncode(portalUrl)}" style="{ButtonStyle}">Mina sidor</a></p>""";
+
+        return new MailContent(
+            $"Påminnelse: {classTitle} hos {ClubName} imorgon",
+            Wrap($"""
+                <p>Hej! Det här är en påminnelse om din träning.</p>
+                <p><strong>{title}</strong><br />{when}</p>
+                {locationLine}
+                <p>Vi ses på banan!</p>
+                {portalLine}
+                """));
+    }
+
+    private static readonly System.Globalization.CultureInfo Swedish = new("sv-SE");
+
     private const string ButtonStyle =
         "display:inline-block;padding:12px 20px;background:#001F54;color:#F7E300;"
         + "text-decoration:none;border-radius:4px;font-weight:600;";

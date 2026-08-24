@@ -1,0 +1,111 @@
+﻿@using NDSTK.Booking.Domain
+@using NDSTK.Booking.Web
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Root.cshtml";
+
+    var pay = ViewData["SwishPayment"] as SwishPaymentViewModel;
+    var culture = new System.Globalization.CultureInfo("sv-SE");
+
+    string Kr(int ore) => (ore / 100).ToString("N0", culture);
+    var portalPage = Model.Root()?.ChildrenOfType("memberPortal").FirstOrDefault();
+}
+
+<div class="content-blocks">
+    <article class="post">
+        @if (pay is null)
+        {
+            @* Also what an unowned or unknown reference gets: saying "not yours" would let a
+               reference be probed for existence. *@
+            <h1>Betalningen hittades inte</h1>
+            <p class="form-notice form-notice--error" role="alert">
+                Vi kan inte hitta den betalningen. Prova att boka träningen igen.
+            </p>
+            @if (portalPage is not null)
+            {
+                <p><a href="@portalPage.Url()" class="btn-primary">Till mina sidor</a></p>
+            }
+        }
+        else if (pay.IsPending is false)
+        {
+            <h1>Betalningen är avslutad</h1>
+            <p class="form-notice form-notice--ok" role="status">
+                Den här betalningen är redan @(pay.IsPaid ? "genomförd" : "avslutad").
+            </p>
+            @if (portalPage is not null)
+            {
+                <p><a href="@portalPage.Url()" class="btn-primary">Till mina sidor</a></p>
+            }
+        }
+        else
+        {
+            <div class="swish">
+                <div class="swish__head">
+                    <img src="~/static/img/swish-logo.png" alt="Swish" class="swish__logo" />
+                    <span class="swish__demo">Demoläge</span>
+                </div>
+
+                <h1 class="swish__amount">@Kr(pay.AmountOre) kr</h1>
+
+                <ul class="swish__lines">
+                    @if (pay.MembershipFeeOre > 0)
+                    {
+                        <li><span>Årsavgift</span><span>@Kr(pay.MembershipFeeOre) kr</span></li>
+                    }
+                    @if (pay.ClassFeeOre > 0)
+                    {
+                        <li><span>Träningsavgift</span><span>@Kr(pay.ClassFeeOre) kr</span></li>
+                    }
+                    else
+                    {
+                        <li><span>Träningsavgift</span><span>Tillgodoträning</span></li>
+                    }
+                </ul>
+
+                @if (pay.ClassTitle is { Length: > 0 } title)
+                {
+                    <p class="swish__what">
+                        @title@(pay.ClassStartUtc is { } start
+                            ? $" · {SwedishTime.ToSwedish(start).ToString("d MMMM HH:mm", culture)}"
+                            : "")
+                    </p>
+                }
+
+                @* Stand-in for the real Swish QR code. Deliberately obviously fake. *@
+                <div class="swish__qr" aria-hidden="true">
+                    <div class="swish__qr-inner">DEMO</div>
+                </div>
+
+                <p class="swish__reference">
+                    Referens<br /><code>@pay.Reference</code>
+                </p>
+
+                <p class="swish__hold">
+                    Platsen är reserverad i @pay.MinutesLeft
+                    @(pay.MinutesLeft == 1 ? "minut" : "minuter") till.
+                </p>
+
+                <div class="swish__actions">
+                    @using (Html.BeginUmbracoForm<SwishPaymentSurfaceController>(
+                        nameof(SwishPaymentSurfaceController.SimulatePaid)))
+                    {
+                        <input type="hidden" name="reference" value="@pay.Reference" />
+                        <button type="submit" class="btn-primary">Simulera betalning</button>
+                    }
+
+                    @using (Html.BeginUmbracoForm<SwishPaymentSurfaceController>(
+                        nameof(SwishPaymentSurfaceController.SimulateCancelled)))
+                    {
+                        <input type="hidden" name="reference" value="@pay.Reference" />
+                        <button type="submit" class="consent-btn consent-btn--link">Simulera avbrott</button>
+                    }
+                </div>
+
+                <p class="swish__note">
+                    Swish är inte kopplat än. Knapparna ovan står för det svar appen skulle ha
+                    skickat tillbaka.
+                </p>
+            </div>
+        }
+    </article>
+</div>

@@ -19,6 +19,7 @@ internal static class NdstkKeys
         internal static readonly Guid MemberRegister = new("b1e10002-0000-4000-8000-000000000001");
         internal static readonly Guid MemberVerify = new("b1e10002-0000-4000-8000-000000000002");
         internal static readonly Guid MemberPortal = new("b1e10002-0000-4000-8000-000000000003");
+        internal static readonly Guid SwishPayment = new("b1e10002-0000-4000-8000-000000000004");
     }
 
     internal static class DocumentTypes
@@ -35,6 +36,7 @@ internal static class NdstkKeys
         internal static readonly Guid MemberPortal = new("b1e10001-0000-4000-8000-000000000003");
         internal static readonly Guid TrainingClasses = new("b1e10001-0000-4000-8000-000000000004");
         internal static readonly Guid TrainingClass = new("b1e10001-0000-4000-8000-000000000005");
+        internal static readonly Guid SwishPayment = new("b1e10001-0000-4000-8000-000000000006");
     }
 
     /// <summary>
@@ -101,5 +103,6 @@ internal static class NdstkKeys
         internal static readonly Guid ExampleClass1 = new("c0117e17-0000-4000-8000-00000000000a");
         internal static readonly Guid ExampleClass2 = new("c0117e17-0000-4000-8000-00000000000b");
         internal static readonly Guid ExampleClass3 = new("c0117e17-0000-4000-8000-00000000000c");
+        internal static readonly Guid SwishPayment = new("c0117e17-0000-4000-8000-00000000000d");
     }
 }

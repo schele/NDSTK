@@ -1,6 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using NDSTK.Booking.Data;
 using NDSTK.Booking.Data.Migrations;
+using NDSTK.Booking.Jobs;
+using NDSTK.Booking.Notifications;
+using NDSTK.Booking.Payments;
 using NDSTK.Booking.Services;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
@@ -25,5 +28,18 @@ public sealed class BookingComposer : IComposer
         builder.Services.AddScoped<BookingMailService>();
         builder.Services.AddScoped<TrainingClassService>();
         builder.Services.AddScoped<IBookingRepository, BookingRepository>();
+        builder.Services.AddScoped<BookingService>();
+
+        // The mock is registered as THE payment provider. Swapping in a real Swish integration is
+        // this one line plus a new IPaymentProvider implementation.
+        builder.Services.AddSingleton<IPaymentProvider, SwishMockPaymentProvider>();
+
+        // Recurring: sends class reminders and releases abandoned payment holds.
+        builder.Services.AddRecurringBackgroundJob<ClassReminderJob>();
+
+        // Keeps bookings in step when an editor moves, unpublishes or deletes a class.
+        builder.AddNotificationAsyncHandler<ContentPublishedNotification, TrainingClassChangedHandler>();
+        builder.AddNotificationAsyncHandler<ContentUnpublishedNotification, TrainingClassChangedHandler>();
+        builder.AddNotificationAsyncHandler<ContentDeletedNotification, TrainingClassChangedHandler>();
     }
 }

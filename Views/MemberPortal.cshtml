@@ -29,6 +29,15 @@
     }
     else
     {
+        @if (TempData["BookingMessage"] is string bookingMessage)
+        {
+            <div class="form-notice form-notice--ok" role="status">@bookingMessage</div>
+        }
+        @if (TempData["BookingError"] is string bookingError)
+        {
+            <div class="form-notice form-notice--error" role="alert">@bookingError</div>
+        }
+
         @* Reminder banner. Portal-only by design, and a pure read of the bookings list below, so
            the two can never disagree about what is coming up. *@
         @foreach (var reminder in portal.ReminderBookings)
@@ -50,6 +59,14 @@
                 <p class="form-notice form-notice--ok">
                     Årsavgiften är betald@(portal.Membership.PaidUntil is { } until
                         ? $" till och med {until:yyyy-MM-dd}" : "").
+                </p>
+            }
+            else if (portal.Membership.HasLapsed)
+            {
+                <p class="form-notice form-notice--error" role="status">
+                    Ditt medlemskap gick ut @(portal.Membership.PaidUntil?.ToString("yyyy-MM-dd")).
+                    Årsavgiften på @Kr(portal.Prices.MembershipFeeOre) kr förnyas automatiskt när du
+                    bokar din nästa träning.
                 </p>
             }
             else
@@ -102,6 +119,20 @@
                             @if (row.Class is null)
                             {
                                 <span class="tag">Träningen är borttagen</span>
+                            }
+                            @if (row.IsCancellable)
+                            {
+                                using (Html.BeginUmbracoForm<BookingSurfaceController>(
+                                    nameof(BookingSurfaceController.Cancel)))
+                                {
+                                    <input type="hidden" name="bookingId" value="@row.BookingId" />
+                                    @* The consequence is stated on the button itself. A member
+                                       should not have to discover the no-refund rule afterwards. *@
+                                    <button type="submit" class="booking-list__cancel"
+                                            title="Avgiften betalas inte tillbaka, men du får en tillgodoträning">
+                                        Avboka
+                                    </button>
+                                }
                             }
                         </li>
                     }
@@ -158,11 +189,30 @@
                                 }
                                 else if (bookable.CanBook)
                                 {
-                                    @* Booking arrives in Phase 4. Rendered disabled rather than
-                                       omitted so the layout is already the real one. *@
-                                    <button type="button" class="btn-primary" disabled>
-                                        Boka — @Kr(portal.NextClassFeeOre) kr
-                                    </button>
+                                    @* Two separate forms rather than one with a toggle: each button
+                                       posts exactly what it says it does, so there is no state to
+                                       get out of step with the label. *@
+                                    using (Html.BeginUmbracoForm<BookingSurfaceController>(
+                                        nameof(BookingSurfaceController.Book)))
+                                    {
+                                        <input type="hidden" name="classKey" value="@bookable.Class.Key" />
+                                        <button type="submit" class="btn-primary">
+                                            Boka — @Kr(portal.NextBookingTotalOre) kr
+                                        </button>
+                                    }
+
+                                    @if (portal.UnspentCredits > 0)
+                                    {
+                                        using (Html.BeginUmbracoForm<BookingSurfaceController>(
+                                            nameof(BookingSurfaceController.Book)))
+                                        {
+                                            <input type="hidden" name="classKey" value="@bookable.Class.Key" />
+                                            <input type="hidden" name="useCredit" value="true" />
+                                            <button type="submit" class="consent-btn consent-btn--link">
+                                                Boka med tillgodoträning
+                                            </button>
+                                        }
+                                    }
                                 }
                             </div>
                         </li>

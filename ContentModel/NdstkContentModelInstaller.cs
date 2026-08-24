@@ -107,6 +107,7 @@ internal sealed class NdstkContentModelInstaller(
             (Templates.MemberRegister, "MemberRegister", "MemberRegister"),
             (Templates.MemberVerify, "MemberVerify", "MemberVerify"),
             (Templates.MemberPortal, "MemberPortal", "MemberPortal"),
+            (Templates.SwishPayment, "SwishPayment", "SwishPayment"),
         ];
 
         Dictionary<Guid, ITemplate> templates = [];
@@ -402,6 +403,18 @@ internal sealed class NdstkContentModelInstaller(
                     factory.Property(BuiltInDataTypes.Textstring, "location", "Plats", sortOrder: 6));
             });
 
+        // A child of the portal, so it inherits the portal's public access: an anonymous visitor
+        // cannot reach a payment page even with a reference in hand.
+        await factory.EnsureContentTypeAsync(
+            DocumentTypes.SwishPayment, "swishPayment", "Betalning (Swish)", "icon-coins", type =>
+            {
+                type.Description = "Den mockade Swish-betalningen. Nås med ?ref= i adressen.";
+                type.AddContentType(baseType);
+                NdstkContentTypeFactory.UseTemplate(type, templates[Templates.SwishPayment]);
+                NdstkContentTypeFactory.AddGroup(type, DeriveKey(DocumentTypes.SwishPayment, 1), "content", "Content", 0,
+                    factory.Property(BuiltInDataTypes.Textstring, "heading", "Heading", "Falls back to the node name.", 0));
+            });
+
         // Second pass: every type exists now, so the structure can reference it.
         await factory.SetAllowedChildrenAsync(
             DocumentTypes.Start,
@@ -417,6 +430,10 @@ internal sealed class NdstkContentModelInstaller(
         await factory.SetAllowedChildrenAsync(
             DocumentTypes.TrainingClasses,
             (DocumentTypes.TrainingClass, "trainingClass"));
+
+        await factory.SetAllowedChildrenAsync(
+            DocumentTypes.MemberPortal,
+            (DocumentTypes.SwishPayment, "swishPayment"));
 
         await factory.SetAllowedChildrenAsync(
             DocumentTypes.Articles,

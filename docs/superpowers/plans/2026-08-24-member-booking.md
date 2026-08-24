@@ -1889,9 +1889,234 @@ the final layout now means Phase 4 changes behaviour rather than appearance.
 
 ---
 
+## Tasks 15–18: Booking and the mocked Swish payment — Phase 4
+
+**Files created:** `Booking/Payments/IPaymentProvider.cs`, `SwishMockPaymentProvider.cs`;
+`Booking/Services/BookingService.cs`; `Booking/Web/BookingSurfaceController.cs`,
+`SwishPaymentController.cs`, `SwishPaymentSurfaceController.cs`; `Views/SwishPayment.cshtml`.
+**Files modified:** `IBookingRepository`/`BookingRepository` (write side), keys, installer
+(`swishPayment` type + template), `NdstkMemberPages` (payment page), `MemberPortalViewModel`,
+`Views/MemberPortal.cshtml`, `BookingComposer`, `site.css`.
+
+### Overbooking: the one thing worth engineering carefully
+
+Reserving a place is **a single conditional INSERT**, not a count followed by an insert:
+
+```sql
+INSERT INTO ndstkBooking (...) SELECT @0, @1, ...
+WHERE (SELECT COUNT(*) FROM ndstkBooking
+       WHERE ClassKey = @1
+         AND (Status = 'Confirmed' OR (Status = 'Pending' AND HoldExpiresUtc > @4))) < @7
+```
+
+Two statements would leave a window, however short, in which two members both read "one place
+left". `ICoreScope.WriteLock` was the alternative, but it needs rows added to Umbraco's `umbracoLock`
+table; one atomic statement needs nothing and is easier to reason about.
+
+**Measured, not assumed.** A harness fired concurrent reservations at a fresh class:
+
+| Attempts | Capacity | Rows inserted | Result |
+| --- | --- | --- | --- |
+| 12 | 4 | 4 | never exceeded |
+| 60 | 8 | 8 | never exceeded |
+
+**Caveat worth recording:** SQLite serialises writers, which helps this hold. The same statement on
+SQL Server under READ COMMITTED would want a lock hint. This site is SQLite — the connection string
+in `appsettings.json` confirms it — so the guarantee is real here, but the note matters if the
+database is ever moved.
+
+The same technique protects credits: `TrySpendCreditAsync` puts `SpentOnBookingId IS NULL` in the
+UPDATE's WHERE clause, so two bookings racing for one credit cannot both win.
+
+### Decisions
+
+- **The credit is chosen before the place is reserved but spent after**, so a member who asked to
+  use a credit and then found the class full has not lost it. If the credit is taken in between, the
+  reservation is released rather than silently charging them instead — they asked to use a credit.
+- **The welcome price is consumed by reading the member's own flag, not by comparing amounts.**
+  Comparing the stored `ClassFeeOre` against the configured price would break the moment an editor
+  changed prices between a booking and its payment, and would misfire entirely if the two prices
+  were ever set the same. `Pricing` only quotes the welcome price while the flag is false, so a
+  class fee charged to a member whose flag is false *was* the welcome price.
+- **The booking button shows the total, membership fee included.** Quoting the class fee alone and
+  then presenting a larger figure on the payment page would read as a bait and switch.
+- **Settling checks the payment is still `Pending`.** Without it, a repeated POST would extend a
+  membership twice.
+- **The payment page is a child of the portal**, so it inherits the portal's public access — an
+  anonymous visitor cannot reach it even holding a valid reference.
+- **Two separate booking forms** (pay / use a credit) rather than one with a toggle, so each button
+  posts exactly what its label says.
+- The page is plainly marked **"Demoläge"** with a deliberately fake QR block. Nobody should mistake
+  it for a real payment.
+
+### Runtime verification
+
+| Check | Result |
+| --- | --- |
+| Booking button for a brand-new member | **250 kr** (150 membership + 100 welcome) |
+| Book → redirect | `/mina-sidor/betalning/?ref=…` |
+| Payment page | "Demoläge", 250 kr, split as Årsavgift 150 + Träningsavgift 100 |
+| Settle → membership | extended to **2027-08-24** (today + 365) |
+| Settle → welcome price | consumed; next class now quotes **200 kr** |
+| Settle → booking | appears under "Mina bokningar" |
+| Pending hold counts toward capacity | class showed **6 av 8** with one confirmed and one pending |
+| **Non-owner views a reference** | "Betalningen hittades inte", no amount, no buttons |
+| **Non-owner POSTs a reference with genuinely valid tokens from their own payment page** | **404**, and the owner's payment left untouched |
+
+That last row is the one that matters: the attacker had real antiforgery and `ufprt` tokens, so the
+404 came from the ownership check rather than from antiforgery.
+
+**The abort path, verified after waiting out the rate limiter:**
+
+| Check | Result |
+| --- | --- |
+| "Simulera avbrott" POST | 302 to the portal, "Betalningen avbröts, så platsen är inte bokad" |
+| Place released | class went from **6 av 8** back to **7 av 8** |
+| Revisiting the reference | "Betalningen är avslutad" — cannot be settled afterwards |
+| The aborted booking | absent from the member's bookings; `Expired` is filtered out of the list |
+| The other member's confirmed booking | untouched |
+
+**A testing note worth keeping.** Two of these tests initially failed because of the *test*, not the
+code. `tail -1` on the payment page's hidden fields picks up the **logout** form — the layout's
+sidebar renders after the body, so it is the last form in the document — which signed the member out
+instead of aborting the payment. Target the form by the block containing its button text. And the
+rate limiter locked out the test run twice, which is inconvenient but exactly the behaviour wanted.
+
+---
+
+## Tasks 19–20: Cancellation, credits and rebooking — DONE (Phase 5 complete)
+
+**Files modified:** `IBookingRepository`/`BookingRepository` (`TryCancelBookingAsync`),
+`BookingService` (`CancelAsync`), `BookingSurfaceController` (`Cancel`),
+`Views/MemberPortal.cshtml` (cancel button), `site.css`.
+
+### Every precondition lives in the UPDATE
+
+```sql
+UPDATE ndstkBooking SET Status = 'Cancelled', CancelledUtc = @1, HoldExpiresUtc = NULL
+WHERE Id = @2 AND MemberKey = @3 AND Status = 'Confirmed' AND ClassStartUtc > @1
+```
+
+One statement does four jobs: it stops a member cancelling somebody else's booking, stops a class
+being cancelled after it has started, stops a double submission minting a second credit, and means
+the credit row is only ever inserted by the caller that actually performed the cancellation. Checking
+those conditions in C# first and then updating would reopen the gap.
+
+### Decisions
+
+- **A booking paid for with a credit still yields one back on cancellation.** Otherwise cancelling
+  would cost the member the credit they came in with. Net zero either way, so the club loses nothing.
+- **The no-refund rule is stated on the button itself**, as its title attribute, and repeated in the
+  confirmation. A member should not discover it afterwards.
+- **One message for every refusal** — not yours, not confirmed, already started. Distinguishing them
+  would tell a member whether a booking id they guessed exists.
+- **Spending a credit when the membership is valid skips Swish entirely**, because the total is zero.
+  That path was already built in Phase 4; this phase is what finally exercises it.
+
+### Runtime verification
+
+| Check | Result |
+| --- | --- |
+| Cancel a confirmed future booking | 302, "Avgiften betalas inte tillbaka, men du har fått en tillgodoträning" |
+| Place released | **7 av 8 → 8 av 8** |
+| Booking row | tagged "Avbokad" |
+| Credit issued | "Boka med tillgodoträning" button appeared |
+| Book with the credit | no Swish step at all; "Klart! Din träning är bokad med en tillgodoträning" |
+| New booking | tagged "Tillgodoträning"; places **8 av 8 → 7 av 8** |
+| Credit consumed | the unspent-credits notice disappeared |
+| **Replay the same cancellation** | "Den bokningen kan inte avbokas" — **no second credit minted** |
+| **Cancel another member's booking id** | identical message, no credit minted |
+
+---
+
+## Tasks 21–23: Reminders, the sweeper and editor changes — Phase 6
+
+**Added to scope by the user mid-phase:** behaviour for an expired membership — re-apply the
+membership fee plus the class fee, but **without** the welcome discount.
+
+### The expiry rule already worked; it just was not pinned
+
+A consequence of the "once ever, per account" choice for the welcome price: `firstClassDiscountUsed`
+never resets, so a lapsed member renewing pays 150 + 200 = 350, not 150 + 100. Four tests now hold
+that in place, including the one case where a lapsed member *does* still get the welcome price —
+they never used it, so someone who registered, never booked, and let a comped membership lapse is
+still a first-timer.
+
+What was genuinely missing was the member-facing half: the portal told a lapsed member the same
+thing as a brand-new one. `MembershipStatus` now distinguishes `IsNew` from `HasLapsed`, and a
+lapsed member is told the date it ran out and that it renews on their next booking. Telling someone
+their membership "will be added" when it demonstrably *lapsed* on a date they can check reads as a
+bug in the club's system.
+
+**Files:** `NDSTK.Tests/PricingTests.cs` (+4), `Booking/Web/MemberPortalViewModel.cs`,
+`Views/MemberPortal.cshtml`.
+
+### The reminder job
+
+`ClassReminderJob : IRecurringBackgroundJob`, 15-minute period, 2-minute start delay.
+
+- **Guarded by `IServerRoleAccessor`** — only `Single` or `SchedulingPublisher` runs it. Without
+  that, every server in a multi-server deployment would send every member the same reminder.
+- **Resolves its dependencies from a fresh `IServiceScope` per run.** The job is a singleton, so
+  injecting the scoped services directly would capture them for the process lifetime.
+- **Stamps before sending, conditionally.** `TryStampReminderSentAsync` sets `ReminderSentUtc` only
+  where it is still null, so two overlapping runs cannot both send; the loser skips. The trade is
+  that a crash between stamp and send loses that one reminder — preferable to mailing a member the
+  same reminder repeatedly.
+- **Sweeps expired holds first**, so a place released this pass is already free within it.
+
+### Editor changes
+
+`TrainingClassChangedHandler` on `ContentPublished`, `ContentUnpublished` and `ContentDeleted`.
+
+- **Moving a class** repoints every live booking at the new start time, and clears
+  `ReminderSentUtc` **only when the class moved later** — having been told "imorgon 18:00" for a
+  class that has since moved is worse than not having been told. Cancelled bookings are left alone:
+  they are a record of the class as it was, and rewriting their time would falsify it.
+- **Unpublishing or deleting** a class cancels its live bookings and issues a credit for each
+  **confirmed** one. A pending booking was never paid for, so crediting it would be free money.
+
+### A datetime-format trap, found while testing
+
+The app stores `DateTime` as TEXT in NPoco's `yyyy-MM-dd HH:mm:ss.fffffff`. My first test tool wrote
+round-trip `"o"` format (`…T…Z`) into the same column, and the reminder silently matched nothing:
+comparing `2026-08-25T15:36…` against a window end of `2026-08-25 18:26…` puts `T` (84) above space
+(32), pushing the row *outside* the window.
+
+**Production is not affected** — every insert and every query parameter goes through the same NPoco
+converter, so the column is internally consistent, and that fixed-width zero-padded format sorts
+lexicographically exactly as it sorts chronologically (a value with no fractional part is a prefix
+of one with, so it also compares earlier, which is correct). Worth recording because any future raw
+SQL that formats a date by hand would reintroduce it.
+
+### Runtime verification
+
+| Check | Result |
+| --- | --- |
+| Job registration | "ClassReminderJob with a delay of 00:02:00, running every 00:15:00" |
+| Class-move resync | live rows follow the new time and lose their reminder stamp; the cancelled row keeps its original time |
+| Portal reminder banner, real data | "Påminnelse: Nybörjartennis börjar tisdag 25 augusti 17:38. Plats: Bana 1." |
+| Membership copy, valid | "Årsavgiften är betald till och med 2027-08-24" |
+
+| Reminder actually sent | "Sent 1 class reminder(s)"; `.eml` from `info@ndstk.se`, subject "Påminnelse: Nybörjartennis hos NDSTK imorgon", body "tisdag 25 augusti kl. 17:38 / Plats: Bana 1" |
+| **No resend on the next run** | "0 booking(s) due a reminder", mail count unchanged |
+| **Hold sweeper** | "Released 1 abandoned payment hold(s)"; booking → `Expired`, hold cleared |
+| **Credit returned by the sweep** | the spent credit's `SpentOnBookingId` went back to NULL |
+
+The "moved earlier keeps the stamp" branch is correct by inspection of the `CASE` expression but was
+not isolated in the run above, because the preceding step had already cleared the stamp.
+
+**Observability change worth keeping.** The job originally logged only when it found something,
+which makes "ran and found nothing" indistinguishable from "never ran" — that cost real time
+diagnosing the first silent run. It now logs the server role and the due count at Debug, and
+`appsettings.Development.json` overrides the `NDSTK` namespace to Debug so local runs are visible
+without framework noise.
+
+---
+
 ## Remaining tasks
 
-Task 15 onward is written into this document as each is reached, so that the interfaces they
+Task 24 (Phase 7) is written into this document as it is reached, so that the interfaces they
 consume are the ones the previous task actually produced rather than the ones this plan
 predicted. Phase boundaries are fixed by the spec:
 

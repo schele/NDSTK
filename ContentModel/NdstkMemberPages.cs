@@ -48,6 +48,13 @@ internal sealed class NdstkMemberPages(
                 page.SetValue("metaRobots", "[\"NOINDEX,NOFOLLOW\"]");
             });
 
+        pages.EnsurePage(
+            Nodes.SwishPayment, "Betalning", Nodes.MemberPortal, "swishPayment", page =>
+            {
+                page.SetValue("heading", "Betala med Swish");
+                page.SetValue("metaRobots", "[\"NOINDEX,NOFOLLOW\"]");
+            });
+
         pages.EnsurePage(Nodes.TrainingClasses, "Träningar", Nodes.Start, "trainingClasses");
 
         SeedExampleClasses();
