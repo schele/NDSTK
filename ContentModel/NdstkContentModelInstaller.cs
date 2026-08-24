@@ -64,13 +64,16 @@ internal sealed class NdstkContentModelInstaller(
             factory.Property(BuiltInDataTypes.Numeric, "firstClassPrice", "Pris första klassen (kr)", "Välkomstpris, en gång per medlem. Standard: 100.", 1),
             factory.Property(BuiltInDataTypes.Numeric, "classPrice", "Pris per klass (kr)", "Standard: 200.", 2),
             factory.Property(BuiltInDataTypes.Numeric, "reminderHoursBefore", "Påminnelse (timmar innan)", "Standard: 24.", 3),
-            factory.Property(BuiltInDataTypes.Numeric, "paymentHoldMinutes", "Betalningsreservation (minuter)", "Hur länge en obetald bokning håller sin plats. Standard: 15.", 4),
+            factory.Property(BuiltInDataTypes.Numeric, "paymentHoldMinutes", "Betalningsreservation (minuter)", "Hur länge en obetald bokning håller sin plats. Standard: 5.", 4),
             factory.Property(BuiltInDataTypes.ContentPicker, "memberPortalPage", "Medlemssidan", "Dit medlemmen skickas efter inloggning.", 5),
             factory.Property(BuiltInDataTypes.ContentPicker, "registerPage", "Bli medlem-sidan", "Målet för Bli medlem-knapparna.", 6));
 
         if (settingsChanged)
         {
-            logger.LogInformation("Added the Medlemskap group to the settings document type.");
+            // "Updated" rather than "added": this now also fires when only a label or a description
+            // changed, and a log line that says "added" for a reworded help text sends the next
+            // person looking for a field that was already there.
+            logger.LogInformation("Updated the Medlemskap fields on the settings document type.");
         }
 
         // Both are administrative facts: a member may see them, but a member who could edit their
@@ -84,7 +87,7 @@ internal sealed class NdstkContentModelInstaller(
 
         if (memberChanged)
         {
-            logger.LogInformation("Added the membership properties to the Member member type.");
+            logger.LogInformation("Updated the membership properties on the Member member type.");
         }
     }
 

@@ -245,6 +245,11 @@ internal sealed class NdstkContentTypeFactory(
         {
             if (contentType.PropertyTypeExists(property.Alias))
             {
+                // Already there, but its label and help text may be out of date - changing the
+                // declaration above would otherwise leave the backoffice showing the old wording
+                // for ever, because adding is the only thing this used to do. Those two are
+                // code-owned in a code-first model, so they are kept in step.
+                changed |= SyncLabels(contentType, property);
                 continue;
             }
 
@@ -277,6 +282,42 @@ internal sealed class NdstkContentTypeFactory(
     }
 
     /// <summary>
+    /// Brings an existing property's label and description into line with the declaration.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately limited to those two. They are help text an editor reads rather than data they
+    /// own, so code is the source of truth and overwriting is safe. The data type, sort order and
+    /// alias are left alone: changing those on a live site moves or reinterprets stored values,
+    /// which is a migration rather than a label fix.
+    /// </remarks>
+    private static bool SyncLabels(IContentTypeBase contentType, IPropertyType declared)
+    {
+        IPropertyType? existing = contentType.PropertyTypes
+            .FirstOrDefault(property => property.Alias == declared.Alias);
+
+        if (existing is null)
+        {
+            return false;
+        }
+
+        var changed = false;
+
+        if (existing.Name != declared.Name)
+        {
+            existing.Name = declared.Name;
+            changed = true;
+        }
+
+        if (existing.Description != declared.Description)
+        {
+            existing.Description = declared.Description;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    /// <summary>
     /// Adds properties to the member type. The two visibility flags matter: the membership expiry
     /// and the first-class discount are administrative facts, so a member is allowed to see them
     /// but never to edit them - a member who could edit their own expiry date would have a free
@@ -297,6 +338,8 @@ internal sealed class NdstkContentTypeFactory(
         {
             if (memberType.PropertyTypeExists(property.Alias))
             {
+                // Same reasoning as EnsureGroupAsync: the label and help text follow the code.
+                changed |= SyncLabels(memberType, property);
                 continue;
             }
 

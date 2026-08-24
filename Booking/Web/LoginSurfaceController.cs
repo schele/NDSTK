@@ -42,7 +42,7 @@ public sealed class LoginSurfaceController(
     [HttpPost]
     [ValidateAntiForgeryToken]
     [ValidateUmbracoFormRouteString]
-    [EnableRateLimiting(BookingRateLimits.MemberForms)]
+    [EnableRateLimiting(BookingRateLimits.Auth)]
     public async Task<IActionResult> Login(LoginFormModel form)
     {
         if (ModelState.IsValid is false)

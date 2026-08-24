@@ -1,3 +1,5 @@
+using System.Data.Common;
+using Microsoft.Extensions.Logging;
 using NDSTK.Booking.Domain;
 using NPoco;
 using Umbraco.Cms.Infrastructure.Persistence;
@@ -9,7 +11,10 @@ namespace NDSTK.Booking.Data;
 /// NPoco implementation of <see cref="IBookingRepository"/>, running inside an Umbraco scope so it
 /// shares the ambient transaction and connection rather than opening its own.
 /// </summary>
-public sealed class BookingRepository(IScopeProvider scopeProvider) : IBookingRepository
+public sealed class BookingRepository(
+    IScopeProvider scopeProvider,
+    ILogger<BookingRepository> logger)
+    : IBookingRepository
 {
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<BookingSnapshot>>> GetBookingsByClassAsync(
         IReadOnlyCollection<Guid> classKeys)
@@ -78,6 +83,34 @@ public sealed class BookingRepository(IScopeProvider scopeProvider) : IBookingRe
 
         using IScope scope = scopeProvider.CreateScope();
 
+        // First, retire this member's own expired hold on this class, if they have one.
+        //
+        // Without this the two rules disagree and the insert below throws. The partial unique index
+        // treats every Pending row as live, because an index predicate cannot reference "now";
+        // Capacity.HoldsPlace treats a Pending row as live only until its hold runs out. So a member
+        // who abandoned a payment and came back to book the same class again passed the C# check and
+        // then hit "UNIQUE constraint failed" - a 500 for something entirely reasonable to do.
+        //
+        // Any credit spent on that abandoned booking goes back first: the member never got the place
+        // it was spent on.
+        await scope.Database.ExecuteAsync(
+            $"""
+            UPDATE {BookingTables.Credit}
+            SET SpentOnBookingId = NULL, SpentUtc = NULL
+            WHERE SpentOnBookingId IN (
+                SELECT Id FROM {BookingTables.Booking}
+                WHERE MemberKey = @0 AND ClassKey = @1 AND Status = @2 AND HoldExpiresUtc <= @3)
+            """,
+            memberKey, classKey, Domain.BookingStatus.Pending, nowUtc);
+
+        await scope.Database.ExecuteAsync(
+            $"""
+            UPDATE {BookingTables.Booking}
+            SET Status = @0, HoldExpiresUtc = NULL
+            WHERE MemberKey = @1 AND ClassKey = @2 AND Status = @3 AND HoldExpiresUtc <= @4
+            """,
+            Domain.BookingStatus.Expired, memberKey, classKey, Domain.BookingStatus.Pending, nowUtc);
+
         // One statement, so the capacity test and the insert cannot be separated by another
         // booking. Written as raw SQL because that atomicity is the entire point - the fluent
         // builder would produce a SELECT then an INSERT, and the gap between them is exactly the
@@ -85,19 +118,42 @@ public sealed class BookingRepository(IScopeProvider scopeProvider) : IBookingRe
         //
         // A place is taken by a confirmed booking, or by a pending one whose payment hold has not
         // yet run out. That must agree with Capacity.HoldsPlace, which is the same rule in C#.
-        var inserted = await scope.Database.ExecuteAsync(
-            $"""
-            INSERT INTO {BookingTables.Booking}
-                (MemberKey, ClassKey, ClassStartUtc, Status, CreatedUtc, HoldExpiresUtc)
-            SELECT @0, @1, @2, @3, @4, @5
-            WHERE (
-                SELECT COUNT(*) FROM {BookingTables.Booking}
-                WHERE ClassKey = @1
-                  AND (Status = @6 OR (Status = @3 AND HoldExpiresUtc > @4))
-            ) < @7
-            """,
-            memberKey, classKey, classStartUtc, Domain.BookingStatus.Pending,
-            nowUtc, holdExpiresUtc, Domain.BookingStatus.Confirmed, capacity);
+        int inserted;
+
+        try
+        {
+            inserted = await scope.Database.ExecuteAsync(
+                $"""
+                INSERT INTO {BookingTables.Booking}
+                    (MemberKey, ClassKey, ClassStartUtc, Status, CreatedUtc, HoldExpiresUtc)
+                SELECT @0, @1, @2, @3, @4, @5
+                WHERE (
+                    SELECT COUNT(*) FROM {BookingTables.Booking}
+                    WHERE ClassKey = @1
+                      AND (Status = @6 OR (Status = @3 AND HoldExpiresUtc > @4))
+                ) < @7
+                """,
+                memberKey, classKey, classStartUtc, Domain.BookingStatus.Pending,
+                nowUtc, holdExpiresUtc, Domain.BookingStatus.Confirmed, capacity);
+        }
+        catch (DbException exception)
+            when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase))
+        {
+            // The one-live-booking-per-class index fired. With the stale-hold cleanup above this
+            // should only happen when the same member submits twice at once - a double-click, or a
+            // resubmitted form - so it is a normal outcome rather than a fault, and the caller
+            // reports "du är redan bokad".
+            //
+            // Caught deliberately: a database constraint is a backstop, and a backstop that reaches
+            // the member as a 500 has failed at its job. Logged at warning so a genuine divergence
+            // between the index and the C# rule is still visible rather than silently swallowed.
+            logger.LogWarning(
+                "A duplicate booking for member {MemberKey} on class {ClassKey} was rejected by the "
+                + "one-live-booking index.", memberKey, classKey);
+
+            scope.Complete();
+            return null;
+        }
 
         if (inserted == 0)
         {

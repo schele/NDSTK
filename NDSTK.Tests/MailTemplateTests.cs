@@ -7,7 +7,7 @@ public class MailTemplateTests
     [Fact]
     public void Verification_mail_carries_the_link_and_a_swedish_subject()
     {
-        MailContent mail = MailTemplates.Verification("https://ndstk.se/verifiera?member=abc&token=xyz");
+        MailContent mail = MailTemplates.Verification("https://ndstk.se/verifiera?member=abc&token=xyz", 15);
 
         Assert.Contains("NDSTK", mail.Subject);
         Assert.Contains("verifiera?member=abc", mail.HtmlBody);
@@ -20,7 +20,7 @@ public class MailTemplateTests
     [Fact]
     public void Verification_mail_escapes_the_link_into_the_attribute()
     {
-        MailContent mail = MailTemplates.Verification("https://ndstk.se/v?t=\"><script>alert(1)</script>");
+        MailContent mail = MailTemplates.Verification("https://ndstk.se/v?t=\"><script>alert(1)</script>", 15);
 
         Assert.DoesNotContain("<script>", mail.HtmlBody);
         Assert.Contains("&lt;script&gt;", mail.HtmlBody);
@@ -30,16 +30,29 @@ public class MailTemplateTests
     [Fact]
     public void Verification_mail_ampersand_in_the_url_is_escaped()
     {
-        MailContent mail = MailTemplates.Verification("https://ndstk.se/v?a=1&b=2");
+        MailContent mail = MailTemplates.Verification("https://ndstk.se/v?a=1&b=2", 15);
 
         Assert.Contains("a=1&amp;b=2", mail.HtmlBody);
+    }
+
+    // The stated duration has to follow the argument, not a literal in the template. If it were
+    // hard-coded, changing the token lifespan would leave the mail quietly promising the old number
+    // and every member acting on it would find a dead link.
+    [Theory]
+    [InlineData(15)]
+    [InlineData(45)]
+    public void Verification_mail_states_the_lifespan_it_was_given(int minutes)
+    {
+        MailContent mail = MailTemplates.Verification("https://ndstk.se/v", minutes);
+
+        Assert.Contains($"{minutes} minuter", mail.HtmlBody);
     }
 
     [Fact]
     public void Verification_mail_has_a_plain_text_fallback_of_the_url()
     {
         // Some mail clients strip links entirely; the raw URL has to be readable too.
-        MailContent mail = MailTemplates.Verification("https://ndstk.se/verifiera?member=abc&token=xyz");
+        MailContent mail = MailTemplates.Verification("https://ndstk.se/verifiera?member=abc&token=xyz", 15);
 
         Assert.Contains("https://ndstk.se/verifiera?member=abc&amp;token=xyz", mail.HtmlBody);
     }

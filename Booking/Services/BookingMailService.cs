@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NDSTK.Booking.Domain;
+using NDSTK.Booking.Security;
 using Umbraco.Cms.Core.Configuration.Models;
 using Umbraco.Cms.Core.Mail;
 using Umbraco.Cms.Core.Models;
@@ -29,8 +30,21 @@ public sealed class BookingMailService(
     /// <summary>Groups these mails in Umbraco's send-email notification, if anything listens.</summary>
     private const string EmailType = "Membership";
 
+    /// <summary>
+    /// Sends the activation link, telling the member how long it lasts. The duration is read from
+    /// the token provider's own options, so the sentence in the mail and the expiry Identity
+    /// enforces are the same number by construction.
+    /// </summary>
     public Task SendVerificationAsync(string toEmail, string verificationUrl)
-        => SendAsync(toEmail, MailTemplates.Verification(verificationUrl));
+        => SendAsync(toEmail, MailTemplates.Verification(
+            verificationUrl, (int)MemberVerificationTokenOptions.Lifespan.TotalMinutes));
+
+    /// <summary>
+    /// Tells the owner of an already-active address that they have an account. Goes to the mailbox,
+    /// never to the browser, so it does not reveal membership to whoever filled in the form.
+    /// </summary>
+    public Task SendAccountAlreadyExistsAsync(string toEmail, string loginUrl)
+        => SendAsync(toEmail, MailTemplates.AccountAlreadyExists(loginUrl));
 
     /// <summary>
     /// Reminds a member about a class. Takes the member's key rather than an address because the

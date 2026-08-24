@@ -44,7 +44,7 @@ public sealed class SwishPaymentSurfaceController(
     [HttpPost]
     [ValidateAntiForgeryToken]
     [ValidateUmbracoFormRouteString]
-    [EnableRateLimiting(BookingRateLimits.MemberForms)]
+    [EnableRateLimiting(BookingRateLimits.MemberActions)]
     public async Task<IActionResult> SimulatePaid(Guid reference)
     {
         PaymentRecord? payment = await OwnedPendingPaymentAsync(reference);
@@ -62,7 +62,7 @@ public sealed class SwishPaymentSurfaceController(
     [HttpPost]
     [ValidateAntiForgeryToken]
     [ValidateUmbracoFormRouteString]
-    [EnableRateLimiting(BookingRateLimits.MemberForms)]
+    [EnableRateLimiting(BookingRateLimits.MemberActions)]
     public async Task<IActionResult> SimulateCancelled(Guid reference)
     {
         PaymentRecord? payment = await OwnedPendingPaymentAsync(reference);

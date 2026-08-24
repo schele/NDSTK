@@ -35,7 +35,7 @@ public sealed class BookingSurfaceController(
     [HttpPost]
     [ValidateAntiForgeryToken]
     [ValidateUmbracoFormRouteString]
-    [EnableRateLimiting(BookingRateLimits.MemberForms)]
+    [EnableRateLimiting(BookingRateLimits.MemberActions)]
     public async Task<IActionResult> Book(Guid classKey, bool useCredit = false)
     {
         MemberIdentityUser? user = await memberManager.GetCurrentMemberAsync();
@@ -76,7 +76,7 @@ public sealed class BookingSurfaceController(
     [HttpPost]
     [ValidateAntiForgeryToken]
     [ValidateUmbracoFormRouteString]
-    [EnableRateLimiting(BookingRateLimits.MemberForms)]
+    [EnableRateLimiting(BookingRateLimits.MemberActions)]
     public async Task<IActionResult> Cancel(int bookingId)
     {
         MemberIdentityUser? user = await memberManager.GetCurrentMemberAsync();

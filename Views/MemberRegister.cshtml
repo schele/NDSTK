@@ -1,5 +1,7 @@
 ﻿@using NDSTK.Booking.Web
+@using NDSTK.Booking.Security
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inject IdentityErrorMessages PasswordRules
 @{
     Layout = "Root.cshtml";
     var message = TempData["RegisterMessage"] as string;
@@ -36,7 +38,11 @@
 
                     <div class="form-field">
                         <label for="Password">Lösenord</label>
-                        <input type="password" id="Password" name="Password" autocomplete="new-password" required />
+                        <input type="password" id="Password" name="Password" autocomplete="new-password"
+                               required aria-describedby="password-rules" />
+                        @* Stated up front and read from the live configuration, so a member is not
+                           told the rules only after being rejected by them. *@
+                        <span class="form-hint" id="password-rules">@PasswordRules.PasswordRules()</span>
                         <span class="form-error">@Html.ValidationMessage("Password")</span>
                     </div>
 
@@ -58,9 +64,13 @@
                     <input type="hidden" name="RenderedAt" value="@DateTimeOffset.UtcNow.ToUnixTimeSeconds()" />
 
                     <p><button type="submit" class="btn-primary">Skapa konto</button></p>
+                    @* The lifespan is read from the token provider's options rather than typed in,
+                       so this sentence cannot promise a different number from the one Identity
+                       enforces. *@
                     <p class="form-hint">
-                        Du får ett mail med en länk som aktiverar kontot. Kontrollera skräpposten om
-                        det inte kommer fram.
+                        Du får ett mail med en länk som aktiverar kontot. Länken gäller i
+                        @((int)MemberVerificationTokenOptions.Lifespan.TotalMinutes) minuter.
+                        Kontrollera skräpposten om det inte kommer fram.
                     </p>
                 }
             </div>

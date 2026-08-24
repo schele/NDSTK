@@ -95,7 +95,19 @@ public sealed class BookingService(
 
         if (bookingId is null)
         {
-            return new BookingAttempt(BookingFailure.ClassIsFull);
+            // Two reasons the reservation can fail: the class filled up, or this member already has
+            // a live booking on it (a double submission that the unique index caught). Re-reading
+            // tells them apart, so the member is not told "fullbokad" about a class they are
+            // already booked on.
+            IReadOnlyDictionary<Guid, IReadOnlyList<BookingSnapshot>> afterwards =
+                await repository.GetBookingsByClassAsync([classKey]);
+
+            IReadOnlyList<BookingSnapshot> current =
+                afterwards.TryGetValue(classKey, out IReadOnlyList<BookingSnapshot>? rows) ? rows : [];
+
+            return Capacity.HasLiveBooking(current, memberKey, nowUtc)
+                ? new BookingAttempt(BookingFailure.AlreadyBooked)
+                : new BookingAttempt(BookingFailure.ClassIsFull);
         }
 
         if (credit is not null && await repository.TrySpendCreditAsync(credit.Id, bookingId.Value, nowUtc) is false)

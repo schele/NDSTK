@@ -25,5 +25,7 @@ public sealed record MembershipSettings(
             FirstClassPriceOre: 100 * 100,
             ClassPriceOre: 200 * 100),
         ReminderHoursBefore: 24,
-        PaymentHoldMinutes: 15);
+        // Long enough to open Swish and confirm, short enough that a place is not held for somebody
+        // who wandered off. The hold blocks a real member from booking, so erring long is not free.
+        PaymentHoldMinutes: 5);
 }

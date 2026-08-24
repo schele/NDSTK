@@ -23,10 +23,32 @@ public sealed record SwishPaymentViewModel(
     public bool IsPending => Status == PaymentStatus.Pending;
     public bool IsPaid => Status == PaymentStatus.Paid;
 
-    /// <summary>Whole minutes left on the reservation, floored at zero.</summary>
+    /// <summary>
+    /// Minutes left on the reservation, rounded up, never below zero.
+    /// </summary>
+    /// <remarks>
+    /// Rounded up rather than truncated. A page rendered a fraction of a second after a hold is
+    /// created has a few milliseconds less than the full duration left - which truncates to one
+    /// minute fewer and reads as though a minute was lost before the member did anything. Rounding
+    /// up shows the whole duration for the first minute, which is what "reserverad i N minuter
+    /// till" means. The countdown script uses the same rule, so the two never disagree.
+    /// </remarks>
     public int MinutesLeft => HoldExpiresUtc is { } expires
-        ? Math.Max(0, (int)(expires - DateTime.UtcNow).TotalMinutes)
+        ? Math.Max(0, (int)Math.Ceiling((expires - DateTime.UtcNow).TotalMinutes))
         : 0;
+
+    /// <summary>
+    /// The expiry as an ISO 8601 instant for the countdown script.
+    /// </summary>
+    /// <remarks>
+    /// The kind is forced to UTC before formatting. NPoco hands the value back as
+    /// <see cref="DateTimeKind.Unspecified"/>, and "o" omits the trailing Z for that kind - which
+    /// JavaScript's Date.parse then reads as *local* time, putting the countdown one or two hours
+    /// out depending on the season.
+    /// </remarks>
+    public string? HoldExpiresIso => HoldExpiresUtc is { } expires
+        ? DateTime.SpecifyKind(expires, DateTimeKind.Utc).ToString("o")
+        : null;
 }
 
 /// <summary>
@@ -42,12 +64,21 @@ public sealed class SwishPaymentController(
     IUmbracoContextAccessor umbracoContextAccessor,
     IMemberManager memberManager,
     IBookingRepository repository,
-    Services.TrainingClassService classes)
+    Services.TrainingClassService classes,
+    MemberBookingsProvider bookingsProvider)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     public async Task<IActionResult> SwishPayment([FromQuery(Name = "ref")] Guid? reference)
     {
         ViewData["SwishPayment"] = await LoadAsync(reference);
+
+        // The sidebar shows the member their current bookings here too, so paying does not mean
+        // losing sight of what they already have booked.
+        MemberIdentityUser? user = await memberManager.GetCurrentMemberAsync();
+        ViewData["MemberBookings"] = user is null
+            ? Array.Empty<MemberBookingRow>()
+            : await bookingsProvider.GetCurrentAsync(user.Key);
+
         return CurrentTemplate(CurrentPage);
     }
 

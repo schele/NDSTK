@@ -128,19 +128,79 @@ a.email:hover {
     color: #f2f2f2;
 }
 
-.btn-primary {
+/* Used on both <a> and <button>. The resets below are what make those two render identically:
+   without them a <button> keeps the browser's own border, its own font family rather than the
+   page's, and a default arrow cursor - which is why an unstyled submit button looked like a yellow
+   box with a hard outline. All four are no-ops on an <a>.
+
+   .btn-secondary and .btn-danger share every one of them and only swap the colours, so the three
+   can never drift apart in shape or size. */
+.btn-primary,
+.btn-secondary,
+.btn-danger {
     display: inline-block;
     background: var(--accent);
     color: var(--primary);
     padding: 0.6rem 1.2rem;
+    border: 0;
     border-radius: 4px;
+    /* Shorthand first, then the weight - `font` would otherwise reset it. */
+    font: inherit;
     font-weight: bold;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    /* iOS Safari applies its own button chrome regardless of border and background. */
+    appearance: none;
     margin-top: 1rem;
 }
 
-    .btn-primary:hover {
+    .btn-primary:hover,
+    .btn-secondary:hover,
+    .btn-danger:hover {
         text-decoration: underline;
     }
+
+    /* A keyboard user has to be able to see where they are; the UA outline goes with appearance:none. */
+    .btn-primary:focus-visible,
+    .btn-secondary:focus-visible,
+    .btn-danger:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+    }
+
+/* The brand blue, for actions that should not compete with the yellow primary call to action. */
+.btn-secondary {
+    background: var(--primary);
+    color: white;
+}
+
+/* Destructive, and irreversible here: cancelling forfeits the fee. Worth looking like it. */
+.btn-danger {
+    background: #b00020;
+    color: white;
+}
+
+    .btn-secondary:hover,
+    .btn-danger:hover {
+        /* The anchor rule sets a:hover { color: var(--primary) }, which would turn the label navy
+           on a dark fill. Restated here so the text stays readable when these are used on an <a>. */
+        color: white;
+    }
+
+    .btn-danger:focus-visible {
+        outline-color: #b00020;
+    }
+
+/* Size modifier, usable with any of the three colours. Deliberately matches .tag's padding and
+   font-size so a button sitting beside a label lines up with it instead of towering over it. */
+.btn--small {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-top: 0;
+}
 
 /* News / Blog Posts */
 .news {
@@ -204,6 +264,20 @@ aside {
     .tag:hover {
         background: var(--accent);
         color: var(--primary);
+    }
+
+/* A tag that states a fact rather than offering a link: outlined, not filled, and inert on hover.
+   The filled brand tags read as something to click, which "Tillgodoträning" is not. */
+.tag--label {
+    background: white;
+    color: var(--text);
+    border: 1px solid #ccc;
+    font-weight: 600;
+}
+
+    .tag--label:hover {
+        background: white;
+        color: var(--text);
     }
 
 /* Footer */
@@ -314,7 +388,9 @@ footer {
         color: var(--primary);
     }
 
-    .form-field input {
+    /* Text-like inputs only. A checkbox or radio must keep its intrinsic size - given width:100%
+       it takes a full line of its own and pushes its own label onto the next one. */
+    .form-field input:not([type="checkbox"]):not([type="radio"]) {
         width: 100%;
         box-sizing: border-box;
         padding: 0.6rem 0.7rem;
@@ -325,11 +401,36 @@ footer {
         color: var(--text);
     }
 
-    .form-field input:focus {
+    .form-field input:focus-visible {
         outline: 2px solid var(--primary);
         outline-offset: 1px;
+    }
+
+    .form-field input:not([type="checkbox"]):not([type="radio"]):focus {
         border-color: var(--primary);
     }
+
+/* A checkbox and its text belong on one line, with the box first. The label wraps the input, so
+   clicking the words toggles it too - a bigger target than the 13px box. */
+.form-field--check label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0;
+    /* Not bold: this is a choice, not a field heading like the labels above. */
+    font-weight: normal;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.form-field--check input {
+    /* flex would otherwise stretch it to the row height. */
+    flex: none;
+    margin: 0;
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--primary);
+}
 
 .form-error {
     display: block;
@@ -346,6 +447,11 @@ footer {
     padding: 0.75rem 1rem;
     border-radius: 4px;
     border-left: 4px solid;
+    /* Equal above and below, and stated explicitly because these are rendered as a <p> inside cards
+       but as a <div> for the page-level messages - a div has no default margin, so a standalone
+       notice was sitting flush against the card beneath it. 1.5rem matches .post's own spacing, so
+       a notice keeps the page's existing rhythm rather than introducing a third gap size. */
+    margin-block: 1.5rem;
 }
 
 .form-notice--ok {
@@ -402,12 +508,6 @@ footer {
     border-bottom: 1px solid #ddd;
 }
 
-.booking-list__item--cancelled .booking-list__title,
-.booking-list__item--cancelled .booking-list__when {
-    color: var(--muted);
-    text-decoration: line-through;
-}
-
 .booking-list__title {
     font-weight: 600;
 }
@@ -451,9 +551,25 @@ footer {
     margin: 0.5rem 0 0;
 }
 
+/* 0.8rem to match the booking rows, where the same separation is made up of a 0.3rem row gap plus
+   a 0.5rem margin. The two lists sit in the same column, so their actions should be set off from
+   the text above by the same amount. */
 .class-list__actions {
-    margin-top: 0.6rem;
+    margin-top: 0.8rem;
+    display: flex;
+    /* Wraps rather than overflowing: two full-size buttons do not fit side by side in a narrow
+       column, and a squeezed row is worse than a stacked one. */
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
 }
+
+    /* The shared button rule carries margin-top:1rem for buttons that follow a paragraph. In a flex
+       row it just pushes them down and out of line with each other. */
+    .class-list__actions .btn-primary,
+    .class-list__actions .btn-secondary {
+        margin-top: 0;
+    }
 
 .tag--full {
     background: #fdecee;
@@ -575,17 +691,115 @@ footer {
     padding-top: 0.8rem;
 }
 
-.booking-list__cancel {
-    background: none;
-    border: 1px solid #b00020;
-    color: #b00020;
-    border-radius: 3px;
-    padding: 0.15rem 0.5rem;
-    font: inherit;
-    font-size: 0.8rem;
-    cursor: pointer;
+/* Member area, narrow screens.
+   Placed after the existing 900px block deliberately: same specificity, so these have to be
+   declared later to win. */
+@media (max-width: 600px) {
+    /* The head is a two-column row on desktop; stacking keeps "8 av 8 platser kvar" from being
+       squeezed against the class title. */
+    .class-list__head,
+    .booking-list__item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .class-list__places {
+        white-space: normal;
+    }
+
+    /* Full-width tap targets: a 0.6rem-tall button is awkward on a phone. */
+    .class-list__actions .btn-primary,
+    .swish__actions .btn-primary {
+        display: block;
+        width: 100%;
+        text-align: center;
+    }
+
+    .member-form {
+        max-width: none;
+    }
+
+    .swish__amount {
+        font-size: 2rem;
+    }
 }
 
-    .booking-list__cancel:hover {
-        background: #fdecee;
+/* Respect a reader who has asked for less motion, and never animate away the reminder. */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
     }
+}
+
+.swish__hold--expired {
+    color: #b00020;
+    font-weight: 600;
+}
+
+/* Member boxes in the sidebar.
+   The column is narrow, so a booking row stacks rather than trying to hold title, time and actions
+   on one line. */
+.booking-list--stacked .booking-list__item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+}
+
+.booking-list__tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    /* On top of the row's own 0.3rem gap. The title and the time belong together, so they stay
+       tight; the actions are a separate thing and want visible air above them. */
+    margin-top: 0.5rem;
+    /* The row sits in a column-flex item whose align-items is flex-start, so without this it
+       shrinks to its content and there is no spare width to push anything into. */
+    align-self: stretch;
+}
+
+    /* Pushes the action to the right edge, whatever labels precede it - and still works when there
+       are none, unlike justify-content: space-between, which would leave a lone button on the left.
+       The flex child is the form BeginUmbracoForm emits, not the button inside it. */
+    .booking-list__tags form {
+        margin-left: auto;
+    }
+
+/* The sidebar boxes carry form notices, which are sized for the wider main column. */
+.widget .form-notice {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.7rem;
+    /* Still equal top and bottom, just tighter - 1.5rem is a lot of air in a narrow column. */
+    margin-block: 0.75rem;
+}
+
+.widget .booking-list__item {
+    padding: 0.5rem 0;
+}
+
+/* A widget holding nothing but a single action, so it needs less height than a content box. */
+.widget--action {
+    padding: 0.9rem 1.5rem;
+    text-align: center;
+}
+
+    /* Fills the box: a lone action reads better as a full-width target than a centred pill. */
+    .widget--action .btn-secondary {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        /* The shared button rule carries margin-top:1rem for inline use, which is dead space when
+           the button is the box's only child. */
+        margin-top: 0;
+    }
+
+/* The signed-in address in the membership box. */
+.widget__member {
+    margin-top: 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+    /* An address with no spaces will not wrap on its own, and would widen the whole column. */
+    overflow-wrap: anywhere;
+}

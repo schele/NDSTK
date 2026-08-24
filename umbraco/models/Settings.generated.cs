@@ -103,7 +103,7 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		public virtual global::System.Collections.Generic.IEnumerable<global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent> Menu => this.Value<global::System.Collections.Generic.IEnumerable<global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent>>(_publishedValueFallback, "menu");
 
 		///<summary>
-		/// Betalningsreservation (minuter): Hur länge en obetald bokning håller sin plats. Standard: 15.
+		/// Betalningsreservation (minuter): Hur länge en obetald bokning håller sin plats. Standard: 5.
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		[ImplementPropertyType("paymentHoldMinutes")]

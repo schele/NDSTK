@@ -1,4 +1,4 @@
-﻿@using NDSTK.Booking.Domain
+@using NDSTK.Booking.Domain
 @using NDSTK.Booking.Web
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
@@ -9,6 +9,77 @@
     string Kr(int ore) => (ore / 100).ToString("N0", new System.Globalization.CultureInfo("sv-SE"));
     string When(DateTime utc) => SwedishTime.ToSwedish(utc).ToString("dddd d MMMM HH:mm",
         new System.Globalization.CultureInfo("sv-SE"));
+}
+
+@* Takes the sidebar over from Root.cshtml. The member's own membership and bookings belong in the
+   right column here; the boxes it replaces - "Medlem" and the "Bli medlem" call to action - are
+   either redundant or actively wrong for somebody who is already signed in. *@
+@section Sidebar {
+    @if (portal is not null)
+    {
+        <div class="widget">
+            <h3>Mitt medlemskap</h3>
+
+            @if (portal.Email is { Length: > 0 } email)
+            {
+                @* The email is also the login name, so this is the identifier worth confirming -
+                   particularly on a shared machine. Wrapped anywhere, because a long address in a
+                   narrow column would otherwise push the box wider than its neighbours. *@
+                <p class="widget__member">Inloggad som <strong>@email</strong></p>
+            }
+
+            @if (portal.Membership.IsValid)
+            {
+                <p class="form-notice form-notice--ok">
+                    Årsavgiften är betald@(portal.Membership.PaidUntil is { } until
+                        ? $" till och med {until:yyyy-MM-dd}" : "").
+                </p>
+            }
+            else if (portal.Membership.HasLapsed)
+            {
+                <p class="form-notice form-notice--error" role="status">
+                    Ditt medlemskap gick ut @(portal.Membership.PaidUntil?.ToString("yyyy-MM-dd")).
+                    Årsavgiften på @Kr(portal.Prices.MembershipFeeOre) kr förnyas automatiskt när du
+                    bokar din nästa träning.
+                </p>
+            }
+            else
+            {
+                <p class="form-notice">
+                    Årsavgiften på @Kr(portal.Prices.MembershipFeeOre) kr läggs till när du bokar
+                    din nästa träning.
+                </p>
+            }
+
+            @{
+                var welcomeNote = portal.FirstClassDiscountAvailable ? " (välkomstpris)" : string.Empty;
+            }
+            <p>Nästa träning kostar <strong>@Kr(portal.NextClassFeeOre) kr</strong>@welcomeNote.</p>
+
+            @if (portal.UnspentCredits > 0)
+            {
+                <p class="form-notice form-notice--ok">
+                    Du har <strong>@portal.UnspentCredits</strong>
+                    @(portal.UnspentCredits == 1 ? "tillgodoträning" : "tillgodoträningar")
+                    att använda.
+                </p>
+            }
+
+        </div>
+
+        @await Html.PartialAsync("MemberBookings", new MemberBookingsPanel(portal.MyBookings, AllowCancel: true))
+
+        @* Its own box, and last: signing out is not part of reading your membership or your
+           bookings, and putting it after them keeps it out of the way of what the page is for.
+           A POST, so a prefetched URL or a third-party image cannot sign somebody out. *@
+        <div class="widget widget--action">
+            @using (Html.BeginUmbracoForm<LoginSurfaceController>(
+                nameof(LoginSurfaceController.Logout)))
+            {
+                <button type="submit" class="btn-secondary">Logga ut</button>
+            }
+        </div>
+    }
 }
 
 <div class="content-blocks">
@@ -38,8 +109,8 @@
             <div class="form-notice form-notice--error" role="alert">@bookingError</div>
         }
 
-        @* Reminder banner. Portal-only by design, and a pure read of the bookings list below, so
-           the two can never disagree about what is coming up. *@
+        @* Reminder banner. Portal-only by design, and a pure read of the bookings list, so the two
+           can never disagree about what is coming up. *@
         @foreach (var reminder in portal.ReminderBookings)
         {
             <div class="reminder-banner" role="status">
@@ -51,94 +122,6 @@
                 }
             </div>
         }
-
-        <article class="post">
-            <h2>Mitt medlemskap</h2>
-            @if (portal.Membership.IsValid)
-            {
-                <p class="form-notice form-notice--ok">
-                    Årsavgiften är betald@(portal.Membership.PaidUntil is { } until
-                        ? $" till och med {until:yyyy-MM-dd}" : "").
-                </p>
-            }
-            else if (portal.Membership.HasLapsed)
-            {
-                <p class="form-notice form-notice--error" role="status">
-                    Ditt medlemskap gick ut @(portal.Membership.PaidUntil?.ToString("yyyy-MM-dd")).
-                    Årsavgiften på @Kr(portal.Prices.MembershipFeeOre) kr förnyas automatiskt när du
-                    bokar din nästa träning.
-                </p>
-            }
-            else
-            {
-                <p class="form-notice">
-                    Årsavgiften på @Kr(portal.Prices.MembershipFeeOre) kr läggs till när du bokar
-                    din nästa träning.
-                </p>
-            }
-
-            @{
-                var welcomeNote = portal.FirstClassDiscountAvailable ? " (välkomstpris)" : string.Empty;
-            }
-            <p>
-                Nästa träning kostar <strong>@Kr(portal.NextClassFeeOre) kr</strong>@welcomeNote.
-            </p>
-
-            @if (portal.UnspentCredits > 0)
-            {
-                <p class="form-notice form-notice--ok">
-                    Du har <strong>@portal.UnspentCredits</strong>
-                    @(portal.UnspentCredits == 1 ? "tillgodoträning" : "tillgodoträningar")
-                    att använda.
-                </p>
-            }
-        </article>
-
-        <article class="post">
-            <h2>Mina bokningar</h2>
-            @if (portal.MyBookings.Count == 0)
-            {
-                <p>Du har inga bokningar än.</p>
-            }
-            else
-            {
-                <ul class="booking-list">
-                    @foreach (var row in portal.MyBookings)
-                    {
-                        <li class="booking-list__item booking-list__item--@row.Status.ToLowerInvariant()">
-                            <span class="booking-list__title">@(row.Class?.Title ?? "Träning")</span>
-                            <span class="booking-list__when">@When(row.ClassStartUtc)</span>
-                            @if (row.Status == BookingStatus.Cancelled)
-                            {
-                                <span class="tag">Avbokad</span>
-                            }
-                            else if (row.UsedCredit)
-                            {
-                                <span class="tag">Tillgodoträning</span>
-                            }
-                            @if (row.Class is null)
-                            {
-                                <span class="tag">Träningen är borttagen</span>
-                            }
-                            @if (row.IsCancellable)
-                            {
-                                using (Html.BeginUmbracoForm<BookingSurfaceController>(
-                                    nameof(BookingSurfaceController.Cancel)))
-                                {
-                                    <input type="hidden" name="bookingId" value="@row.BookingId" />
-                                    @* The consequence is stated on the button itself. A member
-                                       should not have to discover the no-refund rule afterwards. *@
-                                    <button type="submit" class="booking-list__cancel"
-                                            title="Avgiften betalas inte tillbaka, men du får en tillgodoträning">
-                                        Avboka
-                                    </button>
-                                }
-                            }
-                        </li>
-                    }
-                </ul>
-            }
-        </article>
 
         <article class="post">
             <h2>Boka träning</h2>
@@ -185,7 +168,10 @@
                             <div class="class-list__actions">
                                 @if (bookable.MemberHasBooking)
                                 {
-                                    <span class="tag">Redan bokad</span>
+                                    @* A label, not a filled tag: this states a fact about the
+                                       class, it is not something to click. Same treatment as
+                                       "Tillgodoträning" in the bookings list. *@
+                                    <span class="tag tag--label">Redan bokad</span>
                                 }
                                 else if (bookable.CanBook)
                                 {
@@ -208,7 +194,10 @@
                                         {
                                             <input type="hidden" name="classKey" value="@bookable.Class.Key" />
                                             <input type="hidden" name="useCredit" value="true" />
-                                            <button type="submit" class="consent-btn consent-btn--link">
+                                            @* Secondary, not a link: it is an equal alternative to
+                                               paying, so it should look like a choice rather than a
+                                               footnote - just not competing with the yellow. *@
+                                            <button type="submit" class="btn-secondary">
                                                 Boka med tillgodoträning
                                             </button>
                                         }

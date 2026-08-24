@@ -35,7 +35,7 @@ public sealed class MemberVerifyController(
     /// overload beside it registers two endpoints with the same name and every request fails with
     /// AmbiguousMatchException. Matching the template alias gives an async action with no clash.
     /// </summary>
-    [EnableRateLimiting(BookingRateLimits.MemberForms)]
+    [EnableRateLimiting(BookingRateLimits.Auth)]
     public async Task<IActionResult> MemberVerify(
         [FromQuery] string? member, [FromQuery] string? token)
     {
@@ -69,11 +69,17 @@ public sealed class MemberVerifyController(
         // relying on it is not worth the saving.
         //
         // Nothing is lost by ordering it this way. Identity's confirmation token stays valid until
-        // it expires - ConfirmEmailAsync does not rotate the security stamp - so a second click on
-        // the same day, or a mail client prefetching the link, still presents a valid token and
-        // still gets the friendly "already activated" below. Only a re-click after the token has
-        // expired falls through to the generic error, which is rare and costs the member nothing:
-        // their account already works.
+        // it expires - ConfirmEmailAsync does not rotate the security stamp - so a second click
+        // within the token's lifetime, or a mail client prefetching the link, still presents a valid
+        // token and still gets the friendly "already activated" below.
+        //
+        // That lifetime is now fifteen minutes (see MemberVerificationTokenOptions), so a member who
+        // returns to the mail an hour later and clicks again does get the generic error instead.
+        // Accepted rather than overlooked: their account already works, so the only cost is one
+        // confusing page, and that page tells them to register again - which, for an account that is
+        // already active, sends the "you already have an account" mail with a login link. Reordering
+        // the checks to give them a nicer message would mean answering "redan aktiverat" before any
+        // token is validated, which is exactly the oracle described above.
         IdentityResult confirmed = await memberManager.ConfirmEmailAsync(user, token);
         if (confirmed.Succeeded is false)
         {

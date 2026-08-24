@@ -29,7 +29,8 @@ public sealed class MemberPortalController(
     TrainingClassService classes,
     MemberProfileService profiles,
     MembershipSettingsService settings,
-    IBookingRepository bookings)
+    IBookingRepository bookings,
+    MemberBookingsProvider bookingsProvider)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     public async Task<IActionResult> MemberPortal()
@@ -49,12 +50,15 @@ public sealed class MemberPortalController(
         MemberState state = await profiles.GetStateAsync(memberKey);
 
         IReadOnlyList<BookableClass> upcoming = await classes.GetUpcomingAsync(memberKey, nowUtc);
-        IReadOnlyList<BookingSnapshot> mine = await bookings.GetBookingsForMemberAsync(memberKey);
+        IReadOnlyList<MemberBookingRow> mine = await bookingsProvider.GetCurrentAsync(memberKey);
         IReadOnlyList<CreditSnapshot> credits = await bookings.GetCreditsForMemberAsync(memberKey);
 
         ViewData["MemberPortal"] = new MemberPortalViewModel(
+            // Shown in the membership box so a member can see which account they are signed in as -
+            // it doubles as the login name, so it is the one identifier worth confirming.
+            Email: user.Email,
             UpcomingClasses: upcoming,
-            MyBookings: BuildRows(mine, credits),
+            MyBookings: mine,
             UnspentCredits: Credits.CountUnspent(credits),
             Membership: new MembershipStatus(
                 Pricing.IsMembershipValid(state, today), state.MembershipPaidUntil),
@@ -65,38 +69,4 @@ public sealed class MemberPortalController(
         return CurrentTemplate(CurrentPage);
     }
 
-    /// <summary>
-    /// Pairs each booking with its class and with the credit that paid for it, if any.
-    /// </summary>
-    /// <remarks>
-    /// Expired holds are dropped: they are bookkeeping for an abandoned payment, not something the
-    /// member ever chose, and listing them would only confuse.
-    ///
-    /// The class lookup may come back null when an editor has deleted the class node. The row still
-    /// renders, because the booking carries its own copy of the start time - a member who paid
-    /// deserves to see the booking either way.
-    /// </remarks>
-    private List<MemberBookingRow> BuildRows(
-        IReadOnlyList<BookingSnapshot> snapshots, IReadOnlyList<CreditSnapshot> credits)
-    {
-        HashSet<int> paidByCredit =
-        [
-            .. credits
-                .Where(credit => credit.SpentOnBookingId is not null)
-                .Select(credit => credit.SpentOnBookingId!.Value),
-        ];
-
-        return
-        [
-            .. snapshots
-                .Where(snapshot => snapshot.Status is BookingStatus.Confirmed or BookingStatus.Cancelled)
-                .OrderByDescending(snapshot => snapshot.ClassStartUtc)
-                .Select(snapshot => new MemberBookingRow(
-                    snapshot.Id,
-                    classes.Find(snapshot.ClassKey),
-                    snapshot.Status,
-                    snapshot.ClassStartUtc,
-                    UsedCredit: paidByCredit.Contains(snapshot.Id))),
-        ];
-    }
 }

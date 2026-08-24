@@ -1,0 +1,55 @@
+@using NDSTK.Booking.Domain
+@using NDSTK.Booking.Web
+@model MemberBookingsPanel
+@{
+    var culture = new System.Globalization.CultureInfo("sv-SE");
+    string When(DateTime utc) => SwedishTime.ToSwedish(utc).ToString("dddd d MMMM HH:mm", culture);
+}
+
+@* Shared by the member portal and the payment page, so the two cannot show different bookings. *@
+<div class="widget">
+    <h3>Mina bokningar</h3>
+
+    @if (Model.Rows.Count == 0)
+    {
+        @* The box still renders when empty. A member who has just paid should see where their
+           bookings will appear, rather than the box vanishing and reappearing. *@
+        <p>Inga bokningar.</p>
+    }
+    else
+    {
+        <ul class="booking-list booking-list--stacked">
+            @foreach (var row in Model.Rows)
+            {
+                <li class="booking-list__item">
+                    <span class="booking-list__title">@(row.Class?.Title ?? "Träning")</span>
+                    <span class="booking-list__when">@When(row.ClassStartUtc)</span>
+                    <span class="booking-list__tags">
+                        @if (row.UsedCredit)
+                        {
+                            <span class="tag tag--label">Tillgodoträning</span>
+                        }
+                        @if (row.Class is null)
+                        {
+                            <span class="tag tag--label">Borttagen</span>
+                        }
+                        @if (Model.AllowCancel && row.IsCancellable)
+                        {
+                            using (Html.BeginUmbracoForm<BookingSurfaceController>(
+                                nameof(BookingSurfaceController.Cancel)))
+                            {
+                                <input type="hidden" name="bookingId" value="@row.BookingId" />
+                                @* The consequence is on the button itself: a member should not have
+                                   to discover the no-refund rule afterwards. *@
+                                <button type="submit" class="btn-danger btn--small"
+                                        title="Avgiften betalas inte tillbaka, men du får en tillgodoträning">
+                                    Avboka
+                                </button>
+                            }
+                        }
+                    </span>
+                </li>
+            }
+        </ul>
+    }
+</div>

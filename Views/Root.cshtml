@@ -103,9 +103,14 @@
             @{
                 var isMemberLoggedIn = MemberManager.IsLoggedIn();
                 var portalPage = settings?.Value<IPublishedContent>("memberPortalPage");
-                var registerPage = root?.ChildrenOfType("memberRegister").FirstOrDefault();
             }
-            @if (isMemberLoggedIn)
+            @* A page may take the sidebar over entirely - the member portal does, to put the
+               member's own membership and bookings there instead of the generic boxes. *@
+            @if (IsSectionDefined("Sidebar"))
+            {
+                @await RenderSectionAsync("Sidebar")
+            }
+            else if (isMemberLoggedIn)
             {
                 <div class="widget widget--highlight">
                     <h3>Medlem</h3>
@@ -127,15 +132,16 @@
                 <div class="widget widget--highlight">
                     <h3>Medlem</h3>
                     <p><a href="@loginPage.Url()" class="btn-primary">Logga in</a></p>
-                    @if (registerPage is not null)
-                    {
-                        <p><a href="@registerPage.Url()">Bli medlem</a></p>
-                    }
                 </div>
             }
-            @foreach (var widget in widgets ?? Enumerable.Empty<BlockListItem>())
+            @* Skipped when a page supplies its own sidebar, so the portal does not carry a
+               "Bli medlem" call to action aimed at somebody who is already a member. *@
+            @if (IsSectionDefined("Sidebar") is false)
             {
-                @await Html.PartialAsync($"blocklist/Components/{widget.Content.ContentType.Alias}", widget)
+                foreach (var widget in widgets ?? Enumerable.Empty<BlockListItem>())
+                {
+                    @await Html.PartialAsync($"blocklist/Components/{widget.Content.ContentType.Alias}", widget)
+                }
             }
         </aside>
     </main>

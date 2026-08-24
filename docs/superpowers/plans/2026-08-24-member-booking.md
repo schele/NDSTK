@@ -2114,9 +2114,57 @@ without framework noise.
 
 ---
 
-## Remaining tasks
+## Task 24: Calls to action, polish and documentation — DONE (Phase 7 complete)
 
-Task 24 (Phase 7) is written into this document as it is reached, so that the interfaces they
+**Files:** `ContentModel/NdstkMemberContentUpgrade.cs` (CTA repoint), `wwwroot/static/css/site.css`
+(narrow-screen rules), `README.md` (new).
+
+### The two dead calls to action
+
+The previous design's "Bli medlem" buttons linked to `#members`, an anchor that never existed — the
+hero on the start page and the sidebar widget on Settings. Both values live inside Block List JSON,
+so the fix deserialises the `BlockListValue`, walks `ContentData` for `link` properties containing
+the placeholder, and writes back.
+
+**Replaced with a document link, not the path.** Decompiling
+`MultiUrlPickerValueEditor.LinkDto` gave the stored shape — `name`, `target`, `unique`, `type`,
+`udi`, `url`, `queryString` — so the new value is `{"name":…,"type":"document","udi":"umb://document/…"}`.
+Hardcoding "/bli-medlem/" would break the button again the moment somebody renamed the page, which
+is the exact failure being fixed.
+
+Carried by the same once-only marker as the rest of `NdstkMemberContentUpgrade`, bumped to
+`…cta-targets-v3`, because it overwrites values an editor could also have set.
+
+### Polish
+
+Narrow-screen rules for the member area, declared **after** the existing 900px block so they win at
+equal specificity: the class-list head and booking rows stack rather than squeezing "8 av 8 platser
+kvar" against the title, buttons become full-width tap targets, and the Swish amount steps down.
+Plus a `prefers-reduced-motion` guard.
+
+### README
+
+The repository had none. It documents what cannot be inferred from the code: that the content model
+is code-first and must not be hand-built in the backoffice; the difference between the three install
+mechanisms (create-if-missing, field-upgrade, once-only content overwrite); where the SMTP password
+goes and why `PickupDirectoryLocation` must never be set in production; the öre convention; the
+datetime-format trap; and why `UseRateLimiter()` has to sit inside the Umbraco middleware callback.
+
+### Runtime verification
+
+| Check | Result |
+| --- | --- |
+| Repoint ran | "Repointed the 'contentBlocks' … on 'Start'" and "… 'sidebarWidgets' … on 'Settings'" |
+| Dead anchors remaining | **0** |
+| Both buttons now point at | `/bli-medlem/` |
+| Restart | upgrade did not re-run; marker held |
+| Smoke test — `/`, `/bli-medlem/`, `/logga-in/`, `/verifiera-e-post/`, `/mina-sidor/`, `/404` | all 200, zero boot errors |
+
+---
+
+## Status
+
+All seven phases complete. 53 tests passing., so that the interfaces they
 consume are the ones the previous task actually produced rather than the ones this plan
 predicted. Phase boundaries are fixed by the spec:
 

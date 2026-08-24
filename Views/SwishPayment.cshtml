@@ -5,10 +5,18 @@
     Layout = "Root.cshtml";
 
     var pay = ViewData["SwishPayment"] as SwishPaymentViewModel;
+    var bookings = ViewData["MemberBookings"] as IReadOnlyList<MemberBookingRow> ?? [];
     var culture = new System.Globalization.CultureInfo("sv-SE");
 
     string Kr(int ore) => (ore / 100).ToString("N0", culture);
     var portalPage = Model.Root()?.ChildrenOfType("memberPortal").FirstOrDefault();
+}
+
+@* Same reasoning as the portal: the generic "Medlem" and "Bli medlem" boxes are redundant or wrong
+   for somebody who is signed in and part-way through paying. Their current bookings are the useful
+   thing to see beside a payment. *@
+@section Sidebar {
+    @await Html.PartialAsync("MemberBookings", new MemberBookingsPanel(bookings, AllowCancel: false))
 }
 
 <div class="content-blocks">
@@ -80,12 +88,14 @@
                     Referens<br /><code>@pay.Reference</code>
                 </p>
 
-                <p class="swish__hold">
+                @* Rendered server-side so it reads correctly with no JavaScript; the script below
+                   then keeps it ticking rather than leaving a snapshot from page load. *@
+                <p class="swish__hold" data-hold-expires="@pay.HoldExpiresIso">
                     Platsen är reserverad i @pay.MinutesLeft
                     @(pay.MinutesLeft == 1 ? "minut" : "minuter") till.
                 </p>
 
-                <div class="swish__actions">
+                <div class="swish__actions" data-hold-actions>
                     @using (Html.BeginUmbracoForm<SwishPaymentSurfaceController>(
                         nameof(SwishPaymentSurfaceController.SimulatePaid)))
                     {
@@ -106,6 +116,8 @@
                     skickat tillbaka.
                 </p>
             </div>
+
+            <script src="~/static/js/payment-countdown.js" defer></script>
         }
     </article>
 </div>

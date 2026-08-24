@@ -4,6 +4,7 @@ namespace NDSTK.Booking.Web;
 
 /// <summary>Everything the portal page renders, assembled once by the controller.</summary>
 public sealed record MemberPortalViewModel(
+    string? Email,
     IReadOnlyList<BookableClass> UpcomingClasses,
     IReadOnlyList<MemberBookingRow> MyBookings,
     int UnspentCredits,
