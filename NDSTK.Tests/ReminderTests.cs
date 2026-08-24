@@ -9,7 +9,7 @@ public class ReminderTests
     private static BookingSnapshot Booking(
         int id, DateTime classStartUtc, string status = BookingStatus.Confirmed,
         DateTime? reminderSentUtc = null, DateTime? holdExpiresUtc = null)
-        => new(id, Guid.NewGuid(), Guid.NewGuid(), status, holdExpiresUtc, classStartUtc, reminderSentUtc);
+        => new(id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), status, holdExpiresUtc, classStartUtc, reminderSentUtc);
 
     [Fact]
     public void A_class_inside_the_window_is_due()

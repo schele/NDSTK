@@ -21,9 +21,16 @@ public static class Capacity
         => Math.Max(0, capacity - bookings.Count(booking => HoldsPlace(booking, nowUtc)));
 
     /// <summary>
-    /// A member may hold at most one live booking per class. A cancelled or expired booking does
-    /// not count, so rebooking a class you left is allowed.
+    /// A <em>child</em> may hold at most one live booking per class. A cancelled or expired booking
+    /// does not count, so rebooking a class you left is allowed.
     /// </summary>
-    public static bool HasLiveBooking(IEnumerable<BookingSnapshot> bookings, Guid memberKey, DateTime nowUtc)
-        => bookings.Any(booking => booking.MemberKey == memberKey && HoldsPlace(booking, nowUtc));
+    /// <remarks>
+    /// Keyed on the participant rather than the account: two siblings on one family account are two
+    /// participants, and both must fit on the same class. This has to stay in step with the partial
+    /// unique index IX_ndstkBooking_OneLivePerParticipantClass, which is the same rule in SQL.
+    /// </remarks>
+    public static bool HasLiveBooking(
+        IEnumerable<BookingSnapshot> bookings, Guid participantKey, DateTime nowUtc)
+        => bookings.Any(booking =>
+            booking.ParticipantKey == participantKey && HoldsPlace(booking, nowUtc));
 }
