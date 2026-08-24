@@ -61,12 +61,13 @@ internal sealed class NdstkContentModelInstaller(
             "membership",
             "Medlemskap",
             factory.Property(BuiltInDataTypes.Numeric, "membershipFee", "Årsavgift (kr)", "Standard: 150.", 0),
-            factory.Property(BuiltInDataTypes.Numeric, "firstClassPrice", "Pris första klassen (kr)", "Välkomstpris, en gång per medlem. Standard: 100.", 1),
-            factory.Property(BuiltInDataTypes.Numeric, "classPrice", "Pris per klass (kr)", "Standard: 200.", 2),
-            factory.Property(BuiltInDataTypes.Numeric, "reminderHoursBefore", "Påminnelse (timmar innan)", "Standard: 24.", 3),
-            factory.Property(BuiltInDataTypes.Numeric, "paymentHoldMinutes", "Betalningsreservation (minuter)", "Hur länge en obetald bokning håller sin plats. Standard: 5.", 4),
-            factory.Property(BuiltInDataTypes.ContentPicker, "memberPortalPage", "Medlemssidan", "Dit medlemmen skickas efter inloggning.", 5),
-            factory.Property(BuiltInDataTypes.ContentPicker, "registerPage", "Bli medlem-sidan", "Målet för Bli medlem-knapparna.", 6));
+            factory.Property(BuiltInDataTypes.Numeric, "familyFee", "Familjetillägg (kr)", "Tillägg per år för familjekonto, som låter kontot ha flera barn. Standard: 100.", 1),
+            factory.Property(BuiltInDataTypes.Numeric, "firstClassPrice", "Pris första klassen (kr)", "Välkomstpris, en gång per barn. Standard: 100.", 2),
+            factory.Property(BuiltInDataTypes.Numeric, "classPrice", "Pris per klass (kr)", "Standard: 200.", 3),
+            factory.Property(BuiltInDataTypes.Numeric, "reminderHoursBefore", "Påminnelse (timmar innan)", "Standard: 24.", 4),
+            factory.Property(BuiltInDataTypes.Numeric, "paymentHoldMinutes", "Betalningsreservation (minuter)", "Hur länge en obetald bokning håller sin plats. Standard: 5.", 5),
+            factory.Property(BuiltInDataTypes.ContentPicker, "memberPortalPage", "Medlemssidan", "Dit medlemmen skickas efter inloggning.", 6),
+            factory.Property(BuiltInDataTypes.ContentPicker, "registerPage", "Bli medlem-sidan", "Målet för Bli medlem-knapparna.", 7));
 
         if (settingsChanged)
         {
@@ -76,14 +77,22 @@ internal sealed class NdstkContentModelInstaller(
             logger.LogInformation("Updated the Medlemskap fields on the settings document type.");
         }
 
-        // Both are administrative facts: a member may see them, but a member who could edit their
-        // own membership expiry would have a free membership.
+        // The membership facts are administrative: a member may see them, but one who could edit
+        // their own expiry would have a free membership, and one who could tick familjekonto would
+        // have a free family account. The phone number is theirs to change.
         var memberChanged = await factory.EnsureMemberPropertiesAsync(
             MemberTypes.MemberAlias,
             "membership",
             "Membership",
             (factory.Property(BuiltInDataTypes.DatePicker, "membershipPaidUntil", "Membership paid until", "Inclusive last day of the paid membership.", 10), true, false),
-            (factory.Property(BuiltInDataTypes.TrueFalse, "firstClassDiscountUsed", "First class discount used", "Set once a payment including the welcome price completes.", 11), true, false));
+            // Retired: the welcome price is now once per child and lives on ndstkParticipant.
+            // Kept declared because the participant backfill reads it on an already-installed site.
+            // Nothing writes it any more.
+            (factory.Property(BuiltInDataTypes.TrueFalse, "firstClassDiscountUsed", "First class discount used (retired)", "No longer used. The welcome price is per child, on the participant.", 11), true, false),
+            (factory.Property(BuiltInDataTypes.TrueFalse, "familjekonto", "Family account", "Set once the family supplement is paid. Lets the account hold more than one child.", 12), true, false),
+            // The one the member may edit: it is their own contact detail, and nothing about it is
+            // worth money. It appears on the class roster so a coach can reach a parent.
+            (factory.Property(BuiltInDataTypes.Textstring, "telefon", "Phone", "The guardian's phone number.", 13), true, true));
 
         if (memberChanged)
         {
