@@ -5,6 +5,7 @@
 
 @inject ILanguageService LanguageService
 @inject IUmbracoContextAccessor UmbracoContextAccessor
+@inject Umbraco.Cms.Core.Security.IMemberManager MemberManager
 
 @{
     var umbracoContext = UmbracoContextAccessor.GetRequiredUmbracoContext();
@@ -99,11 +100,37 @@
 
         @* Right column - site-wide widgets, configured on the Settings node *@
         <aside>
-            @if (loginPage is not null)
+            @{
+                var isMemberLoggedIn = MemberManager.IsLoggedIn();
+                var portalPage = settings?.Value<IPublishedContent>("memberPortalPage");
+                var registerPage = root?.ChildrenOfType("memberRegister").FirstOrDefault();
+            }
+            @if (isMemberLoggedIn)
+            {
+                <div class="widget widget--highlight">
+                    <h3>Medlem</h3>
+                    @if (portalPage is not null)
+                    {
+                        <p><a href="@portalPage.Url()" class="btn-primary">Mina sidor</a></p>
+                    }
+                    @* A POST, not a link: signing someone out on a GET means any image or
+                       prefetched URL on another site could log them out. *@
+                    @using (Html.BeginUmbracoForm<NDSTK.Booking.Web.LoginSurfaceController>(
+                        nameof(NDSTK.Booking.Web.LoginSurfaceController.Logout)))
+                    {
+                        <button type="submit" class="consent-btn consent-btn--link">Logga ut</button>
+                    }
+                </div>
+            }
+            else if (loginPage is not null)
             {
                 <div class="widget widget--highlight">
                     <h3>Medlem</h3>
                     <p><a href="@loginPage.Url()" class="btn-primary">Logga in</a></p>
+                    @if (registerPage is not null)
+                    {
+                        <p><a href="@registerPage.Url()">Bli medlem</a></p>
+                    }
                 </div>
             }
             @foreach (var widget in widgets ?? Enumerable.Empty<BlockListItem>())

@@ -13,8 +13,16 @@ namespace NDSTK.ContentModel;
 /// create-if-missing: an entity that already exists is returned untouched, so changes made in
 /// the backoffice survive an app restart.
 /// </summary>
+/// <remarks>
+/// The create-if-missing rule has one consequence worth spelling out: <see cref="EnsureContentTypeAsync"/>
+/// runs its <c>configure</c> callback only for a brand new type, so it cannot roll a new field
+/// out to a site that is already installed. <see cref="EnsureGroupAsync"/> and
+/// <see cref="EnsureMemberPropertiesAsync"/> exist for exactly that, and add only what is
+/// missing.
+/// </remarks>
 internal sealed class NdstkContentTypeFactory(
     IContentTypeService contentTypeService,
+    IMemberTypeService memberTypeService,
     IDataTypeService dataTypeService,
     ITemplateService templateService,
     PropertyEditorCollection propertyEditors,
@@ -206,5 +214,110 @@ internal sealed class NdstkContentTypeFactory(
     {
         contentType.AllowedTemplates = [template];
         contentType.SetDefaultTemplate(template);
+    }
+
+    // ------------------------------------------------------------------ upgrades
+
+    /// <summary>
+    /// Adds properties to a document type that already exists, creating the group if it is not
+    /// there. Properties are matched by alias, so a re-run changes nothing and an editor's own
+    /// additions to the group survive.
+    /// </summary>
+    /// <param name="groupKey">
+    /// Applied only when this call creates the group. Umbraco would otherwise assign a random key,
+    /// which would make a uSync export differ between environments for no reason.
+    /// </param>
+    /// <returns>True when something was added, so the caller can log only real changes.</returns>
+    public async Task<bool> EnsureGroupAsync(
+        Guid contentTypeKey,
+        Guid groupKey,
+        string groupAlias,
+        string groupCaption,
+        params IPropertyType[] properties)
+    {
+        IContentType contentType = contentTypeService.Get(contentTypeKey)
+                                   ?? throw new InvalidOperationException($"Content type {contentTypeKey} was not found.");
+
+        var groupExisted = contentType.PropertyGroups.Any(group => group.Alias == groupAlias);
+        var changed = false;
+
+        foreach (IPropertyType property in properties)
+        {
+            if (contentType.PropertyTypeExists(property.Alias))
+            {
+                continue;
+            }
+
+            contentType.AddPropertyType(property, groupAlias, groupCaption);
+            changed = true;
+        }
+
+        if (changed is false)
+        {
+            return false;
+        }
+
+        if (groupExisted is false)
+        {
+            PropertyGroup? created = contentType.PropertyGroups.FirstOrDefault(group => group.Alias == groupAlias);
+            if (created is not null)
+            {
+                created.Key = groupKey;
+            }
+        }
+
+        var attempt = await contentTypeService.UpdateAsync(contentType, UserKey);
+        if (attempt.Success is false)
+        {
+            throw new InvalidOperationException(
+                $"Could not add group '{groupAlias}' to '{contentType.Alias}': {attempt.Result}.");
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Adds properties to the member type. The two visibility flags matter: the membership expiry
+    /// and the first-class discount are administrative facts, so a member is allowed to see them
+    /// but never to edit them - a member who could edit their own expiry date would have a free
+    /// membership.
+    /// </summary>
+    public async Task<bool> EnsureMemberPropertiesAsync(
+        string memberTypeAlias,
+        string groupAlias,
+        string groupCaption,
+        params (IPropertyType Property, bool MemberCanView, bool MemberCanEdit)[] properties)
+    {
+        IMemberType memberType = memberTypeService.Get(memberTypeAlias)
+                                 ?? throw new InvalidOperationException($"Member type '{memberTypeAlias}' was not found.");
+
+        var changed = false;
+
+        foreach ((IPropertyType property, bool canView, bool canEdit) in properties)
+        {
+            if (memberType.PropertyTypeExists(property.Alias))
+            {
+                continue;
+            }
+
+            memberType.AddPropertyType(property, groupAlias, groupCaption);
+            memberType.SetMemberCanViewProperty(property.Alias, canView);
+            memberType.SetMemberCanEditProperty(property.Alias, canEdit);
+            changed = true;
+        }
+
+        if (changed is false)
+        {
+            return false;
+        }
+
+        var attempt = await memberTypeService.UpdateAsync(memberType, UserKey);
+        if (attempt.Success is false)
+        {
+            throw new InvalidOperationException(
+                $"Could not add properties to member type '{memberTypeAlias}': {attempt.Result}.");
+        }
+
+        return true;
     }
 }

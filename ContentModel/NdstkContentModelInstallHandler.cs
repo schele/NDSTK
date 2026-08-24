@@ -14,6 +14,9 @@ internal sealed class NdstkContentModelInstallHandler(
     IRuntimeState runtimeState,
     NdstkContentModelInstaller installer,
     NdstkContentSeeder seeder,
+    NdstkMemberPages memberPages,
+    NdstkMemberContentUpgrade memberContentUpgrade,
+    NdstkMemberAccessInstaller memberAccess,
     ILogger<NdstkContentModelInstallHandler> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
@@ -30,6 +33,15 @@ internal sealed class NdstkContentModelInstallHandler(
         {
             await installer.InstallAsync();
             seeder.Seed();
+
+            // After the seeder, so a brand new site has its start page to hang these off.
+            memberPages.Install();
+
+            // After the pages exist, so the Settings pickers have something to point at.
+            memberContentUpgrade.Upgrade();
+
+            // Last: the portal node has to exist before it can be protected.
+            await memberAccess.InstallAsync();
         }
         catch (Exception exception)
         {

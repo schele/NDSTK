@@ -1,0 +1,174 @@
+﻿@using NDSTK.Booking.Domain
+@using NDSTK.Booking.Web
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Root.cshtml";
+
+    var portal = ViewData["MemberPortal"] as MemberPortalViewModel;
+
+    string Kr(int ore) => (ore / 100).ToString("N0", new System.Globalization.CultureInfo("sv-SE"));
+    string When(DateTime utc) => SwedishTime.ToSwedish(utc).ToString("dddd d MMMM HH:mm",
+        new System.Globalization.CultureInfo("sv-SE"));
+}
+
+<div class="content-blocks">
+    <section class="hero">
+        <div class="hero-content">
+            <h1>@(Model.Value<string>("heading").IfNullOrWhiteSpace(Model.Name))</h1>
+            <p>@(Model.Value<string>("description"))</p>
+        </div>
+    </section>
+
+    @if (portal is null)
+    {
+        <article class="post">
+            <p class="form-notice form-notice--error" role="alert">
+                Vi kunde inte läsa dina uppgifter. Prova att logga in igen.
+            </p>
+        </article>
+    }
+    else
+    {
+        @* Reminder banner. Portal-only by design, and a pure read of the bookings list below, so
+           the two can never disagree about what is coming up. *@
+        @foreach (var reminder in portal.ReminderBookings)
+        {
+            <div class="reminder-banner" role="status">
+                <strong>Påminnelse:</strong>
+                @(reminder.Class?.Title ?? "Din träning") börjar @When(reminder.ClassStartUtc).
+                @if (reminder.Class?.Location is { Length: > 0 } place)
+                {
+                    <span>Plats: @place.</span>
+                }
+            </div>
+        }
+
+        <article class="post">
+            <h2>Mitt medlemskap</h2>
+            @if (portal.Membership.IsValid)
+            {
+                <p class="form-notice form-notice--ok">
+                    Årsavgiften är betald@(portal.Membership.PaidUntil is { } until
+                        ? $" till och med {until:yyyy-MM-dd}" : "").
+                </p>
+            }
+            else
+            {
+                <p class="form-notice">
+                    Årsavgiften på @Kr(portal.Prices.MembershipFeeOre) kr läggs till när du bokar
+                    din nästa träning.
+                </p>
+            }
+
+            @{
+                var welcomeNote = portal.FirstClassDiscountAvailable ? " (välkomstpris)" : string.Empty;
+            }
+            <p>
+                Nästa träning kostar <strong>@Kr(portal.NextClassFeeOre) kr</strong>@welcomeNote.
+            </p>
+
+            @if (portal.UnspentCredits > 0)
+            {
+                <p class="form-notice form-notice--ok">
+                    Du har <strong>@portal.UnspentCredits</strong>
+                    @(portal.UnspentCredits == 1 ? "tillgodoträning" : "tillgodoträningar")
+                    att använda.
+                </p>
+            }
+        </article>
+
+        <article class="post">
+            <h2>Mina bokningar</h2>
+            @if (portal.MyBookings.Count == 0)
+            {
+                <p>Du har inga bokningar än.</p>
+            }
+            else
+            {
+                <ul class="booking-list">
+                    @foreach (var row in portal.MyBookings)
+                    {
+                        <li class="booking-list__item booking-list__item--@row.Status.ToLowerInvariant()">
+                            <span class="booking-list__title">@(row.Class?.Title ?? "Träning")</span>
+                            <span class="booking-list__when">@When(row.ClassStartUtc)</span>
+                            @if (row.Status == BookingStatus.Cancelled)
+                            {
+                                <span class="tag">Avbokad</span>
+                            }
+                            else if (row.UsedCredit)
+                            {
+                                <span class="tag">Tillgodoträning</span>
+                            }
+                            @if (row.Class is null)
+                            {
+                                <span class="tag">Träningen är borttagen</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+
+        <article class="post">
+            <h2>Boka träning</h2>
+            @if (portal.UpcomingClasses.Count == 0)
+            {
+                <p>Inga träningar är upplagda just nu. Håll utkik!</p>
+            }
+            else
+            {
+                <ul class="class-list">
+                    @foreach (var bookable in portal.UpcomingClasses)
+                    {
+                        <li class="class-list__item">
+                            <div class="class-list__head">
+                                <span class="class-list__title">@bookable.Class.Title</span>
+                                <span class="class-list__places">
+                                    @if (bookable.IsFull)
+                                    {
+                                        <span class="tag tag--full">Fullbokad</span>
+                                    }
+                                    else
+                                    {
+                                        @* The club's "max x players" made visible to the member. *@
+                                        <text>@bookable.RemainingPlaces av @bookable.Class.Capacity platser kvar</text>
+                                    }
+                                </span>
+                            </div>
+                            <div class="class-list__meta">
+                                @When(bookable.Class.StartUtc)
+                                · @bookable.Class.DurationMinutes min
+                                @if (bookable.Class.Instructor is { Length: > 0 } coach)
+                                {
+                                    <text>· @coach </text>
+                                }
+                                @if (bookable.Class.Location is { Length: > 0 } where)
+                                {
+                                    <text>· @where</text>
+                                }
+                            </div>
+                            @if (bookable.Class.Description is { Length: > 0 } about)
+                            {
+                                <p class="class-list__about">@about</p>
+                            }
+                            <div class="class-list__actions">
+                                @if (bookable.MemberHasBooking)
+                                {
+                                    <span class="tag">Redan bokad</span>
+                                }
+                                else if (bookable.CanBook)
+                                {
+                                    @* Booking arrives in Phase 4. Rendered disabled rather than
+                                       omitted so the layout is already the real one. *@
+                                    <button type="button" class="btn-primary" disabled>
+                                        Boka — @Kr(portal.NextClassFeeOre) kr
+                                    </button>
+                                }
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+    }
+</div>

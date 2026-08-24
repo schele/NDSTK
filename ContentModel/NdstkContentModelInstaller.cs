@@ -33,13 +33,59 @@ internal sealed class NdstkContentModelInstaller(
             BuiltInDataTypes.TrueFalse,
             BuiltInDataTypes.ImageMediaPicker,
             BuiltInDataTypes.ContentPicker,
-            BuiltInDataTypes.Numeric);
+            BuiltInDataTypes.Numeric,
+            BuiltInDataTypes.DatePickerWithTime);
 
         await InstallElementTypesAsync();
         await InstallDataTypesAsync();
         await InstallDocumentTypesAsync(templates);
+        await UpgradeExistingTypesAsync();
 
         logger.LogInformation("NDSTK content model is up to date.");
+    }
+
+    // ----------------------------------------------------------------- upgrades
+
+    /// <summary>
+    /// Adds fields to types that already exist. Everything above is create-if-missing, so a field
+    /// added to an already-installed site has to come through the factory's Ensure*Async upgrade
+    /// methods instead - declaring it in the block above would silently do nothing.
+    /// </summary>
+    private async Task UpgradeExistingTypesAsync()
+    {
+        // Prices are entered in kronor because that is what an editor thinks in. The conversion to
+        // the öre stored in the payment tables happens once, in MembershipSettingsService.
+        var settingsChanged = await factory.EnsureGroupAsync(
+            DocumentTypes.Settings,
+            DeriveKey(DocumentTypes.Settings, 2),
+            "membership",
+            "Medlemskap",
+            factory.Property(BuiltInDataTypes.Numeric, "membershipFee", "Årsavgift (kr)", "Standard: 150.", 0),
+            factory.Property(BuiltInDataTypes.Numeric, "firstClassPrice", "Pris första klassen (kr)", "Välkomstpris, en gång per medlem. Standard: 100.", 1),
+            factory.Property(BuiltInDataTypes.Numeric, "classPrice", "Pris per klass (kr)", "Standard: 200.", 2),
+            factory.Property(BuiltInDataTypes.Numeric, "reminderHoursBefore", "Påminnelse (timmar innan)", "Standard: 24.", 3),
+            factory.Property(BuiltInDataTypes.Numeric, "paymentHoldMinutes", "Betalningsreservation (minuter)", "Hur länge en obetald bokning håller sin plats. Standard: 15.", 4),
+            factory.Property(BuiltInDataTypes.ContentPicker, "memberPortalPage", "Medlemssidan", "Dit medlemmen skickas efter inloggning.", 5),
+            factory.Property(BuiltInDataTypes.ContentPicker, "registerPage", "Bli medlem-sidan", "Målet för Bli medlem-knapparna.", 6));
+
+        if (settingsChanged)
+        {
+            logger.LogInformation("Added the Medlemskap group to the settings document type.");
+        }
+
+        // Both are administrative facts: a member may see them, but a member who could edit their
+        // own membership expiry would have a free membership.
+        var memberChanged = await factory.EnsureMemberPropertiesAsync(
+            MemberTypes.MemberAlias,
+            "membership",
+            "Membership",
+            (factory.Property(BuiltInDataTypes.DatePicker, "membershipPaidUntil", "Membership paid until", "Inclusive last day of the paid membership.", 10), true, false),
+            (factory.Property(BuiltInDataTypes.TrueFalse, "firstClassDiscountUsed", "First class discount used", "Set once a payment including the welcome price completes.", 11), true, false));
+
+        if (memberChanged)
+        {
+            logger.LogInformation("Added the membership properties to the Member member type.");
+        }
     }
 
     // ---------------------------------------------------------------- templates
@@ -58,6 +104,9 @@ internal sealed class NdstkContentModelInstaller(
             (Templates.Article, "Article", "Article"),
             (Templates.Error, "Error", "Error"),
             (Templates.Login, "Login", "Login"),
+            (Templates.MemberRegister, "MemberRegister", "MemberRegister"),
+            (Templates.MemberVerify, "MemberVerify", "MemberVerify"),
+            (Templates.MemberPortal, "MemberPortal", "MemberPortal"),
         ];
 
         Dictionary<Guid, ITemplate> templates = [];
@@ -299,13 +348,75 @@ internal sealed class NdstkContentModelInstaller(
                     factory.Property(BuiltInDataTypes.Textstring, "subText", "Sub text", sortOrder: 2));
             });
 
+        await factory.EnsureContentTypeAsync(
+            DocumentTypes.MemberRegister, "memberRegister", "Bli medlem", "icon-user-add", type =>
+            {
+                type.Description = "Registreringsformuläret för nya medlemmar.";
+                type.AddContentType(baseType);
+                NdstkContentTypeFactory.UseTemplate(type, templates[Templates.MemberRegister]);
+                NdstkContentTypeFactory.AddGroup(type, DeriveKey(DocumentTypes.MemberRegister, 1), "content", "Content", 0,
+                    factory.Property(BuiltInDataTypes.Textstring, "heading", "Heading", "Falls back to the node name.", 0),
+                    factory.Property(BuiltInDataTypes.Textarea, "description", "Description", sortOrder: 1));
+            });
+
+        await factory.EnsureContentTypeAsync(
+            DocumentTypes.MemberVerify, "memberVerify", "Verifiera e-post", "icon-message-open", type =>
+            {
+                type.Description = "Landningssidan för länken i bekräftelsemailet.";
+                type.AddContentType(baseType);
+                NdstkContentTypeFactory.UseTemplate(type, templates[Templates.MemberVerify]);
+                NdstkContentTypeFactory.AddGroup(type, DeriveKey(DocumentTypes.MemberVerify, 1), "content", "Content", 0,
+                    factory.Property(BuiltInDataTypes.Textstring, "heading", "Heading", "Falls back to the node name.", 0));
+            });
+
+        await factory.EnsureContentTypeAsync(
+            DocumentTypes.MemberPortal, "memberPortal", "Mina sidor", "icon-user", type =>
+            {
+                type.Description = "Medlemssidan: bokningar, påminnelser och bokningsbara klasser.";
+                type.AddContentType(baseType);
+                NdstkContentTypeFactory.UseTemplate(type, templates[Templates.MemberPortal]);
+                NdstkContentTypeFactory.AddGroup(type, DeriveKey(DocumentTypes.MemberPortal, 1), "content", "Content", 0,
+                    factory.Property(BuiltInDataTypes.Textstring, "heading", "Heading", "Falls back to the node name.", 0),
+                    factory.Property(BuiltInDataTypes.Textarea, "description", "Description", sortOrder: 1));
+            });
+
+        await factory.EnsureContentTypeAsync(
+            DocumentTypes.TrainingClasses, "trainingClasses", "Träningar", "icon-calendar-alt", type =>
+            {
+                type.Description = "Mappen som håller träningsklasserna.";
+            });
+
+        // No template: a class is data the portal renders, not a page of its own.
+        await factory.EnsureContentTypeAsync(
+            DocumentTypes.TrainingClass, "trainingClass", "Träningsklass", "icon-tennis-ball", type =>
+            {
+                type.Description = "En enskild träning med ett maxantal deltagare.";
+                NdstkContentTypeFactory.AddGroup(type, DeriveKey(DocumentTypes.TrainingClass, 1), "content", "Träningen", 0,
+                    factory.Property(BuiltInDataTypes.Textstring, "title", "Namn", "Faller tillbaka på nodens namn.", 0),
+                    factory.Property(BuiltInDataTypes.Textarea, "description", "Beskrivning", sortOrder: 1),
+                    // Swedish local time, converted to UTC on the way into the booking tables.
+                    factory.Property(BuiltInDataTypes.DatePickerWithTime, "start", "Starttid", "Datum och klockslag, svensk tid.", 2),
+                    factory.Property(BuiltInDataTypes.Numeric, "durationMinutes", "Längd (minuter)", "Standard: 60.", 3),
+                    factory.Property(BuiltInDataTypes.Numeric, "capacity", "Max antal deltagare", "Hur många som kan boka den här träningen.", 4),
+                    factory.Property(BuiltInDataTypes.Textstring, "instructor", "Tränare", sortOrder: 5),
+                    factory.Property(BuiltInDataTypes.Textstring, "location", "Plats", sortOrder: 6));
+            });
+
         // Second pass: every type exists now, so the structure can reference it.
         await factory.SetAllowedChildrenAsync(
             DocumentTypes.Start,
             (DocumentTypes.Settings, "settings"),
             (DocumentTypes.Articles, "articles"),
             (DocumentTypes.Login, "login"),
+            (DocumentTypes.MemberRegister, "memberRegister"),
+            (DocumentTypes.MemberVerify, "memberVerify"),
+            (DocumentTypes.MemberPortal, "memberPortal"),
+            (DocumentTypes.TrainingClasses, "trainingClasses"),
             (DocumentTypes.Error, "error"));
+
+        await factory.SetAllowedChildrenAsync(
+            DocumentTypes.TrainingClasses,
+            (DocumentTypes.TrainingClass, "trainingClass"));
 
         await factory.SetAllowedChildrenAsync(
             DocumentTypes.Articles,

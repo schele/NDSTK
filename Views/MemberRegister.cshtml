@@ -1,0 +1,69 @@
+﻿@using NDSTK.Booking.Web
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Root.cshtml";
+    var message = TempData["RegisterMessage"] as string;
+}
+
+<div class="content-blocks">
+    <section class="hero">
+        <div class="hero-content">
+            <h1>@(Model.Value<string>("heading").IfNullOrWhiteSpace(Model.Name))</h1>
+            <p>@(Model.Value<string>("description"))</p>
+        </div>
+    </section>
+
+    <article class="post">
+        @if (string.IsNullOrWhiteSpace(message) is false)
+        {
+            @* Shown after any submission that is not a validation failure - including an address
+               that is already registered, which must be indistinguishable from success. *@
+            <p class="form-notice form-notice--ok" role="status">@message</p>
+        }
+        else
+        {
+            <div class="member-form">
+                @using (Html.BeginUmbracoForm<RegisterSurfaceController>(nameof(RegisterSurfaceController.Register)))
+                {
+                    <div asp-validation-summary="ModelOnly" class="form-notice form-notice--error"></div>
+
+                    <div class="form-field">
+                        <label for="Email">E-postadress</label>
+                        <input type="email" id="Email" name="Email" autocomplete="email" required
+                               value="@(ViewData["Email"] ?? string.Empty)" />
+                        <span class="form-error">@Html.ValidationMessage("Email")</span>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="Password">Lösenord</label>
+                        <input type="password" id="Password" name="Password" autocomplete="new-password" required />
+                        <span class="form-error">@Html.ValidationMessage("Password")</span>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="ConfirmPassword">Upprepa lösenord</label>
+                        <input type="password" id="ConfirmPassword" name="ConfirmPassword"
+                               autocomplete="new-password" required />
+                        <span class="form-error">@Html.ValidationMessage("ConfirmPassword")</span>
+                    </div>
+
+                    @* Honeypot. Hidden from people, left empty by them, and filled in by a bot that
+                       completes every input. aria-hidden and tabindex keep it away from screen
+                       readers and keyboard navigation, so it is invisible to real users too. *@
+                    <div class="form-honeypot" aria-hidden="true">
+                        <label for="Website">Webbplats</label>
+                        <input type="text" id="Website" name="Website" tabindex="-1" autocomplete="off" />
+                    </div>
+
+                    <input type="hidden" name="RenderedAt" value="@DateTimeOffset.UtcNow.ToUnixTimeSeconds()" />
+
+                    <p><button type="submit" class="btn-primary">Skapa konto</button></p>
+                    <p class="form-hint">
+                        Du får ett mail med en länk som aktiverar kontot. Kontrollera skräpposten om
+                        det inte kommer fram.
+                    </p>
+                }
+            </div>
+        }
+    </article>
+</div>

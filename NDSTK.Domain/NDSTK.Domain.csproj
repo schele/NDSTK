@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>NDSTK.Booking.Domain</RootNamespace>
+    <!--
+      The booking rules - pricing, capacity, credits, the reminder window - live here rather than
+      in the web project so that having no dependency on Umbraco or the database is enforced by
+      the compiler instead of by discipline. It also keeps the test suite independent of the web
+      assembly, which a running site holds a file lock on.
+    -->
+  </PropertyGroup>
+
+</Project>

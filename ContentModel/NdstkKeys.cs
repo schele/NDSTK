@@ -16,6 +16,9 @@ internal static class NdstkKeys
         internal static readonly Guid Article = new("873307ad-a321-492a-9cac-17cfa0a388f8");
         internal static readonly Guid Error = new("6e7f09a6-b03e-4f67-b67d-afb1bef71f87");
         internal static readonly Guid Login = new("90fb6c48-3265-44be-a980-853595d75eb7");
+        internal static readonly Guid MemberRegister = new("b1e10002-0000-4000-8000-000000000001");
+        internal static readonly Guid MemberVerify = new("b1e10002-0000-4000-8000-000000000002");
+        internal static readonly Guid MemberPortal = new("b1e10002-0000-4000-8000-000000000003");
     }
 
     internal static class DocumentTypes
@@ -27,6 +30,21 @@ internal static class NdstkKeys
         internal static readonly Guid Article = new("3056ddc9-9d8c-4a48-a8cf-64105023fc76");
         internal static readonly Guid Error = new("783208f3-b0bd-4b0f-9465-64c2d9ee1c7b");
         internal static readonly Guid Login = new("a97dd1d3-c8a1-4a8f-94f2-16c02d5f5909");
+        internal static readonly Guid MemberRegister = new("b1e10001-0000-4000-8000-000000000001");
+        internal static readonly Guid MemberVerify = new("b1e10001-0000-4000-8000-000000000002");
+        internal static readonly Guid MemberPortal = new("b1e10001-0000-4000-8000-000000000003");
+        internal static readonly Guid TrainingClasses = new("b1e10001-0000-4000-8000-000000000004");
+        internal static readonly Guid TrainingClass = new("b1e10001-0000-4000-8000-000000000005");
+    }
+
+    /// <summary>
+    /// The member type. This key is the one already in uSync/v18/MemberTypes/member.config, so the
+    /// installer upgrades that member type rather than creating a second one beside it.
+    /// </summary>
+    internal static class MemberTypes
+    {
+        internal static readonly Guid Member = new("d59be02f-1df9-4228-aa1e-01917d806cda");
+        internal const string MemberAlias = "Member";
     }
 
     /// <summary>Element types used as Block List blocks.</summary>
@@ -63,6 +81,9 @@ internal static class NdstkKeys
         internal static readonly Guid ImageMediaPicker = new("ad9f0cf2-bda2-45d5-9ea1-a63cfc873fd3");
         internal static readonly Guid ContentPicker = new("fd1e0da5-5606-4862-b679-5d0cf3a52a59");
         internal static readonly Guid Numeric = new("2e6d3631-066e-44b8-aec4-96f09099b2b5");
+
+        /// <summary>Date and time, unlike DatePicker above which is date only.</summary>
+        internal static readonly Guid DatePickerWithTime = new("e4d66c0f-b935-4200-81f0-025f7256b89a");
     }
 
     /// <summary>Nodes created by the content seeder when the site is still empty.</summary>
@@ -73,5 +94,12 @@ internal static class NdstkKeys
         internal static readonly Guid Articles = new("c0117e17-0000-4000-8000-000000000003");
         internal static readonly Guid Login = new("c0117e17-0000-4000-8000-000000000004");
         internal static readonly Guid Error = new("c0117e17-0000-4000-8000-000000000005");
+        internal static readonly Guid MemberRegister = new("c0117e17-0000-4000-8000-000000000006");
+        internal static readonly Guid MemberVerify = new("c0117e17-0000-4000-8000-000000000007");
+        internal static readonly Guid MemberPortal = new("c0117e17-0000-4000-8000-000000000008");
+        internal static readonly Guid TrainingClasses = new("c0117e17-0000-4000-8000-000000000009");
+        internal static readonly Guid ExampleClass1 = new("c0117e17-0000-4000-8000-00000000000a");
+        internal static readonly Guid ExampleClass2 = new("c0117e17-0000-4000-8000-00000000000b");
+        internal static readonly Guid ExampleClass3 = new("c0117e17-0000-4000-8000-00000000000c");
     }
 }

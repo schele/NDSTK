@@ -18,6 +18,10 @@ public sealed class NdstkContentModelComposer : IComposer
         builder.Services.AddSingleton<NdstkLanguageInstaller>();
         builder.Services.AddSingleton<NdstkContentModelInstaller>();
         builder.Services.AddSingleton<NdstkContentSeeder>();
+        builder.Services.AddSingleton<NdstkPageInstaller>();
+        builder.Services.AddSingleton<NdstkMemberPages>();
+        builder.Services.AddSingleton<NdstkMemberContentUpgrade>();
+        builder.Services.AddSingleton<NdstkMemberAccessInstaller>();
 
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, NdstkContentModelInstallHandler>();
     }

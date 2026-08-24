@@ -50,6 +50,20 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		// properties
 
 		///<summary>
+		/// Pris per klass (kr): Standard: 200.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[ImplementPropertyType("classPrice")]
+		public virtual int ClassPrice => this.Value<int>(_publishedValueFallback, "classPrice");
+
+		///<summary>
+		/// Pris första klassen (kr): Välkomstpris, en gång per medlem. Standard: 100.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[ImplementPropertyType("firstClassPrice")]
+		public virtual int FirstClassPrice => this.Value<int>(_publishedValueFallback, "firstClassPrice");
+
+		///<summary>
 		/// Footer text
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
@@ -66,12 +80,49 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		public virtual global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent LoginPage => this.Value<global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent>(_publishedValueFallback, "loginPage");
 
 		///<summary>
+		/// Medlemssidan: Dit medlemmen skickas efter inloggning.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
+		[ImplementPropertyType("memberPortalPage")]
+		public virtual global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent MemberPortalPage => this.Value<global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent>(_publishedValueFallback, "memberPortalPage");
+
+		///<summary>
+		/// Årsavgift (kr): Standard: 150.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[ImplementPropertyType("membershipFee")]
+		public virtual int MembershipFee => this.Value<int>(_publishedValueFallback, "membershipFee");
+
+		///<summary>
 		/// Header menu
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
 		[ImplementPropertyType("menu")]
 		public virtual global::System.Collections.Generic.IEnumerable<global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent> Menu => this.Value<global::System.Collections.Generic.IEnumerable<global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent>>(_publishedValueFallback, "menu");
+
+		///<summary>
+		/// Betalningsreservation (minuter): Hur länge en obetald bokning håller sin plats. Standard: 15.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[ImplementPropertyType("paymentHoldMinutes")]
+		public virtual int PaymentHoldMinutes => this.Value<int>(_publishedValueFallback, "paymentHoldMinutes");
+
+		///<summary>
+		/// Bli medlem-sidan: Målet för Bli medlem-knapparna.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
+		[ImplementPropertyType("registerPage")]
+		public virtual global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent RegisterPage => this.Value<global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent>(_publishedValueFallback, "registerPage");
+
+		///<summary>
+		/// Påminnelse (timmar innan): Standard: 24.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[ImplementPropertyType("reminderHoursBefore")]
+		public virtual int ReminderHoursBefore => this.Value<int>(_publishedValueFallback, "reminderHoursBefore");
 
 		///<summary>
 		/// Sidebar widgets

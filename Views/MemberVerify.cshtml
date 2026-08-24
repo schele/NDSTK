@@ -1,0 +1,52 @@
+﻿@using NDSTK.Booking.Web
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "Root.cshtml";
+
+    // Set by MemberVerifyController, which Umbraco routes this document type through.
+    var outcome = ViewData["VerifyOutcome"] as string ?? VerifyOutcome.Invalid;
+
+    var loginPage = Model.Root()?.ChildrenOfType("login").FirstOrDefault();
+}
+
+<div class="content-blocks">
+    <section class="hero">
+        <div class="hero-content">
+            <h1>@(Model.Value<string>("heading").IfNullOrWhiteSpace(Model.Name))</h1>
+        </div>
+    </section>
+
+    <article class="post">
+        @switch (outcome)
+        {
+            case VerifyOutcome.Confirmed:
+                <p class="form-notice form-notice--ok" role="status">
+                    Tack! Din e-postadress är bekräftad och ditt konto är aktiverat.
+                </p>
+                <p>Nu kan du logga in och boka träningar.</p>
+                break;
+
+            case VerifyOutcome.AlreadyDone:
+                <p class="form-notice form-notice--ok" role="status">
+                    Ditt konto är redan aktiverat.
+                </p>
+                <p>Du kan logga in direkt.</p>
+                break;
+
+            default:
+                <p class="form-notice form-notice--error" role="alert">
+                    Länken fungerade inte. Den kan ha gått ut eller redan använts.
+                </p>
+                <p>
+                    Registrera dig igen för att få en ny länk, eller kontakta oss på
+                    <a href="mailto:info@@ndstk.se">info@@ndstk.se</a> om det fortsätter strula.
+                </p>
+                break;
+        }
+
+        @if (loginPage is not null && outcome != VerifyOutcome.Invalid)
+        {
+            <p><a href="@loginPage.Url()" class="btn-primary">Logga in</a></p>
+        }
+    </article>
+</div>

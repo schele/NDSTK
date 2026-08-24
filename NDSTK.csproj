@@ -4,6 +4,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <CompressionEnabled>false</CompressionEnabled> <!-- Disable compression. E.g. for umbraco backoffice files. These files should be precompressed by node and not let dotnet handle it -->
+    <!--
+      This project sits at the repository root, so the SDK's default globs would otherwise pull
+      the sibling projects' sources - and their generated obj/ files - into the web assembly,
+      which fails with duplicate assembly attributes. DefaultItemExcludes covers every default
+      item glob at once (Compile, Content, None, EmbeddedResource), so no individual Remove is
+      needed. Any further project added beside this one has to be listed here too.
+    -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);NDSTK.Tests\**;NDSTK.Domain\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,6 +44,10 @@
   <ItemGroup Condition="'$(UmbracoUseAppLocalIcu)' == 'true'">
     <PackageReference Include="Microsoft.ICU.ICU4C.Runtime" Version="$(UmbracoAppLocalIcuVersion)" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="$(UmbracoAppLocalIcuVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="NDSTK.Domain\NDSTK.Domain.csproj" />
   </ItemGroup>
 
 

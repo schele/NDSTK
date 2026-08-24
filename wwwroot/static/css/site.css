@@ -297,3 +297,170 @@ footer {
     background-size: cover;
     background-repeat: no-repeat;
 }
+
+/* Member forms */
+.member-form {
+    max-width: 420px;
+}
+
+.form-field {
+    margin-bottom: 1rem;
+}
+
+    .form-field label {
+        display: block;
+        margin-bottom: 0.35rem;
+        font-weight: 600;
+        color: var(--primary);
+    }
+
+    .form-field input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.6rem 0.7rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font: inherit;
+        background: #fff;
+        color: var(--text);
+    }
+
+    .form-field input:focus {
+        outline: 2px solid var(--primary);
+        outline-offset: 1px;
+        border-color: var(--primary);
+    }
+
+.form-error {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.85rem;
+    color: #b00020;
+}
+
+.form-error:empty {
+    display: none;
+}
+
+.form-notice {
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    border-left: 4px solid;
+}
+
+.form-notice--ok {
+    background: #eef7ee;
+    border-left-color: #2e7d32;
+}
+
+.form-notice--error {
+    background: #fdecee;
+    border-left-color: #b00020;
+}
+
+.form-notice:empty {
+    display: none;
+}
+
+.form-hint {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+/* Honeypot: off-screen rather than display:none, because some bots skip hidden inputs. */
+.form-honeypot {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+/* Member portal */
+.reminder-banner {
+    background: var(--accent);
+    color: var(--primary);
+    padding: 0.85rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+}
+
+.booking-list,
+.class-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.booking-list__item {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: baseline;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.booking-list__item--cancelled .booking-list__title,
+.booking-list__item--cancelled .booking-list__when {
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
+.booking-list__title {
+    font-weight: 600;
+}
+
+.booking-list__when {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.class-list__item {
+    padding: 0.9rem 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.class-list__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.class-list__title {
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
+.class-list__places {
+    font-size: 0.9rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.class-list__meta {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-top: 0.2rem;
+}
+
+.class-list__about {
+    margin: 0.5rem 0 0;
+}
+
+.class-list__actions {
+    margin-top: 0.6rem;
+}
+
+.tag--full {
+    background: #fdecee;
+    color: #b00020;
+}
+
+.btn-primary[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

@@ -50,6 +50,20 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		// properties
 
 		///<summary>
+		/// First class discount used: Set once a payment including the welcome price completes.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[ImplementPropertyType("firstClassDiscountUsed")]
+		public virtual bool FirstClassDiscountUsed => this.Value<bool>(_publishedValueFallback, "firstClassDiscountUsed");
+
+		///<summary>
+		/// Membership paid until: Inclusive last day of the paid membership.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[ImplementPropertyType("membershipPaidUntil")]
+		public virtual global::System.DateTime MembershipPaidUntil => this.Value<global::System.DateTime>(_publishedValueFallback, "membershipPaidUntil");
+
+		///<summary>
 		/// Comments
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
