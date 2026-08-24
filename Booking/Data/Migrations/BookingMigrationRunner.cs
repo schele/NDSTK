@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using NDSTK.Booking.Services;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Migrations;
@@ -20,6 +21,7 @@ internal sealed class BookingMigrationRunner(
     IMigrationPlanExecutor migrationPlanExecutor,
     ICoreScopeProvider scopeProvider,
     IKeyValueService keyValueService,
+    NdstkParticipantBackfill backfill,
     ILogger<BookingMigrationRunner> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
@@ -41,6 +43,19 @@ internal sealed class BookingMigrationRunner(
         catch (Exception exception)
         {
             logger.LogError(exception, "Running the NDSTK booking migration failed.");
+            return;
+        }
+
+        try
+        {
+            // Immediately after the plan, in the same handler, so the ordering is guaranteed: the
+            // backfill writes to columns the plan has just added, and swaps an index the plan
+            // deliberately left alone. A second notification handler would not guarantee that.
+            backfill.Run();
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Backfilling NDSTK participants failed.");
         }
     }
 }

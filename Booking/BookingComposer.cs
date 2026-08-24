@@ -37,6 +37,7 @@ public sealed class BookingComposer : IComposer
         builder.Services.AddScoped<IBookingRepository, BookingRepository>();
         builder.Services.AddScoped<IParticipantRepository, ParticipantRepository>();
         builder.Services.AddScoped<BookingService>();
+        builder.Services.AddScoped<NdstkParticipantBackfill>();
 
         // The mock is registered as THE payment provider. Swapping in a real Swish integration is
         // this one line plus a new IPaymentProvider implementation.
