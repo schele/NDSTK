@@ -31,6 +31,7 @@ public sealed class MembershipSettingsService(IPublishedContentQuery contentQuer
         return new MembershipSettings(
             new PriceList(
                 MembershipFeeOre: KronorToOre(settings, "membershipFee", defaults.MembershipFeeOre),
+                FamilyFeeOre: KronorToOre(settings, "familyFee", defaults.FamilyFeeOre),
                 FirstClassPriceOre: KronorToOre(settings, "firstClassPrice", defaults.FirstClassPriceOre),
                 ClassPriceOre: KronorToOre(settings, "classPrice", defaults.ClassPriceOre)),
             ReminderHoursBefore: PositiveOrDefault(

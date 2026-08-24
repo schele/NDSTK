@@ -22,6 +22,7 @@ public sealed record MembershipSettings(
     public static MembershipSettings Defaults { get; } = new(
         new PriceList(
             MembershipFeeOre: 150 * 100,
+            FamilyFeeOre: 100 * 100,
             FirstClassPriceOre: 100 * 100,
             ClassPriceOre: 200 * 100),
         ReminderHoursBefore: 24,

@@ -1,11 +1,12 @@
 namespace NDSTK.Booking.Domain;
 
 /// <summary>
-/// What one booking costs, split so the payment page can show the member why.
+/// What one booking costs, split three ways so the payment page and the backoffice can both show
+/// exactly what is being paid for.
 /// </summary>
-public sealed record BookingQuote(int MembershipDueOre, int ClassFeeOre)
+public sealed record BookingQuote(int MembershipDueOre, int FamilyDueOre, int ClassFeeOre)
 {
-    public int TotalOre => MembershipDueOre + ClassFeeOre;
+    public int TotalOre => MembershipDueOre + FamilyDueOre + ClassFeeOre;
 
     /// <summary>False when the total is zero, in which case the Swish step is skipped entirely.</summary>
     public bool RequiresPayment => TotalOre > 0;
