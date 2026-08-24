@@ -7,10 +7,10 @@ public sealed record MemberPortalViewModel(
     string? Email,
     IReadOnlyList<BookableClass> UpcomingClasses,
     IReadOnlyList<MemberBookingRow> MyBookings,
+    IReadOnlyList<MemberChildRow> Children,
     int UnspentCredits,
     MembershipStatus Membership,
     PriceList Prices,
-    bool FirstClassDiscountAvailable,
     int ReminderHoursBefore)
 {
     /// <summary>
@@ -22,24 +22,71 @@ public sealed record MemberPortalViewModel(
         .. MyBookings.Where(row => row.IsUpcoming && row.HoursUntilStart <= ReminderHoursBefore),
     ];
 
-    /// <summary>The class fee alone for the member's next booking.</summary>
-    public int NextClassFeeOre => FirstClassDiscountAvailable
+    /// <summary>
+    /// A solo account may have exactly one child; a family account may add more. The rule is also
+    /// enforced in the controller - a hidden button is not a rule.
+    /// </summary>
+    public bool CanAddChild => Membership.IsFamilyAccount || Children.Count == 0;
+
+    /// <summary>The class fee alone for this child's next booking.</summary>
+    public int NextClassFeeOreFor(MemberChildRow child) => child.FirstClassAvailable
         ? Prices.FirstClassPriceOre
         : Prices.ClassPriceOre;
 
     /// <summary>
-    /// What the member will actually be charged for their next booking, membership fee included
-    /// when it is due. This is what the booking button shows: quoting the class fee alone and then
-    /// presenting a larger figure on the payment page would read as a bait and switch.
+    /// What the member will actually be charged for this child's next booking, membership and
+    /// family fees included when they are due. This is what the booking button shows: quoting the
+    /// class fee alone and then presenting a larger figure on the payment page reads as a bait and
+    /// switch.
     /// </summary>
-    public int NextBookingTotalOre =>
-        NextClassFeeOre + (Membership.IsValid ? 0 : Prices.MembershipFeeOre);
+    /// <remarks>
+    /// This mirrors <see cref="Pricing.Quote"/>. If the two ever disagree the member is quoted one
+    /// price and charged another, so change them together.
+    /// </remarks>
+    public int NextBookingTotalOreFor(MemberChildRow child)
+    {
+        var membershipDue = Membership.IsValid ? 0 : Prices.MembershipFeeOre;
+        var familyDue = Membership.IsValid || Membership.IsFamilyAccount is false
+            ? 0
+            : Prices.FamilyFeeOre;
+
+        return NextClassFeeOreFor(child) + membershipDue + familyDue;
+    }
+
+    /// <summary>The child a single-child account books for without being asked.</summary>
+    public MemberChildRow? OnlyChild => Children.Count == 1 ? Children[0] : null;
+}
+
+/// <summary>One row in "Mina barn".</summary>
+public sealed record MemberChildRow(
+    Guid Key,
+    string FirstName,
+    string LastName,
+    DateOnly? BirthDate,
+    bool FirstClassAvailable)
+{
+    public string FullName => $"{FirstName} {LastName}".Trim();
+
+    /// <summary>
+    /// False only for a child the backfill created, who has no real birth date yet. Booking is
+    /// refused until it is filled in - see <see cref="Services.BookingFailure.ParticipantIncomplete"/>.
+    /// </summary>
+    public bool IsComplete => BirthDate is not null;
+
+    /// <summary>ÅÅÅÅMMDD, the form a Swedish parent types without being asked.</summary>
+    public string BirthDateCompact =>
+        BirthDate is { } date ? SwedishDate.ToCompact(date) : string.Empty;
+
+    public int? Age => BirthDate is { } date
+        ? SwedishDate.AgeOn(date, DateOnly.FromDateTime(DateTime.UtcNow))
+        : null;
 }
 
 /// <summary>One row in "Mina bokningar".</summary>
 public sealed record MemberBookingRow(
     int BookingId,
     TrainingClass? Class,
+    string ChildName,
     string Status,
     DateTime ClassStartUtc,
     bool UsedCredit)
@@ -51,8 +98,8 @@ public sealed record MemberBookingRow(
     public bool IsCancellable => Status == BookingStatus.Confirmed && IsUpcoming;
 }
 
-/// <summary>Whether the annual fee is paid, and until when.</summary>
-public sealed record MembershipStatus(bool IsValid, DateOnly? PaidUntil)
+/// <summary>Whether the annual fee is paid, until when, and whether this is a family account.</summary>
+public sealed record MembershipStatus(bool IsValid, DateOnly? PaidUntil, bool IsFamilyAccount)
 {
     /// <summary>
     /// Paid once, but the year has run out. Worth distinguishing from a member who has never paid:

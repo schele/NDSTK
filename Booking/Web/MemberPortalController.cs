@@ -30,6 +30,7 @@ public sealed class MemberPortalController(
     MemberProfileService profiles,
     MembershipSettingsService settings,
     IBookingRepository bookings,
+    IParticipantRepository participants,
     MemberBookingsProvider bookingsProvider)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
@@ -49,7 +50,19 @@ public sealed class MemberPortalController(
         MembershipSettings config = settings.Get();
         MemberState state = await profiles.GetStateAsync(memberKey);
 
-        IReadOnlyList<BookableClass> upcoming = await classes.GetUpcomingAsync(memberKey, nowUtc);
+        IReadOnlyList<ParticipantRecord> children = await participants.GetForMemberAsync(memberKey);
+        IReadOnlyList<MemberChildRow> childRows =
+        [
+            .. children.Select(child => new MemberChildRow(
+                child.Key,
+                child.FirstName,
+                child.LastName,
+                child.BirthDate is { } birthDate ? DateOnly.FromDateTime(birthDate) : null,
+                FirstClassAvailable: child.FirstClassUsedUtc is null)),
+        ];
+
+        IReadOnlyList<BookableClass> upcoming =
+            await classes.GetUpcomingAsync([.. childRows.Select(child => child.Key)], nowUtc);
         IReadOnlyList<MemberBookingRow> mine = await bookingsProvider.GetCurrentAsync(memberKey);
         IReadOnlyList<CreditSnapshot> credits = await bookings.GetCreditsForMemberAsync(memberKey);
 
@@ -59,11 +72,13 @@ public sealed class MemberPortalController(
             Email: user.Email,
             UpcomingClasses: upcoming,
             MyBookings: mine,
+            Children: childRows,
             UnspentCredits: Credits.CountUnspent(credits),
             Membership: new MembershipStatus(
-                Pricing.IsMembershipValid(state, today), state.MembershipPaidUntil),
+                Pricing.IsMembershipValid(state, today),
+                state.MembershipPaidUntil,
+                state.IsFamilyAccount),
             Prices: config.Prices,
-            FirstClassDiscountAvailable: state.FirstClassDiscountUsed is false,
             ReminderHoursBefore: config.ReminderHoursBefore);
 
         return CurrentTemplate(CurrentPage);

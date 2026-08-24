@@ -7,23 +7,28 @@ namespace NDSTK.Booking.Services;
 
 /// <summary>
 /// Reads and writes the two membership facts stored as member type properties: when the paid
-/// membership runs out, and whether the once-per-account welcome price has been used.
+/// membership runs out, and whether the account is a family account.
 /// </summary>
 /// <remarks>
 /// They live on the member rather than in the booking tables so that an administrator can comp a
-/// membership, or reset someone's welcome price, from the backoffice without touching SQL.
+/// membership, or grant a family account, from the backoffice without touching SQL.
+///
+/// The welcome price used to live here too. It moved onto the participant when children arrived:
+/// it is once per child, and a per-account flag would hand a second child their sibling's spent
+/// discount. See <see cref="Data.IParticipantRepository.TryStampFirstClassUsedAsync"/>.
 /// </remarks>
 public sealed class MemberProfileService(
     IMemberService memberService,
     ILogger<MemberProfileService> logger)
 {
     internal const string MembershipPaidUntilAlias = "membershipPaidUntil";
-    internal const string FirstClassDiscountUsedAlias = "firstClassDiscountUsed";
+    internal const string FamilyAccountAlias = "familjekonto";
+    internal const string PhoneAlias = "telefon";
 
     /// <summary>
-    /// The member's pricing-relevant state. A member who cannot be found is treated as brand new
-    /// rather than throwing: the caller is about to quote a price, and quoting the full
-    /// joining price for an unknown member fails safe.
+    /// The account's pricing-relevant state. A member who cannot be found is treated as brand new
+    /// rather than throwing: the caller is about to quote a price, and quoting the full joining
+    /// price for an unknown member fails safe.
     /// </summary>
     public async Task<MemberState> GetStateAsync(Guid memberKey)
     {
@@ -31,12 +36,10 @@ public sealed class MemberProfileService(
         if (member is null)
         {
             logger.LogWarning("Member {MemberKey} was not found; treating them as new.", memberKey);
-            return new MemberState(null, FirstClassDiscountUsed: false);
+            return new MemberState(null, IsFamilyAccount: false);
         }
 
-        return new MemberState(
-            ReadPaidUntil(member),
-            member.GetValue<bool>(FirstClassDiscountUsedAlias));
+        return new MemberState(ReadPaidUntil(member), member.GetValue<bool>(FamilyAccountAlias));
     }
 
     /// <summary>
@@ -60,18 +63,27 @@ public sealed class MemberProfileService(
             "Membership for {MemberKey} now runs to {PaidUntil}.", memberKey, paidUntil);
     }
 
-    /// <summary>Marks the welcome price as spent. Called only when a payment that charged it completes.</summary>
-    public async Task MarkFirstClassDiscountUsedAsync(Guid memberKey)
+    /// <summary>
+    /// Turns an account into a family account, so it may hold more than one child.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately does not touch the expiry date. See <see cref="Pricing.FamilyUpgradeQuote"/>:
+    /// if paying the supplement moved the date forward a year it would be a cheaper renewal than
+    /// the annual fee, and nobody would ever pay the annual fee twice.
+    /// </remarks>
+    public async Task SetFamilyAccountAsync(Guid memberKey)
     {
         IMember? member = (await memberService.GetByKeysAsync(memberKey)).FirstOrDefault();
         if (member is null)
         {
-            logger.LogError("Cannot mark the first-class discount used for {MemberKey}: not found.", memberKey);
+            logger.LogError("Cannot upgrade {MemberKey} to a family account: not found.", memberKey);
             return;
         }
 
-        member.SetValue(FirstClassDiscountUsedAlias, true);
+        member.SetValue(FamilyAccountAlias, true);
         memberService.Save(member);
+
+        logger.LogInformation("Member {MemberKey} is now a family account.", memberKey);
     }
 
     /// <summary>

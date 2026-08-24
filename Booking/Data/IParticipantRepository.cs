@@ -9,6 +9,12 @@ public interface IParticipantRepository
     /// <summary>One account's children, oldest first. Removed ones are left out.</summary>
     Task<IReadOnlyList<ParticipantRecord>> GetForMemberAsync(Guid memberKey);
 
+    /// <summary>
+    /// The same, but including removed children. For anything that renders history: a booking made
+    /// by a child who has since left still needs a name against it.
+    /// </summary>
+    Task<IReadOnlyList<ParticipantRecord>> GetAllForMemberAsync(Guid memberKey);
+
     Task<ParticipantRecord?> GetAsync(Guid participantKey);
 
     Task<Guid> CreateAsync(

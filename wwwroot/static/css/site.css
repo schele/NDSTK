@@ -512,9 +512,40 @@ footer {
     font-weight: 600;
 }
 
+/* Whose place a booking is. Sits between the class name and the time, and is weighted
+   between them: it identifies the row, but the class is still the headline. */
+.booking-list__child {
+    font-weight: 500;
+}
+
 .booking-list__when {
     color: var(--muted);
     font-size: 0.9rem;
+}
+
+/* The child picker only appears on a family account with more than one bookable child, so it
+   has to sit inline with the booking button without pushing it onto its own line. */
+.class-list__child-picker {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    background: #fff;
+    font: inherit;
+    max-width: 100%;
+}
+
+/* Labels that a screen reader needs and a sighted reader does not: the child pickers are
+   already explained by the button beside them. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .class-list__item {

@@ -23,6 +23,19 @@ public sealed class ParticipantRepository(IScopeProvider scopeProvider) : IParti
         return await scope.Database.FetchAsync<ParticipantRecord>(sql);
     }
 
+    public async Task<IReadOnlyList<ParticipantRecord>> GetAllForMemberAsync(Guid memberKey)
+    {
+        using IScope scope = scopeProvider.CreateScope(autoComplete: true);
+
+        Sql<ISqlContext> sql = scope.SqlContext.Sql()
+            .Select<ParticipantRecord>()
+            .From<ParticipantRecord>()
+            .Where<ParticipantRecord>(record => record.MemberKey == memberKey)
+            .OrderBy<ParticipantRecord>(record => record.Id);
+
+        return await scope.Database.FetchAsync<ParticipantRecord>(sql);
+    }
+
     public async Task<ParticipantRecord?> GetAsync(Guid participantKey)
     {
         using IScope scope = scopeProvider.CreateScope(autoComplete: true);

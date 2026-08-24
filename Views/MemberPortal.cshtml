@@ -51,10 +51,16 @@
                 </p>
             }
 
-            @{
-                var welcomeNote = portal.FirstClassDiscountAvailable ? " (välkomstpris)" : string.Empty;
+            @* Priced per child: the welcome price is once per child, so on a family account two
+               children routinely have two different next-class prices. *@
+            @foreach (var child in portal.Children)
+            {
+                var welcomeNote = child.FirstClassAvailable ? " (välkomstpris)" : string.Empty;
+                <p>
+                    Nästa träning för <strong>@child.FullName</strong> kostar
+                    <strong>@Kr(portal.NextClassFeeOreFor(child)) kr</strong>@welcomeNote.
+                </p>
             }
-            <p>Nästa träning kostar <strong>@Kr(portal.NextClassFeeOre) kr</strong>@welcomeNote.</p>
 
             @if (portal.UnspentCredits > 0)
             {
@@ -166,14 +172,31 @@
                                 <p class="class-list__about">@about</p>
                             }
                             <div class="class-list__actions">
-                                @if (bookable.MemberHasBooking)
+                                @{
+                                    @* Which of my children are already on this class, named. On a
+                                       family account "Redan bokad" alone is ambiguous - it has to
+                                       say who. *@
+                                    var bookedNames = portal.Children
+                                        .Where(child => bookable.BookedParticipantKeys.Contains(child.Key))
+                                        .Select(child => child.FirstName)
+                                        .ToArray();
+
+                                    var choices = portal.Children
+                                        .Where(child => bookable.BookableParticipantKeys.Contains(child.Key))
+                                        .ToArray();
+                                }
+
+                                @if (bookedNames.Length > 0)
                                 {
                                     @* A label, not a filled tag: this states a fact about the
                                        class, it is not something to click. Same treatment as
                                        "Tillgodoträning" in the bookings list. *@
-                                    <span class="tag tag--label">Redan bokad</span>
+                                    <span class="tag tag--label">
+                                        Bokad: @string.Join(", ", bookedNames)
+                                    </span>
                                 }
-                                else if (bookable.CanBook)
+
+                                @if (bookable.CanBook && choices.Length > 0)
                                 {
                                     @* Two separate forms rather than one with a toggle: each button
                                        posts exactly what it says it does, so there is no state to
@@ -182,9 +205,40 @@
                                         nameof(BookingSurfaceController.Book)))
                                     {
                                         <input type="hidden" name="classKey" value="@bookable.Class.Key" />
-                                        <button type="submit" class="btn-primary">
-                                            Boka — @Kr(portal.NextBookingTotalOre) kr
-                                        </button>
+
+                                        @if (choices.Length == 1)
+                                        {
+                                            @* One child left to book: no question to ask, and the
+                                               price is known, so it goes on the button. *@
+                                            <input type="hidden" name="participantKey" value="@choices[0].Key" />
+                                            <button type="submit" class="btn-primary"
+                                                    disabled="@(choices[0].IsComplete ? null : "disabled")">
+                                                Boka @choices[0].FirstName —
+                                                @Kr(portal.NextBookingTotalOreFor(choices[0])) kr
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            @* Several children, and the price depends on which one -
+                                               so each option carries its own. One figure on the
+                                               button would be wrong for at least one child. *@
+                                            <label class="visually-hidden" for="child-@bookable.Class.Key">
+                                                Välj barn
+                                            </label>
+                                            <select id="child-@bookable.Class.Key" name="participantKey"
+                                                    class="class-list__child-picker">
+                                                @foreach (var child in choices)
+                                                {
+                                                    <option value="@child.Key"
+                                                            disabled="@(child.IsComplete ? null : "disabled")">
+                                                        @child.FullName —
+                                                        @Kr(portal.NextBookingTotalOreFor(child)) kr
+                                                        @(child.IsComplete ? string.Empty : " (fyll i födelsedatum)")
+                                                    </option>
+                                                }
+                                            </select>
+                                            <button type="submit" class="btn-primary">Boka</button>
+                                        }
                                     }
 
                                     @if (portal.UnspentCredits > 0)
@@ -194,6 +248,28 @@
                                         {
                                             <input type="hidden" name="classKey" value="@bookable.Class.Key" />
                                             <input type="hidden" name="useCredit" value="true" />
+
+                                            @if (choices.Length == 1)
+                                            {
+                                                <input type="hidden" name="participantKey" value="@choices[0].Key" />
+                                            }
+                                            else
+                                            {
+                                                <label class="visually-hidden" for="credit-child-@bookable.Class.Key">
+                                                    Välj barn
+                                                </label>
+                                                <select id="credit-child-@bookable.Class.Key" name="participantKey"
+                                                        class="class-list__child-picker">
+                                                    @foreach (var child in choices)
+                                                    {
+                                                        <option value="@child.Key"
+                                                                disabled="@(child.IsComplete ? null : "disabled")">
+                                                            @child.FullName
+                                                        </option>
+                                                    }
+                                                </select>
+                                            }
+
                                             @* Secondary, not a link: it is an equal alternative to
                                                paying, so it should look like a choice rather than a
                                                footnote - just not competing with the yellow. *@

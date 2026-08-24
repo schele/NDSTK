@@ -38,7 +38,7 @@ public interface IBookingRepository
     /// exactly that gap, however short.
     /// </remarks>
     Task<int?> TryReservePlaceAsync(
-        Guid memberKey, Guid classKey, DateTime classStartUtc, int capacity,
+        Guid memberKey, Guid participantKey, Guid classKey, DateTime classStartUtc, int capacity,
         DateTime nowUtc, DateTime holdExpiresUtc);
 
     /// <summary>

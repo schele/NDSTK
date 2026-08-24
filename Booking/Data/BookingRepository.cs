@@ -73,7 +73,7 @@ public sealed class BookingRepository(
     // ----------------------------------------------------------------- writes
 
     public async Task<int?> TryReservePlaceAsync(
-        Guid memberKey, Guid classKey, DateTime classStartUtc, int capacity,
+        Guid memberKey, Guid participantKey, Guid classKey, DateTime classStartUtc, int capacity,
         DateTime nowUtc, DateTime holdExpiresUtc)
     {
         if (capacity <= 0)
@@ -83,13 +83,17 @@ public sealed class BookingRepository(
 
         using IScope scope = scopeProvider.CreateScope();
 
-        // First, retire this member's own expired hold on this class, if they have one.
+        // First, retire this child's own expired hold on this class, if they have one.
         //
         // Without this the two rules disagree and the insert below throws. The partial unique index
         // treats every Pending row as live, because an index predicate cannot reference "now";
         // Capacity.HoldsPlace treats a Pending row as live only until its hold runs out. So a member
         // who abandoned a payment and came back to book the same class again passed the C# check and
         // then hit "UNIQUE constraint failed" - a 500 for something entirely reasonable to do.
+        //
+        // Keyed on the participant, matching the index: cleaning up by account would retire a
+        // *sibling's* live hold on the same class, which is exactly the case a family account makes
+        // routine.
         //
         // Any credit spent on that abandoned booking goes back first: the member never got the place
         // it was spent on.
@@ -99,17 +103,17 @@ public sealed class BookingRepository(
             SET SpentOnBookingId = NULL, SpentUtc = NULL
             WHERE SpentOnBookingId IN (
                 SELECT Id FROM {BookingTables.Booking}
-                WHERE MemberKey = @0 AND ClassKey = @1 AND Status = @2 AND HoldExpiresUtc <= @3)
+                WHERE ParticipantKey = @0 AND ClassKey = @1 AND Status = @2 AND HoldExpiresUtc <= @3)
             """,
-            memberKey, classKey, Domain.BookingStatus.Pending, nowUtc);
+            participantKey, classKey, Domain.BookingStatus.Pending, nowUtc);
 
         await scope.Database.ExecuteAsync(
             $"""
             UPDATE {BookingTables.Booking}
             SET Status = @0, HoldExpiresUtc = NULL
-            WHERE MemberKey = @1 AND ClassKey = @2 AND Status = @3 AND HoldExpiresUtc <= @4
+            WHERE ParticipantKey = @1 AND ClassKey = @2 AND Status = @3 AND HoldExpiresUtc <= @4
             """,
-            Domain.BookingStatus.Expired, memberKey, classKey, Domain.BookingStatus.Pending, nowUtc);
+            Domain.BookingStatus.Expired, participantKey, classKey, Domain.BookingStatus.Pending, nowUtc);
 
         // One statement, so the capacity test and the insert cannot be separated by another
         // booking. Written as raw SQL because that atomicity is the entire point - the fluent
@@ -125,16 +129,20 @@ public sealed class BookingRepository(
             inserted = await scope.Database.ExecuteAsync(
                 $"""
                 INSERT INTO {BookingTables.Booking}
-                    (MemberKey, ClassKey, ClassStartUtc, Status, CreatedUtc, HoldExpiresUtc)
-                SELECT @0, @1, @2, @3, @4, @5
+                    (MemberKey, ParticipantKey, ClassKey, ClassStartUtc, Status, CreatedUtc, HoldExpiresUtc)
+                SELECT @0, @1, @2, @3, @4, @5, @6
                 WHERE (
                     SELECT COUNT(*) FROM {BookingTables.Booking}
-                    WHERE ClassKey = @1
-                      AND (Status = @6 OR (Status = @3 AND HoldExpiresUtc > @4))
-                ) < @7
+                    WHERE ClassKey = @2
+                      AND (Status = @7 OR (Status = @4 AND HoldExpiresUtc > @5))
+                ) < @8
                 """,
-                memberKey, classKey, classStartUtc, Domain.BookingStatus.Pending,
-                nowUtc, holdExpiresUtc, Domain.BookingStatus.Confirmed, capacity);
+                // Passed as an explicit array: NPoco's ExecuteAsync overloads stop at eight
+                // parameters, and this statement now needs nine.
+                [
+                    memberKey, participantKey, classKey, classStartUtc, Domain.BookingStatus.Pending,
+                    nowUtc, holdExpiresUtc, Domain.BookingStatus.Confirmed, capacity,
+                ]);
         }
         catch (DbException exception)
             when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase))
@@ -148,8 +156,8 @@ public sealed class BookingRepository(
             // the member as a 500 has failed at its job. Logged at warning so a genuine divergence
             // between the index and the C# rule is still visible rather than silently swallowed.
             logger.LogWarning(
-                "A duplicate booking for member {MemberKey} on class {ClassKey} was rejected by the "
-                + "one-live-booking index.", memberKey, classKey);
+                "A duplicate booking for participant {ParticipantKey} on class {ClassKey} was "
+                + "rejected by the one-live-booking index.", participantKey, classKey);
 
             scope.Complete();
             return null;
@@ -168,7 +176,7 @@ public sealed class BookingRepository(
             .Select<BookingRecord>()
             .From<BookingRecord>()
             .Where<BookingRecord>(record =>
-                record.MemberKey == memberKey
+                record.ParticipantKey == participantKey
                 && record.ClassKey == classKey
                 && record.Status == Domain.BookingStatus.Pending)
             .OrderByDescending<BookingRecord>(record => record.Id);
@@ -451,9 +459,15 @@ public sealed class BookingRepository(
         return true;
     }
 
+    /// <remarks>
+    /// A null ParticipantKey maps to <see cref="Guid.Empty"/>, which matches no participant. That
+    /// can only happen if the backfill refused to complete, and failing closed - the child looks
+    /// unbooked and the rules turn them away - is the safe direction.
+    /// </remarks>
     private static BookingSnapshot ToSnapshot(BookingRecord record) => new(
         record.Id,
         record.MemberKey,
+        record.ParticipantKey ?? Guid.Empty,
         record.ClassKey,
         record.Status,
         record.HoldExpiresUtc,

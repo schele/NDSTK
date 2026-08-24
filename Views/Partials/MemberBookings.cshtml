@@ -23,6 +23,12 @@
             {
                 <li class="booking-list__item">
                     <span class="booking-list__title">@(row.Class?.Title ?? "Träning")</span>
+                    @* Whose place this is. Without it a family account shows two identical rows for
+                       the same class and no way to tell which child each one belongs to. *@
+                    @if (row.ChildName is { Length: > 0 } child)
+                    {
+                        <span class="booking-list__child">@child</span>
+                    }
                     <span class="booking-list__when">@When(row.ClassStartUtc)</span>
                     <span class="booking-list__tags">
                         @if (row.UsedCredit)

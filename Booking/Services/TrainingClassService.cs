@@ -22,10 +22,15 @@ public sealed class TrainingClassService(
     private const int DefaultDurationMinutes = 60;
 
     /// <summary>
-    /// Upcoming classes, soonest first, each projected for <paramref name="memberKey"/>. Pass null
-    /// for an anonymous visitor.
+    /// Upcoming classes, soonest first, each projected for the account's children. Pass an empty
+    /// collection for an anonymous visitor.
     /// </summary>
-    public async Task<IReadOnlyList<BookableClass>> GetUpcomingAsync(Guid? memberKey, DateTime nowUtc)
+    /// <remarks>
+    /// Takes the children rather than the account because a class can be bookable for one child and
+    /// not another - which is the normal case on a family account where one sibling is already on it.
+    /// </remarks>
+    public async Task<IReadOnlyList<BookableClass>> GetUpcomingAsync(
+        IReadOnlyCollection<Guid> participantKeys, DateTime nowUtc)
     {
         TrainingClass[] classes = ReadClasses()
             .Where(trainingClass => trainingClass.StartUtc > nowUtc)
@@ -47,7 +52,7 @@ public sealed class TrainingClassService(
                 byClass.TryGetValue(trainingClass.Key, out IReadOnlyList<BookingSnapshot>? forClass)
                     ? forClass
                     : [],
-                memberKey,
+                participantKeys,
                 nowUtc)),
         ];
     }

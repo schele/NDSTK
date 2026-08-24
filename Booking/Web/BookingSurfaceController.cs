@@ -36,7 +36,7 @@ public sealed class BookingSurfaceController(
     [ValidateAntiForgeryToken]
     [ValidateUmbracoFormRouteString]
     [EnableRateLimiting(BookingRateLimits.MemberActions)]
-    public async Task<IActionResult> Book(Guid classKey, bool useCredit = false)
+    public async Task<IActionResult> Book(Guid participantKey, Guid classKey, bool useCredit = false)
     {
         MemberIdentityUser? user = await memberManager.GetCurrentMemberAsync();
         if (user is null)
@@ -46,7 +46,7 @@ public sealed class BookingSurfaceController(
             return Forbid();
         }
 
-        BookingAttempt attempt = await bookings.BookAsync(user.Key, classKey, useCredit);
+        BookingAttempt attempt = await bookings.BookAsync(user.Key, participantKey, classKey, useCredit);
 
         if (attempt.Succeeded is false)
         {
@@ -111,8 +111,10 @@ public sealed class BookingSurfaceController(
         BookingFailure.ClassNotFound => "Träningen finns inte längre.",
         BookingFailure.ClassHasStarted => "Träningen har redan börjat.",
         BookingFailure.ClassIsFull => "Någon hann före – träningen är fullbokad.",
-        BookingFailure.AlreadyBooked => "Du är redan bokad på den träningen.",
+        BookingFailure.AlreadyBooked => "Barnet är redan bokat på den träningen.",
         BookingFailure.NoCreditAvailable => "Du har ingen tillgodoträning att använda.",
+        BookingFailure.ParticipantNotFound => "Välj vilket barn bokningen gäller.",
+        BookingFailure.ParticipantIncomplete => "Fyll i barnets födelsedatum under Mina barn innan du bokar.",
         _ => "Något gick fel. Försök igen om en liten stund.",
     };
 

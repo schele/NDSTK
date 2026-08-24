@@ -14,6 +14,15 @@ public enum BookingFailure
     ClassIsFull,
     AlreadyBooked,
     NoCreditAvailable,
+
+    /// <summary>The participant key did not name a live child of this account.</summary>
+    ParticipantNotFound,
+
+    /// <summary>
+    /// A child the backfill created, who has no real birth date yet. Only ever reachable for a
+    /// member who registered before participants existed.
+    /// </summary>
+    ParticipantIncomplete,
 }
 
 /// <summary>
@@ -37,13 +46,15 @@ public sealed record BookingAttempt(
 /// </summary>
 public sealed class BookingService(
     IBookingRepository repository,
+    IParticipantRepository participants,
     TrainingClassService classes,
     MemberProfileService profiles,
     MembershipSettingsService settings,
     IPaymentProvider paymentProvider,
     ILogger<BookingService> logger)
 {
-    public async Task<BookingAttempt> BookAsync(Guid memberKey, Guid classKey, bool useCredit)
+    public async Task<BookingAttempt> BookAsync(
+        Guid memberKey, Guid participantKey, Guid classKey, bool useCredit)
     {
         TrainingClass? trainingClass = classes.Find(classKey);
         if (trainingClass is null)
@@ -57,6 +68,24 @@ public sealed class BookingService(
             return new BookingAttempt(BookingFailure.ClassHasStarted);
         }
 
+        ParticipantRecord? participant = await participants.GetAsync(participantKey);
+
+        // Ownership is verified here rather than trusted from the form: the key arrives on a POST,
+        // and a forged one must not book a stranger's child onto a class.
+        if (participant is null
+            || participant.MemberKey != memberKey
+            || participant.RemovedUtc is not null)
+        {
+            return new BookingAttempt(BookingFailure.ParticipantNotFound);
+        }
+
+        // Only ever true for a child the backfill created, who has no real birth date yet. Asking
+        // for it once is better than carrying a guessed one through the club's records.
+        if (participant.BirthDate is null)
+        {
+            return new BookingAttempt(BookingFailure.ParticipantIncomplete);
+        }
+
         MembershipSettings config = settings.Get();
 
         // Checked before reserving so the member gets "du är redan bokad" rather than tripping the
@@ -67,7 +96,7 @@ public sealed class BookingService(
         IReadOnlyList<BookingSnapshot> forClass =
             existing.TryGetValue(classKey, out IReadOnlyList<BookingSnapshot>? found) ? found : [];
 
-        if (Capacity.HasLiveBooking(forClass, memberKey, nowUtc))
+        if (Capacity.HasLiveBooking(forClass, participantKey, nowUtc))
         {
             return new BookingAttempt(BookingFailure.AlreadyBooked);
         }
@@ -85,13 +114,20 @@ public sealed class BookingService(
         }
 
         MemberState member = await profiles.GetStateAsync(memberKey);
+
+        // The welcome price is this child's, not the account's: a sibling who has already used
+        // theirs must not make this one pay full price, and vice versa.
+        var participantState = new ParticipantState(participant.FirstClassUsedUtc is not null);
+
         DateOnly today = DateOnly.FromDateTime(SwedishTime.ToSwedish(nowUtc));
-        BookingQuote quote = Pricing.Quote(member, config.Prices, credit is not null, today);
+        BookingQuote quote = Pricing.Quote(
+            member, participantState, config.Prices, credit is not null, today);
 
         DateTime holdExpires = nowUtc.AddMinutes(config.PaymentHoldMinutes);
 
         int? bookingId = await repository.TryReservePlaceAsync(
-            memberKey, classKey, trainingClass.StartUtc, trainingClass.Capacity, nowUtc, holdExpires);
+            memberKey, participantKey, classKey, trainingClass.StartUtc, trainingClass.Capacity,
+            nowUtc, holdExpires);
 
         if (bookingId is null)
         {
@@ -105,7 +141,7 @@ public sealed class BookingService(
             IReadOnlyList<BookingSnapshot> current =
                 afterwards.TryGetValue(classKey, out IReadOnlyList<BookingSnapshot>? rows) ? rows : [];
 
-            return Capacity.HasLiveBooking(current, memberKey, nowUtc)
+            return Capacity.HasLiveBooking(current, participantKey, nowUtc)
                 ? new BookingAttempt(BookingFailure.AlreadyBooked)
                 : new BookingAttempt(BookingFailure.ClassIsFull);
         }
@@ -137,6 +173,7 @@ public sealed class BookingService(
             BookingId = bookingId,
             AmountOre = quote.TotalOre,
             MembershipFeeOre = quote.MembershipDueOre,
+            FamilyFeeOre = quote.FamilyDueOre,
             ClassFeeOre = quote.ClassFeeOre,
             Status = PaymentStatus.Pending,
             Provider = paymentProvider.Name,
@@ -177,17 +214,29 @@ public sealed class BookingService(
         // Deliberately not "did this payment equal the welcome price". Comparing the stored amount
         // against the configured price would break the moment an editor changes prices between a
         // booking and its payment, and would misfire entirely if the two prices were ever set the
-        // same. Instead: Pricing only ever quotes the welcome price while the member's flag is
-        // still false, so a class fee charged to a member whose flag is false *was* the welcome
+        // same. Instead: Pricing only ever quotes the welcome price while the child's stamp is
+        // still null, so a class fee charged to a child whose stamp is null *was* the welcome
         // price, whatever the numbers now say.
         //
-        // Two classes booked at the same moment could both be quoted the welcome price and both
-        // settle. The member was quoted honestly each time, so the club honours it; locking to
-        // prevent that is not worth the contention.
-        MemberState after = await profiles.GetStateAsync(payment.MemberKey);
-        if (payment.ClassFeeOre > 0 && after.FirstClassDiscountUsed is false)
+        // The stamp is per child, reached through the booking, and conditional on still being null -
+        // so two classes booked for the same child at the same moment cannot both claim to have
+        // been the first, and a sibling's stamp is never touched.
+        if (payment.ClassFeeOre > 0 && payment.BookingId is { } stampBookingId)
         {
-            await profiles.MarkFirstClassDiscountUsedAsync(payment.MemberKey);
+            BookingRecord? booking = await repository.GetBookingAsync(stampBookingId);
+            if (booking?.ParticipantKey is { } participantKey)
+            {
+                await participants.TryStampFirstClassUsedAsync(participantKey, nowUtc);
+            }
+        }
+
+        // The supplement is charged either alongside the annual fee on a renewal, or on its own as
+        // a mid-year upgrade. Either way, paying it makes the account a family account. Note that
+        // ExtendMembershipAsync above is guarded on MembershipFeeOre, which an upgrade payment sets
+        // to zero - that is what stops the upgrade moving the expiry date.
+        if (payment.FamilyFeeOre > 0)
+        {
+            await profiles.SetFamilyAccountAsync(payment.MemberKey);
         }
 
         logger.LogInformation("Payment {Reference} settled.", payment.Reference);

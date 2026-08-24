@@ -25,6 +25,7 @@ public sealed record MemberBookingsPanel(
 /// </remarks>
 public sealed class MemberBookingsProvider(
     IBookingRepository repository,
+    IParticipantRepository participants,
     TrainingClassService classes)
 {
     /// <summary>
@@ -42,6 +43,12 @@ public sealed class MemberBookingsProvider(
     {
         IReadOnlyList<BookingSnapshot> snapshots = await repository.GetBookingsForMemberAsync(memberKey);
         IReadOnlyList<CreditSnapshot> credits = await repository.GetCreditsForMemberAsync(memberKey);
+
+        // Which child each booking is for. On a family account the list is otherwise ambiguous -
+        // two identical rows for the same class, and no way to tell whose place is whose.
+        // Removed children are included deliberately: their past bookings still need a name.
+        Dictionary<Guid, string> childNames = (await participants.GetAllForMemberAsync(memberKey))
+            .ToDictionary(child => child.Key, child => $"{child.FirstName} {child.LastName}".Trim());
 
         HashSet<int> paidByCredit =
         [
@@ -64,6 +71,7 @@ public sealed class MemberBookingsProvider(
                     // booking carries its own copy of the start time - a member who paid deserves to
                     // see it either way.
                     classes.Find(snapshot.ClassKey),
+                    childNames.TryGetValue(snapshot.ParticipantKey, out var name) ? name : string.Empty,
                     snapshot.Status,
                     snapshot.ClassStartUtc,
                     UsedCredit: paidByCredit.Contains(snapshot.Id))),
