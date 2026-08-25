@@ -11,7 +11,8 @@ public sealed record MemberPortalViewModel(
     int UnspentCredits,
     MembershipStatus Membership,
     PriceList Prices,
-    int ReminderHoursBefore)
+    int ReminderHoursBefore,
+    int CancellationDeadlineHours)
 {
     /// <summary>
     /// Bookings starting inside the reminder window, which the banner at the top of the page
@@ -110,7 +111,10 @@ public sealed record MemberBookingRow(
 
     public double HoursUntilStart => (ClassStartUtc - DateTime.UtcNow).TotalHours;
 
-    public bool IsCancellable => Status == BookingStatus.Confirmed && IsUpcoming;
+    // Whether this booking can still be cancelled is deliberately NOT here. It depends on the
+    // club's cancellation deadline, which is one setting for the whole club - see
+    // MemberBookingsPanel.CanCancel. A row that answered it from its own state would have to carry
+    // a copy of that setting, and two rows could then disagree.
 }
 
 /// <summary>Whether the annual fee is paid, until when, and whether this is a family account.</summary>

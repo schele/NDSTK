@@ -28,6 +28,7 @@ public sealed class BookingSurfaceController(
     IMemberManager memberManager,
     IPublishedContentQuery contentQuery,
     BookingService bookings,
+    MembershipSettingsService settings,
     ILogger<BookingSurfaceController> logger)
     : SurfaceController(
         umbracoContextAccessor, databaseFactory, services, appCaches, profilingLogger, publishedUrlProvider)
@@ -86,17 +87,28 @@ public sealed class BookingSurfaceController(
             return Forbid();
         }
 
-        if (await bookings.CancelAsync(user.Key, bookingId))
+        switch (await bookings.CancelAsync(user.Key, bookingId))
         {
-            TempData["BookingMessage"] =
-                "Bokningen är avbokad. Avgiften betalas inte tillbaka, men du har fått en "
-                + "tillgodoträning att boka en annan gång med.";
-        }
-        else
-        {
-            // Deliberately one message for every reason: not yours, not confirmed, already started.
-            // Distinguishing them would tell a member whether a booking id they guessed exists.
-            TempData["BookingError"] = "Den bokningen kan inte avbokas.";
+            case CancelOutcome.Cancelled:
+                TempData["BookingMessage"] =
+                    "Bokningen är avbokad. Avgiften betalas inte tillbaka, men du har fått en "
+                    + "tillgodoträning att boka en annan gång med.";
+                break;
+
+            case CancelOutcome.TooLate:
+                // Its own message, and it names the rule. This one is only ever reached for the
+                // member's own confirmed booking, so it reveals nothing they did not already know,
+                // and "kan inte avbokas" would read as a fault rather than a deadline.
+                TempData["BookingError"] =
+                    $"Träningen börjar för snart. Avbokning stänger "
+                    + $"{settings.Get().CancellationDeadlineHours} timmar före start.";
+                break;
+
+            default:
+                // Deliberately one message for every other reason: not yours, not confirmed.
+                // Distinguishing them would tell a member whether a booking id they guessed exists.
+                TempData["BookingError"] = "Den bokningen kan inte avbokas.";
+                break;
         }
 
         return RedirectToCurrentUmbracoPage();

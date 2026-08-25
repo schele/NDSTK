@@ -50,6 +50,13 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		// properties
 
 		///<summary>
+		/// Avbokning stänger (timmar innan): Så nära starten går träningen inte längre att avboka. Standard: 12.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[ImplementPropertyType("cancellationDeadlineHours")]
+		public virtual int CancellationDeadlineHours => this.Value<int>(_publishedValueFallback, "cancellationDeadlineHours");
+
+		///<summary>
 		/// Pris per klass (kr): Standard: 200.
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
@@ -57,7 +64,14 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		public virtual int ClassPrice => this.Value<int>(_publishedValueFallback, "classPrice");
 
 		///<summary>
-		/// Pris första klassen (kr): Välkomstpris, en gång per medlem. Standard: 100.
+		/// Familjetillägg (kr): Tillägg per år för familjekonto, som låter kontot ha flera barn. Standard: 100.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[ImplementPropertyType("familyFee")]
+		public virtual int FamilyFee => this.Value<int>(_publishedValueFallback, "familyFee");
+
+		///<summary>
+		/// Pris första klassen (kr): Välkomstpris, en gång per barn. Standard: 100.
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		[ImplementPropertyType("firstClassPrice")]

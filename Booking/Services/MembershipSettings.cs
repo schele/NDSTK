@@ -13,7 +13,8 @@ namespace NDSTK.Booking.Services;
 public sealed record MembershipSettings(
     PriceList Prices,
     int ReminderHoursBefore,
-    int PaymentHoldMinutes)
+    int PaymentHoldMinutes,
+    int CancellationDeadlineHours)
 {
     /// <summary>
     /// Used when the Settings node has no Medlemskap values yet, which is the case immediately
@@ -28,5 +29,9 @@ public sealed record MembershipSettings(
         ReminderHoursBefore: 24,
         // Long enough to open Swish and confirm, short enough that a place is not held for somebody
         // who wandered off. The hold blocks a real member from booking, so erring long is not free.
-        PaymentHoldMinutes: 5);
+        PaymentHoldMinutes: 5,
+        // A place given up an hour before the class cannot realistically be filled by anybody
+        // else, so it costs the club a coached slot and the member nothing. Twelve hours means a
+        // class the following evening can still be given up the night before.
+        CancellationDeadlineHours: 12);
 }

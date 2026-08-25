@@ -358,3 +358,36 @@ stays a full shop window.
 Two empty states, not one. No classes at all says so; being booked on all of them says *that*,
 because telling a member "inga träningar är upplagda" when they are booked on every one would read
 as though the club had cancelled the term.
+
+## Cancellation closes before the class
+
+A place given up an hour before the class cannot realistically be filled by anybody else, so a late
+cancellation costs the club a coached slot and the member nothing. Cancelling therefore closes a set
+number of hours before the start — **Avbokning stänger (timmar innan)** on the Settings node,
+default 12.
+
+The rule lives in `Cancellation` in `NDSTK.Domain`, in two shapes that have to agree:
+
+| | |
+| --- | --- |
+| `IsOpen(classStart, now, hours)` | what the portal renders with |
+| `EarliestCancellableStart(now, hours)` | the cutoff the `UPDATE`'s `WHERE` compares against |
+
+SQL cannot add hours to "now" portably, so the service computes the cutoff once and passes it down.
+A test pins the two to the same boundary — exactly on the deadline is **closed**, because closing
+early is the direction that matches having a deadline at all.
+
+**The button is disabled, not removed.** A control that vanishes leaves a member wondering whether
+they missed it; one that is visibly closed, with the reason on it, tells them the rule for next
+time. That is presentation only: the deadline is a precondition of the `UPDATE`, so a replayed form
+cannot slip a late cancellation through. Verified by lifting a cancel form's `ufprt` from an older
+page and POSTing it — refused, with the booking left `Confirmed`.
+
+Being inside the deadline gets its **own** message naming the hours, unlike the other refusals which
+deliberately share one. It is only ever reached for the member's own confirmed booking, so it
+reveals nothing, and "kan inte avbokas" would read as a fault rather than a deadline.
+
+Zero counts as "not set" and falls back to the default, like every other field on that node —
+Umbraco's numeric editor cannot tell an emptied field from a deliberate 0, so there is no way to
+express "no deadline" through it. For a club that does not want late cancellations, that is the
+safer of the two readings.

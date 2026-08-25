@@ -113,10 +113,17 @@ public interface IBookingRepository
 
     /// <summary>
     /// Cancels a confirmed booking and issues exactly one credit for it. Returns false when the
-    /// booking was not the caller's, or was not confirmed - so a double submission cannot mint a
-    /// second credit.
+    /// booking was not the caller's, was not confirmed, or its class starts at or before
+    /// <paramref name="earliestCancellableStartUtc"/> - so a double submission cannot mint a second
+    /// credit, and a late cancellation cannot slip through on a replayed form.
     /// </summary>
-    Task<bool> TryCancelBookingAsync(int bookingId, Guid memberKey, DateTime nowUtc);
+    /// <param name="earliestCancellableStartUtc">
+    /// A class must start after this moment to still be cancellable. Computed once by the caller
+    /// from <see cref="Cancellation.EarliestCancellableStart"/>, so this and the rule the portal
+    /// renders with cannot disagree.
+    /// </param>
+    Task<bool> TryCancelBookingAsync(
+        int bookingId, Guid memberKey, DateTime nowUtc, DateTime earliestCancellableStartUtc);
 
     /// <summary>
     /// Cancels one child's <em>future</em> bookings and issues a credit for each confirmed one, for

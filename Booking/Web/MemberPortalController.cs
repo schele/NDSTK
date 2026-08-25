@@ -80,7 +80,8 @@ public sealed class MemberPortalController(
                 state.IsFamilyAccount,
                 await SupplementPaidThisYearAsync(memberKey, state)),
             Prices: config.Prices,
-            ReminderHoursBefore: config.ReminderHoursBefore);
+            ReminderHoursBefore: config.ReminderHoursBefore,
+            CancellationDeadlineHours: config.CancellationDeadlineHours);
 
         return CurrentTemplate(CurrentPage);
     }

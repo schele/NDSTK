@@ -25,6 +25,22 @@ public enum BookingFailure
     ParticipantIncomplete,
 }
 
+/// <summary>Why a cancellation did or did not happen.</summary>
+public enum CancelOutcome
+{
+    Cancelled,
+
+    /// <summary>Inside the cancellation deadline. Worth its own message: the member did nothing
+    /// wrong and the reason is a rule they can plan around next time.</summary>
+    TooLate,
+
+    /// <summary>
+    /// Not the member's booking, or not confirmed. Deliberately one outcome for several causes:
+    /// distinguishing them would tell somebody whether a booking id they guessed exists.
+    /// </summary>
+    NotCancellable,
+}
+
 /// <summary>
 /// The outcome of asking to book a class. Exactly one of <see cref="Failure"/> and a booking is
 /// meaningful, and <see cref="PaymentReference"/> is set only when the member owes money.
@@ -251,22 +267,43 @@ public sealed class BookingService(
     /// on another class. Every precondition is enforced in the repository's UPDATE rather than
     /// checked here first, so two simultaneous submissions cannot both succeed and mint two credits.
     /// </remarks>
-    public async Task<bool> CancelAsync(Guid memberKey, int bookingId)
+    public async Task<CancelOutcome> CancelAsync(Guid memberKey, int bookingId)
     {
-        var cancelled = await repository.TryCancelBookingAsync(bookingId, memberKey, DateTime.UtcNow);
+        DateTime nowUtc = DateTime.UtcNow;
+        var deadlineHours = settings.Get().CancellationDeadlineHours;
+        DateTime earliest = Cancellation.EarliestCancellableStart(nowUtc, deadlineHours);
+
+        var cancelled = await repository.TryCancelBookingAsync(
+            bookingId, memberKey, nowUtc, earliest);
 
         if (cancelled)
         {
             logger.LogInformation("Booking {BookingId} cancelled; a credit was issued.", bookingId);
-        }
-        else
-        {
-            logger.LogInformation(
-                "Booking {BookingId} was not cancelled: not the member's, not confirmed, or already started.",
-                bookingId);
+            return CancelOutcome.Cancelled;
         }
 
-        return cancelled;
+        // Work out whether it failed because the window has closed, so the member can be told that
+        // rather than the generic refusal. Only reached on failure, and only trusted once the
+        // booking is confirmed to be this member's - a booking that is not theirs gets the same
+        // answer as one that does not exist.
+        BookingRecord? booking = await repository.GetBookingAsync(bookingId);
+
+        if (booking is not null
+            && booking.MemberKey == memberKey
+            && booking.Status == BookingStatus.Confirmed
+            && Cancellation.IsOpen(booking.ClassStartUtc, nowUtc, deadlineHours) is false)
+        {
+            logger.LogInformation(
+                "Booking {BookingId} was not cancelled: inside the {Hours}h cancellation deadline.",
+                bookingId, deadlineHours);
+
+            return CancelOutcome.TooLate;
+        }
+
+        logger.LogInformation(
+            "Booking {BookingId} was not cancelled: not the member's, or not confirmed.", bookingId);
+
+        return CancelOutcome.NotCancellable;
     }
 
     /// <summary>Abandons a payment and releases the place it was holding.</summary>

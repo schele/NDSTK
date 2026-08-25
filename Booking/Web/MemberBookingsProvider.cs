@@ -12,9 +12,40 @@ namespace NDSTK.Booking.Web;
 /// confusing thing to offer: the member is mid-transaction, and the two bookings are unrelated. The
 /// action stays available on the portal, which is where managing bookings belongs.
 /// </param>
+/// <param name="CancellationDeadlineHours">
+/// How close to the start cancelling closes. Carried on the panel rather than on every row, because
+/// it is one club-wide setting and repeating it per booking would invite two rows disagreeing.
+///
+/// Defaulted, because it has no meaning where <paramref name="AllowCancel"/> is false: both methods
+/// below check that first, so the payment page - which shows bookings but offers no actions on them
+/// - has no deadline to supply.
+/// </param>
 public sealed record MemberBookingsPanel(
     IReadOnlyList<MemberBookingRow> Rows,
-    bool AllowCancel);
+    bool AllowCancel,
+    int CancellationDeadlineHours = 0)
+{
+    /// <summary>
+    /// Whether this booking can still be cancelled right now.
+    /// </summary>
+    /// <remarks>
+    /// The same <see cref="Cancellation.IsOpen"/> the repository's WHERE clause is derived from, so
+    /// a button that looks available cannot be refused by the server, and one that looks closed
+    /// cannot be replayed into working.
+    /// </remarks>
+    public bool CanCancel(MemberBookingRow row)
+        => AllowCancel
+           && row.Status == BookingStatus.Confirmed
+           && Cancellation.IsOpen(row.ClassStartUtc, DateTime.UtcNow, CancellationDeadlineHours);
+
+    /// <summary>
+    /// True for a booking whose class is still ahead but too close to give up. Tells the view when
+    /// to dim the button and say why, rather than simply dropping it.
+    /// </summary>
+    public bool IsPastCancellationDeadline(MemberBookingRow row)
+        => AllowCancel && row.Status == BookingStatus.Confirmed && row.IsUpcoming
+           && CanCancel(row) is false;
+}
 
 /// <summary>
 /// Builds the "Mina bokningar" rows for one member.

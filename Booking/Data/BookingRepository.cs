@@ -439,22 +439,28 @@ public sealed class BookingRepository(
         return credited;
     }
 
-    public async Task<bool> TryCancelBookingAsync(int bookingId, Guid memberKey, DateTime nowUtc)
+    public async Task<bool> TryCancelBookingAsync(
+        int bookingId, Guid memberKey, DateTime nowUtc, DateTime earliestCancellableStartUtc)
     {
         using IScope scope = scopeProvider.CreateScope();
 
-        // Every precondition sits in the WHERE clause, which does four jobs at once: it stops a
-        // member cancelling somebody else's booking, it stops a class being cancelled after it has
-        // started, it stops a double submission minting a second credit, and it means the credit
-        // below is only ever inserted by the caller that actually performed the cancellation.
+        // Every precondition sits in the WHERE clause, which does five jobs at once: it stops a
+        // member cancelling somebody else's booking, it stops a class being cancelled once it is
+        // inside the cancellation deadline (and so also after it has started), it stops a double
+        // submission minting a second credit, and it means the credit below is only ever inserted
+        // by the caller that actually performed the cancellation.
+        //
+        // The deadline arrives as an absolute moment rather than a number of hours, because SQL
+        // cannot add hours to "now" portably - and computing it once, in the service, is what keeps
+        // the SQL and Cancellation.IsOpen describing the same boundary.
         var cancelled = await scope.Database.ExecuteAsync(
             $"""
             UPDATE {BookingTables.Booking}
             SET Status = @0, CancelledUtc = @1, HoldExpiresUtc = NULL
-            WHERE Id = @2 AND MemberKey = @3 AND Status = @4 AND ClassStartUtc > @1
+            WHERE Id = @2 AND MemberKey = @3 AND Status = @4 AND ClassStartUtc > @5
             """,
             Domain.BookingStatus.Cancelled, nowUtc, bookingId, memberKey,
-            Domain.BookingStatus.Confirmed);
+            Domain.BookingStatus.Confirmed, earliestCancellableStartUtc);
 
         if (cancelled != 1)
         {

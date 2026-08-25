@@ -50,7 +50,14 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		// properties
 
 		///<summary>
-		/// First class discount used: Set once a payment including the welcome price completes.
+		/// Family account: Set once the family supplement is paid. Lets the account hold more than one child.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[ImplementPropertyType("familjekonto")]
+		public virtual bool Familjekonto => this.Value<bool>(_publishedValueFallback, "familjekonto");
+
+		///<summary>
+		/// First class discount used (retired): No longer used. The welcome price is per child, on the participant.
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		[ImplementPropertyType("firstClassDiscountUsed")]
@@ -62,6 +69,14 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		[ImplementPropertyType("membershipPaidUntil")]
 		public virtual global::System.DateTime MembershipPaidUntil => this.Value<global::System.DateTime>(_publishedValueFallback, "membershipPaidUntil");
+
+		///<summary>
+		/// Phone: The guardian's phone number.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
+		[ImplementPropertyType("telefon")]
+		public virtual string Telefon => this.Value<string>(_publishedValueFallback, "telefon");
 
 		///<summary>
 		/// Comments

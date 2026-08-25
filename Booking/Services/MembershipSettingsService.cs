@@ -37,7 +37,15 @@ public sealed class MembershipSettingsService(IPublishedContentQuery contentQuer
             ReminderHoursBefore: PositiveOrDefault(
                 settings, "reminderHoursBefore", MembershipSettings.Defaults.ReminderHoursBefore),
             PaymentHoldMinutes: PositiveOrDefault(
-                settings, "paymentHoldMinutes", MembershipSettings.Defaults.PaymentHoldMinutes));
+                settings, "paymentHoldMinutes", MembershipSettings.Defaults.PaymentHoldMinutes),
+            // Zero counts as "not set" here like everywhere else on this node. Umbraco's numeric
+            // editor cannot tell an emptied field from a deliberate 0 - both read back as 0 - so
+            // there is no way to express "no deadline" through the field, and falling back to
+            // twelve is the safer of the two readings for a club that does not want late
+            // cancellations at all.
+            CancellationDeadlineHours: PositiveOrDefault(
+                settings, "cancellationDeadlineHours",
+                MembershipSettings.Defaults.CancellationDeadlineHours));
     }
 
     /// <summary>The page a member lands on after signing in.</summary>

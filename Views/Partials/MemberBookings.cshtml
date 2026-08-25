@@ -58,7 +58,17 @@
                         {
                             <span class="tag tag--label">Borttagen</span>
                         }
-                        @if (Model.AllowCancel && row.IsCancellable)
+                        @if (Model.IsPastCancellationDeadline(row))
+                        {
+                            @* Shown disabled rather than removed. A button that vanishes leaves a
+                               member wondering whether they missed it; one that is visibly closed,
+                               with the reason on it, tells them the rule for next time. *@
+                            <button type="submit" class="btn-danger btn--small" disabled
+                                    title="Avbokning stänger @Model.CancellationDeadlineHours timmar före start">
+                                Avboka
+                            </button>
+                        }
+                        else if (Model.CanCancel(row))
                         {
                             using (Html.BeginUmbracoForm<BookingSurfaceController>(
                                 nameof(BookingSurfaceController.Cancel)))

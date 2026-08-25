@@ -66,6 +66,7 @@ internal sealed class NdstkContentModelInstaller(
             factory.Property(BuiltInDataTypes.Numeric, "classPrice", "Pris per klass (kr)", "Standard: 200.", 3),
             factory.Property(BuiltInDataTypes.Numeric, "reminderHoursBefore", "Påminnelse (timmar innan)", "Standard: 24.", 4),
             factory.Property(BuiltInDataTypes.Numeric, "paymentHoldMinutes", "Betalningsreservation (minuter)", "Hur länge en obetald bokning håller sin plats. Standard: 5.", 5),
+            factory.Property(BuiltInDataTypes.Numeric, "cancellationDeadlineHours", "Avbokning stänger (timmar innan)", "Så nära starten går träningen inte längre att avboka. Standard: 12.", 6),
             factory.Property(BuiltInDataTypes.ContentPicker, "memberPortalPage", "Medlemssidan", "Dit medlemmen skickas efter inloggning.", 6),
             factory.Property(BuiltInDataTypes.ContentPicker, "registerPage", "Bli medlem-sidan", "Målet för Bli medlem-knapparna.", 7));
 

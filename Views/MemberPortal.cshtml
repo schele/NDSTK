@@ -82,7 +82,7 @@
 
         @* Bookings first: what a member comes back to the portal for is what they have coming up.
            Managing children is occasional, so it sits below. *@
-        @await Html.PartialAsync("MemberBookings", new MemberBookingsPanel(portal.MyBookings, AllowCancel: true))
+        @await Html.PartialAsync("MemberBookings", new MemberBookingsPanel(portal.MyBookings, AllowCancel: true, portal.CancellationDeadlineHours))
 
         @await Html.PartialAsync("MemberChildren", portal)
 
