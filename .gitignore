@@ -470,10 +470,10 @@ umbraco-package-schema.json
 # Temp folder containing Examine indexes, NuCache, MediaCache, etc.
 /umbraco/Data/TEMP/
 
-# SQLite database files
-/umbraco/Data/*.sqlite.db
-/umbraco/Data/*.sqlite.db-shm
-/umbraco/Data/*.sqlite.db-wal
+# SQLite database files. The trailing * matters: hand-made backups are named
+# Umbraco.sqlite.db.backup-20260825-004325 and the un-starred patterns miss them, which is how a
+# 1.5 MB database once got committed.
+/umbraco/Data/*.sqlite.db*
 
 # Log files
 /umbraco/Logs/
