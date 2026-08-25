@@ -521,8 +521,12 @@ footer {
     gap: 0.5rem;
     align-items: baseline;
     /* Same figure as .child-list__item below. The grey rule between blocks has to sit the same
-       distance from its content in both, or the two boxes read as different densities. */
-    padding: 0.9rem 0;
+       distance from its content in both, or the two boxes read as different densities.
+
+       Roomier than it looks like it needs to be. These blocks are four or five lines tall, and the
+       same padding that frames a two-line block reads as cramped around a taller one - the rule
+       ends up looking attached to the content above it rather than separating two things. */
+    padding: 1.25rem 0;
     border-bottom: 1px solid #ddd;
 }
 
@@ -552,8 +556,10 @@ footer {
 }
 
 .child-list__item {
-    /* Matches .booking-list__item, deliberately. */
-    padding: 0.9rem 0;
+    /* Matches .booking-list__item, deliberately. The 0.45rem margin under .child-list__head adds to
+       the bottom here, which is why that side of .booking-list__item is set 0.45rem higher than
+       this - the two boxes end up with the same air around the rule. */
+    padding: 1.25rem 0;
     border-bottom: 1px solid #ddd;
 }
 
@@ -930,8 +936,9 @@ footer {
        slack, while the text under the grey rule starts a few pixels below its own box - text
        carries half-leading and a gap above its cap height, a button does not. So the same measured
        gap reads as roughly a third smaller above the rule than below it. Matching the figure Mina
-       barn arrives at keeps the two boxes at one density. */
-    padding-bottom: 1.35rem;
+       barn arrives at keeps the two boxes at one density: 1.25 of padding plus the 0.45 margin
+       under .child-list__head is 1.7, so that is what this uses. */
+    padding-bottom: 1.7rem;
 }
 
 .booking-list__tags {
