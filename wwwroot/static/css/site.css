@@ -530,6 +530,12 @@ footer {
     border-bottom: 1px solid #ddd;
 }
 
+    /* The rule separates two bookings, so the last one has nothing to be separated from. Left in,
+       it reads as the box being cut off mid-list. */
+    .booking-list__item:last-child {
+        border-bottom: 0;
+    }
+
     /* The shared button rule carries margin-top:1rem, meant for a button that follows a paragraph.
        On a flex row it instead pushes the button down, so the gap under the content grew by 1rem
        while the gap above it did not - which is why this box read as looser than Mina barn despite
@@ -564,6 +570,11 @@ footer {
     padding: 1.25rem 0 1.7rem;
     border-bottom: 1px solid #ddd;
 }
+
+    /* Same as the bookings list: nothing below the last child to separate it from. */
+    .child-list__item:last-child {
+        border-bottom: 0;
+    }
 
 .child-list__head {
     display: flex;
@@ -702,6 +713,12 @@ footer {
     padding: 0.9rem 0;
     border-bottom: 1px solid #ddd;
 }
+
+    /* Same rule as the two sidebar lists: the separator belongs between items, not under the last
+       one, where it reads as the list having been truncated. */
+    .class-list__item:last-child {
+        border-bottom: 0;
+    }
 
 .class-list__head {
     display: flex;
@@ -981,10 +998,6 @@ footer {
     padding: 0.5rem 0.7rem;
     /* Still equal top and bottom, just tighter - 1.5rem is a lot of air in a narrow column. */
     margin-block: 0.75rem;
-}
-
-.widget .booking-list__item {
-    padding: 0.5rem 0;
 }
 
 /* A widget holding nothing but a single action, so it needs less height than a content box. */
