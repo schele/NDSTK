@@ -21,15 +21,27 @@ public interface IParticipantRepository
         Guid memberKey, string firstName, string lastName, DateOnly birthDate, DateTime nowUtc);
 
     /// <summary>
-    /// Returns false when the participant is not this member's, so a forged key in a form edits
-    /// nothing. The ownership check is a condition of the UPDATE rather than a read before it.
+    /// Fills in a child the backfill could only guess at - and only such a child.
     /// </summary>
-    Task<bool> TryUpdateAsync(
+    /// <remarks>
+    /// A child's name and birth date are fixed once they are known. They identify a person on a
+    /// class roster and in the club's records, and letting a member rewrite them after the fact
+    /// means a coach cannot trust the list in front of them.
+    ///
+    /// The one exception is a participant created by <c>NdstkParticipantBackfill</c>, whose name
+    /// came from an email address and whose birth date is null. That is a placeholder, not a
+    /// record, and the member has to be able to correct it or they can never book.
+    ///
+    /// So the rule is "only while the birth date is still missing", and it lives in the UPDATE's
+    /// WHERE clause rather than in a check before it - a forged key changes nothing, and neither
+    /// does a second submission after the first has completed.
+    /// </remarks>
+    Task<bool> TryCompleteAsync(
         Guid participantKey, Guid memberKey, string firstName, string lastName, DateOnly birthDate);
 
     /// <summary>
     /// Soft delete, so the child's bookings stay readable and last season's class numbers do not
-    /// quietly change. Same ownership rule as <see cref="TryUpdateAsync"/>.
+    /// quietly change. Same ownership rule as <see cref="TryCompleteAsync"/>.
     /// </summary>
     Task<bool> TryRemoveAsync(Guid participantKey, Guid memberKey, DateTime nowUtc);
 

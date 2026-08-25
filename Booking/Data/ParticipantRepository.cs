@@ -71,18 +71,20 @@ public sealed class ParticipantRepository(IScopeProvider scopeProvider) : IParti
         return record.Key;
     }
 
-    public async Task<bool> TryUpdateAsync(
+    public async Task<bool> TryCompleteAsync(
         Guid participantKey, Guid memberKey, string firstName, string lastName, DateOnly birthDate)
     {
         using IScope scope = scopeProvider.CreateScope();
 
-        // Ownership is a condition of the UPDATE, not a check before it: a forged key in a POST
-        // then edits nothing, rather than racing a read that said it was fine.
+        // Both rules are conditions of the UPDATE rather than checks before it: a forged key in a
+        // POST changes nothing rather than racing a read that said it was fine, and "BirthDate IS
+        // NULL" makes this a one-way completion. Once a child is known, they cannot be rewritten -
+        // not by a second submission, not by anyone holding the key.
         var affected = await scope.Database.ExecuteAsync(
             $"""
             UPDATE {BookingTables.Participant}
             SET FirstName = @0, LastName = @1, BirthDate = @2
-            WHERE Key = @3 AND MemberKey = @4 AND RemovedUtc IS NULL
+            WHERE Key = @3 AND MemberKey = @4 AND RemovedUtc IS NULL AND BirthDate IS NULL
             """,
             firstName, lastName, birthDate.ToDateTime(TimeOnly.MinValue), participantKey, memberKey);
 

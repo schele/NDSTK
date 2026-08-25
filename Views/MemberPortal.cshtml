@@ -246,8 +246,12 @@
 
                                     @if (portal.UnspentCredits > 0)
                                     {
+                                        @* Its own row. Side by side with the paying button - each
+                                           with its own child picker - the two read as one confusing
+                                           control rather than two alternatives. *@
                                         using (Html.BeginUmbracoForm<BookingSurfaceController>(
-                                            nameof(BookingSurfaceController.Book)))
+                                            nameof(BookingSurfaceController.Book), null,
+                                            new { @class = "class-list__credit" }))
                                         {
                                             <input type="hidden" name="classKey" value="@bookable.Class.Key" />
                                             <input type="hidden" name="useCredit" value="true" />

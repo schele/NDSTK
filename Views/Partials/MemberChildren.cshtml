@@ -34,25 +34,38 @@
                     }
                 </div>
 
-                @using (Html.BeginUmbracoForm<ParticipantSurfaceController>(
-                    nameof(ParticipantSurfaceController.Edit), null, new { @class = "child-list__form" }))
+                @* A saved child is not editable. Their name and birth date identify a person on a
+                   class roster, and a coach cannot trust a list a parent can rewrite afterwards.
+                   The repository enforces it too - this is not just a hidden form. *@
+                @if (child.IsComplete is false)
                 {
-                    <input type="hidden" name="Key" value="@child.Key" />
+                    @* The exception: a child the backfill created from an email address, with no
+                       real name and no birth date. That is a placeholder rather than a record, and
+                       it has to be correctable or the account can never book. *@
+                    <p class="form-hint">
+                        Vi har gissat namnet utifrån din e-postadress. Fyll i barnets riktiga namn
+                        och födelsedatum – det går inte att ändra efteråt.
+                    </p>
 
-                    <label class="visually-hidden" for="first-@child.Key">Förnamn</label>
-                    <input type="text" id="first-@child.Key" name="FirstName" maxlength="100"
-                           required value="@child.FirstName" placeholder="Förnamn" />
+                    using (Html.BeginUmbracoForm<ParticipantSurfaceController>(
+                        nameof(ParticipantSurfaceController.Complete), null, new { @class = "child-list__form" }))
+                    {
+                        <input type="hidden" name="Key" value="@child.Key" />
 
-                    <label class="visually-hidden" for="last-@child.Key">Efternamn</label>
-                    <input type="text" id="last-@child.Key" name="LastName" maxlength="100"
-                           required value="@child.LastName" placeholder="Efternamn" />
+                        <label class="visually-hidden" for="first-@child.Key">Förnamn</label>
+                        <input type="text" id="first-@child.Key" name="FirstName" maxlength="100"
+                               required value="@child.FirstName" placeholder="Förnamn" />
 
-                    <label class="visually-hidden" for="born-@child.Key">Födelsedatum</label>
-                    <input type="text" id="born-@child.Key" name="BirthDate" inputmode="numeric"
-                           pattern="\d{8}" maxlength="8" required placeholder="ÅÅÅÅMMDD"
-                           value="@child.BirthDateCompact" />
+                        <label class="visually-hidden" for="last-@child.Key">Efternamn</label>
+                        <input type="text" id="last-@child.Key" name="LastName" maxlength="100"
+                               required value="@child.LastName" placeholder="Efternamn" />
 
-                    <button type="submit" class="btn-secondary btn--small">Spara</button>
+                        <label class="visually-hidden" for="born-@child.Key">Födelsedatum</label>
+                        <input type="text" id="born-@child.Key" name="BirthDate" inputmode="numeric"
+                               pattern="\d{8}" maxlength="8" required placeholder="ÅÅÅÅMMDD" />
+
+                        <button type="submit" class="btn-secondary btn--small">Spara</button>
+                    }
                 }
 
                 @* Only offered when there is another child to fall back on: an account with nobody

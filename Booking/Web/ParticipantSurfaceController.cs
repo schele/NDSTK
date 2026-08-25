@@ -82,12 +82,21 @@ public sealed class ParticipantSurfaceController(
     [ValidateAntiForgeryToken]
     [ValidateUmbracoFormRouteString]
     [EnableRateLimiting(BookingRateLimits.MemberActions)]
-    public async Task<IActionResult> Edit(ParticipantFormModel form)
+    /// <summary>
+    /// Fills in a child the backfill could only guess at. Not a general edit.
+    /// </summary>
+    /// <remarks>
+    /// A saved child's name and birth date are fixed: they identify a person on a class roster, and
+    /// a coach cannot trust a list a parent can rewrite afterwards. The repository enforces that in
+    /// the UPDATE - it only touches a row whose birth date is still null - so this stays true even
+    /// though the form is not rendered for a completed child.
+    /// </remarks>
+    public async Task<IActionResult> Complete(ParticipantFormModel form)
     {
         MemberIdentityUser? user = await memberManager.GetCurrentMemberAsync();
         if (user is null)
         {
-            logger.LogWarning("A child was edited with no signed-in member.");
+            logger.LogWarning("A child was completed with no signed-in member.");
             return Forbid();
         }
 
@@ -97,11 +106,12 @@ public sealed class ParticipantSurfaceController(
             return RedirectToCurrentUmbracoPage();
         }
 
-        var updated = await participants.TryUpdateAsync(
+        var completed = await participants.TryCompleteAsync(
             form.Key, user.Key, form.FirstName.Trim(), form.LastName.Trim(), birthDate);
 
-        TempData[updated ? "ChildMessage" : "ChildError"] =
-            updated ? "Ändringen sparades." : "Barnet hittades inte.";
+        TempData[completed ? "ChildMessage" : "ChildError"] = completed
+            ? $"{form.FirstName.Trim()} är ifylld och kan nu bokas."
+            : "Uppgifterna kunde inte sparas. Ett barn som redan är ifyllt går inte att ändra.";
 
         return RedirectToCurrentUmbracoPage();
     }
