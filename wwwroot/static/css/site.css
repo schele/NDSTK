@@ -570,16 +570,24 @@ footer {
         margin-top: 0;
     }
 
+/* A grid rather than a flex row, so the four controls land as two tidy rows:
+       Förnamn   | Efternamn
+       ÅÅÅÅMMDD  | Lägg till
+   Flex could not do this. The birth date field has to stay narrow - it holds eight digits - but the
+   button still has to start where Efternamn starts above it, and in a flex row the button's
+   position follows the width of whatever precedes it. A column does not move.
+
+   The visually-hidden labels and the hidden Key input take no grid cell: the first is positioned
+   absolutely, the second is display:none. */
 .child-list__form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
     align-items: center;
     margin-bottom: 0.35rem;
 }
 
     .child-list__form input {
-        flex: 1 1 8rem;
         min-width: 0;
         padding: 0.35rem 0.5rem;
         border: 1px solid #bbb;
@@ -587,18 +595,30 @@ footer {
         font: inherit;
     }
 
-    /* Eight digits, never more. Growing it like the name fields beside it made it several times
-       wider than anything it can hold, which reads as though a long value were expected. */
+    /* Eight digits, never more. Narrower than its column rather than filling it, which is what
+       leaves the space between it and the button while the button stays in column two. */
     .child-list__form input[name="BirthDate"] {
-        flex: 0 0 8.5rem;
+        width: 8.5rem;
         max-width: 100%;
     }
 
-    /* The submit stands away from the last field rather than butting up against it, so it reads as
-       the end of the row instead of part of the input beside it. */
+    /* Left edge of its column, so it lines up with Efternamn above rather than stretching across. */
     .child-list__form button {
-        margin-left: 0.75rem;
+        margin-top: 0;
+        justify-self: start;
     }
+
+/* One column when there is not room for two: side-by-side name fields under about 30rem are
+   narrower than the words they hold. */
+@media (max-width: 30rem) {
+    .child-list__form {
+        grid-template-columns: 1fr;
+    }
+
+        .child-list__form input[name="BirthDate"] {
+            width: 100%;
+        }
+}
 
 /* Whose place a booking is. Sits between the class name and the time, and is weighted
    between them: it identifies the row, but the class is still the headline. */
@@ -680,19 +700,26 @@ footer {
        column, and a squeezed row is worse than a stacked one. */
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
+    /* Generous, because this gap separates two whole forms - paying and spending a credit - rather
+       than controls within one. Too tight and they read as a single row of buttons. */
+    gap: 1.25rem;
 }
 
-    /* The credit alternative gets a row of its own. Beside the paying button - each carrying its
-       own child picker - the two selects sat next to each other and read as one control with two
-       submit buttons. */
-    .class-list__actions .class-list__credit {
+    /* "Bokad: Elsa" states a fact about the class rather than offering an action, so it takes a
+       line of its own above the things you can actually press. */
+    .class-list__actions .tag--label {
         flex: 0 0 100%;
+    }
+
+    /* The two ways to book sit side by side on the row below, each keeping its own child picker
+       next to its own button. The gap on .class-list__actions is what separates the two forms; this
+       tighter one is what holds each picker against the button it belongs to. */
+    .class-list__actions .class-list__book,
+    .class-list__actions .class-list__credit {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 0.5rem;
-        margin-top: 0.35rem;
     }
 
     /* The shared button rule carries margin-top:1rem for buttons that follow a paragraph. In a flex

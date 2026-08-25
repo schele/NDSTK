@@ -206,7 +206,8 @@
                                        posts exactly what it says it does, so there is no state to
                                        get out of step with the label. *@
                                     using (Html.BeginUmbracoForm<BookingSurfaceController>(
-                                        nameof(BookingSurfaceController.Book)))
+                                        nameof(BookingSurfaceController.Book), null,
+                                        new { @class = "class-list__book" }))
                                     {
                                         <input type="hidden" name="classKey" value="@bookable.Class.Key" />
 
