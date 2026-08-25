@@ -27,6 +27,17 @@ public interface IBookingRepository
     /// <summary>One member's credits, spent and unspent.</summary>
     Task<IReadOnlyList<CreditSnapshot>> GetCreditsForMemberAsync(Guid memberKey);
 
+    /// <summary>
+    /// Whether a completed payment has carried the family supplement since the given moment.
+    /// </summary>
+    /// <remarks>
+    /// Asked with the start of the current membership year, to answer "have they already paid the
+    /// supplement for this year?". A member who dropped back to one child and then changed their
+    /// mind must not be billed for the same year twice - the account was downgraded on their
+    /// behalf, so re-activating it is putting back something they had already bought.
+    /// </remarks>
+    Task<bool> HasPaidFamilyFeeSinceAsync(Guid memberKey, DateTime sinceUtc);
+
     // ------------------------------------------------------------------- writes
 
     /// <summary>

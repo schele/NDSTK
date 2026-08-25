@@ -99,7 +99,16 @@ public sealed record MemberBookingRow(
 }
 
 /// <summary>Whether the annual fee is paid, until when, and whether this is a family account.</summary>
-public sealed record MembershipStatus(bool IsValid, DateOnly? PaidUntil, bool IsFamilyAccount)
+/// <param name="SupplementPaidThisYear">
+/// True when the family supplement has already been paid for the current membership year - which
+/// happens when an account was downgraded to solo part-way through it. Re-activating is then free,
+/// and the button has to say so rather than quoting a price nobody will be charged.
+/// </param>
+public sealed record MembershipStatus(
+    bool IsValid,
+    DateOnly? PaidUntil,
+    bool IsFamilyAccount,
+    bool SupplementPaidThisYear = false)
 {
     /// <summary>
     /// Paid once, but the year has run out. Worth distinguishing from a member who has never paid:

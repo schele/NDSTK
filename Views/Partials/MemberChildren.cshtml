@@ -105,11 +105,24 @@
             går ut.
         </p>
 
-        @* What the button costs depends on whether there is a membership year to spread the
-           supplement across. With no live membership it is charged with the årsavgift on the next
-           booking instead - promising a payment here and then charging again there would take the
-           same 100 kr twice. *@
-        @if (Model.Membership.IsValid)
+        @* Three cases, and the button must never quote a price the controller will not charge.
+           That mismatch is exactly how the supplement once got taken twice. *@
+        @if (Model.Membership.SupplementPaidThisYear)
+        {
+            @* Downgraded part-way through a year they had already paid for. Putting it back costs
+               nothing - they are not buying it a second time. *@
+            <p class="form-hint">
+                Du har redan betalat tillägget för det här medlemsåret, så det kostar inget att
+                aktivera familjekontot igen.
+            </p>
+
+            using (Html.BeginUmbracoForm<FamilyUpgradeSurfaceController>(
+                nameof(FamilyUpgradeSurfaceController.Upgrade)))
+            {
+                <button type="submit" class="btn-primary">Aktivera familjekonto igen</button>
+            }
+        }
+        else if (Model.Membership.IsValid)
         {
             using (Html.BeginUmbracoForm<FamilyUpgradeSurfaceController>(
                 nameof(FamilyUpgradeSurfaceController.Upgrade)))
@@ -121,6 +134,8 @@
         }
         else
         {
+            @* No membership year for the supplement to cover, so it is charged with the årsavgift
+               on the next booking instead. *@
             <p class="form-hint">
                 Du betalar tillägget tillsammans med årsavgiften nästa gång du bokar
                 (@(Model.Prices.MembershipFeeOre / 100) + @(Model.Prices.FamilyFeeOre / 100) kr).

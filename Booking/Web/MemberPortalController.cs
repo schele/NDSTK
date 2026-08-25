@@ -77,11 +77,34 @@ public sealed class MemberPortalController(
             Membership: new MembershipStatus(
                 Pricing.IsMembershipValid(state, today),
                 state.MembershipPaidUntil,
-                state.IsFamilyAccount),
+                state.IsFamilyAccount,
+                await SupplementPaidThisYearAsync(memberKey, state)),
             Prices: config.Prices,
             ReminderHoursBefore: config.ReminderHoursBefore);
 
         return CurrentTemplate(CurrentPage);
     }
 
+    /// <summary>
+    /// Whether the family supplement has already been paid for the current membership year.
+    /// </summary>
+    /// <remarks>
+    /// Only ever true for an account that was a family earlier in the year and has since dropped
+    /// back to one child. Asked so the upgrade button can offer a free re-activation instead of
+    /// quoting a price the controller would decline to charge.
+    ///
+    /// Skipped entirely when the membership is not valid: there is no current year to have paid
+    /// for, and that case is already free.
+    /// </remarks>
+    private async Task<bool> SupplementPaidThisYearAsync(Guid memberKey, MemberState state)
+    {
+        if (state.MembershipPaidUntil is not { } paidUntil
+            || Pricing.IsMembershipValid(state, DateOnly.FromDateTime(SwedishTime.ToSwedish(DateTime.UtcNow))) is false)
+        {
+            return false;
+        }
+
+        DateTime yearStartUtc = paidUntil.AddDays(-Pricing.MembershipDays).ToDateTime(TimeOnly.MinValue);
+        return await bookings.HasPaidFamilyFeeSinceAsync(memberKey, yearStartUtc);
+    }
 }

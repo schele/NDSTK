@@ -128,10 +128,30 @@ public sealed class ParticipantSurfaceController(
         }
 
         var removed = await participants.TryRemoveAsync(key, user.Key, DateTime.UtcNow);
+        if (removed is false)
+        {
+            TempData["ChildError"] = "Barnet hittades inte.";
+            return RedirectToCurrentUmbracoPage();
+        }
 
-        TempData[removed ? "ChildMessage" : "ChildError"] =
-            removed ? "Barnet togs bort. Tidigare bokningar finns kvar." : "Barnet hittades inte.";
+        var message = "Barnet togs bort. Tidigare bokningar finns kvar.";
 
+        // Down to one child, so the account is no longer a family. Left alone, the supplement would
+        // keep being charged at every renewal for ever, with nothing in the portal to stop it.
+        //
+        // Nothing is refunded and nothing is lost: the supplement already paid covers the rest of
+        // this membership year, and re-activating inside it is free. See
+        // FamilyUpgradeSurfaceController.
+        IReadOnlyList<ParticipantRecord> remaining = await participants.GetForMemberAsync(user.Key);
+        MemberState member = await profiles.GetStateAsync(user.Key);
+
+        if (remaining.Count <= 1 && member.IsFamilyAccount)
+        {
+            await profiles.ClearFamilyAccountAsync(user.Key);
+            message += " Kontot är nu ett solokonto, så årsavgiften blir lägre vid nästa förnyelse.";
+        }
+
+        TempData["ChildMessage"] = message;
         return RedirectToCurrentUmbracoPage();
     }
 

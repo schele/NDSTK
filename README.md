@@ -280,3 +280,31 @@ Both buttons are POSTs with antiforgery, and both verify the payment belongs to 
   old one no longer decrypt.
 - Accounts are created unapproved. Umbraco's own sign-in refuses an unapproved member, so an
   unverified account cannot sign in even if the controller check were bypassed.
+
+### Dropping back to one child
+
+Removing the second-to-last child clears `familjekonto`, so the next renewal is the plain årsavgift
+again. Left alone the supplement would be charged at every renewal for ever, with nothing in the
+portal able to stop it.
+
+Nothing is refunded — the model has no refunds — but nothing is lost either: the supplement already
+paid covers the rest of that membership year, so **re-activating inside the same year is free**.
+`HasPaidFamilyFeeSinceAsync` establishes that, looking back from the expiry over
+`Pricing.MembershipDays`. Without it, remove-then-re-add would bill the supplement twice in one
+year, which is exactly the mistake the standalone upgrade used to make.
+
+The button therefore has three states, and it must never quote a price the controller will decline
+to charge:
+
+| Account state | Button | Charged |
+| --- | --- | --- |
+| No valid membership | *Aktivera familjekonto* | 0 now; supplement rides along with the next booking |
+| Valid membership, supplement already paid this year | *Aktivera familjekonto igen* | 0 |
+| Valid membership, supplement not yet paid | *Uppgradera till familjekonto — 100 kr* | 100 |
+
+### A build trap worth knowing
+
+An **incremental** build can leave the Razor views half-compiled: the build reports success, and
+then every front-end route 404s with `No physical template file was found for template …` in the
+log while the backoffice keeps working. `dotnet build --no-incremental` clears it. If the site
+suddenly serves nothing but `/umbraco`, reach for that before suspecting the content cache.

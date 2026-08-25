@@ -70,6 +70,23 @@ public sealed class BookingRepository(
         return [.. records.Select(record => new CreditSnapshot(record.Id, record.MemberKey, record.SpentOnBookingId))];
     }
 
+    public async Task<bool> HasPaidFamilyFeeSinceAsync(Guid memberKey, DateTime sinceUtc)
+    {
+        using IScope scope = scopeProvider.CreateScope(autoComplete: true);
+
+        // sinceUtc is passed as a parameter rather than formatted into the SQL. NPoco writes
+        // datetimes as "yyyy-MM-dd HH:mm:ss.fffffff", and a hand-formatted round-trip ("o") sorts
+        // differently as text - the same trap that once broke the reminder window.
+        var count = await scope.Database.ExecuteScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM {BookingTables.Payment}
+            WHERE MemberKey = @0 AND Status = @1 AND FamilyFeeOre > 0 AND CompletedUtc >= @2
+            """,
+            memberKey, PaymentStatus.Paid, sinceUtc);
+
+        return count > 0;
+    }
+
     // ----------------------------------------------------------------- writes
 
     public async Task<int?> TryReservePlaceAsync(

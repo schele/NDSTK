@@ -55,7 +55,7 @@ public sealed class MemberProfileService(
             return;
         }
 
-        DateOnly paidUntil = today.AddDays(365);
+        DateOnly paidUntil = today.AddDays(Pricing.MembershipDays);
         member.SetValue(MembershipPaidUntilAlias, paidUntil.ToDateTime(TimeOnly.MinValue));
         memberService.Save(member);
 
@@ -84,6 +84,30 @@ public sealed class MemberProfileService(
         memberService.Save(member);
 
         logger.LogInformation("Member {MemberKey} is now a family account.", memberKey);
+    }
+
+    /// <summary>
+    /// Drops an account back to a solo account, when it no longer has more than one child.
+    /// </summary>
+    /// <remarks>
+    /// No refund, in keeping with the rest of the model - what it buys is a cheaper renewal next
+    /// time, not money back now. The supplement they already paid for the current year is not lost
+    /// either: re-activating inside that year is free, which
+    /// <see cref="Data.IBookingRepository.HasPaidFamilyFeeSinceAsync"/> is there to establish.
+    /// </remarks>
+    public async Task ClearFamilyAccountAsync(Guid memberKey)
+    {
+        IMember? member = (await memberService.GetByKeysAsync(memberKey)).FirstOrDefault();
+        if (member is null)
+        {
+            logger.LogError("Cannot downgrade {MemberKey} to a solo account: not found.", memberKey);
+            return;
+        }
+
+        member.SetValue(FamilyAccountAlias, false);
+        memberService.Save(member);
+
+        logger.LogInformation("Member {MemberKey} is back to a solo account.", memberKey);
     }
 
     /// <summary>

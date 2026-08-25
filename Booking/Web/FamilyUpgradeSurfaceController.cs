@@ -95,6 +95,32 @@ public sealed class FamilyUpgradeSurfaceController(
             return RedirectToCurrentUmbracoPage();
         }
 
+        // Already paid for, this year.
+        //
+        // A member who dropped back to one child was downgraded on their behalf. Charging them
+        // again to undo that would bill the same supplement twice inside one membership year, which
+        // is the mistake that made the standalone upgrade wrong in the first place.
+        //
+        // The year runs backwards from the expiry, because that is how the expiry was set: the
+        // payment that created it stamped today + 365.
+        DateTime yearStartUtc = member.MembershipPaidUntil!.Value
+            .AddDays(-Pricing.MembershipDays)
+            .ToDateTime(TimeOnly.MinValue);
+
+        if (await repository.HasPaidFamilyFeeSinceAsync(user.Key, yearStartUtc))
+        {
+            await profiles.SetFamilyAccountAsync(user.Key);
+
+            TempData["ChildMessage"] =
+                "Familjekontot är aktiverat igen. Du har redan betalat tillägget för det här året.";
+
+            logger.LogInformation(
+                "Member {MemberKey} re-activated their family account inside a year they had "
+                + "already paid the supplement for; nothing was charged.", user.Key);
+
+            return RedirectToCurrentUmbracoPage();
+        }
+
         BookingQuote quote = Pricing.FamilyUpgradeQuote(config.Prices);
 
         var payment = new PaymentRecord

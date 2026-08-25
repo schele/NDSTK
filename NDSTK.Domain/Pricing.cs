@@ -6,6 +6,12 @@ namespace NDSTK.Booking.Domain;
 /// </summary>
 public static class Pricing
 {
+    /// <summary>
+    /// How long a paid membership runs. Shared so that the code which sets the expiry and the code
+    /// which works backwards from it to find the start of the current year cannot disagree.
+    /// </summary>
+    public const int MembershipDays = 365;
+
     public static BookingQuote Quote(
         MemberState member, ParticipantState participant, PriceList prices,
         bool useCredit, DateOnly today)
