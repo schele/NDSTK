@@ -67,8 +67,8 @@ internal sealed class NdstkContentModelInstaller(
             factory.Property(BuiltInDataTypes.Numeric, "reminderHoursBefore", "Påminnelse (timmar innan)", "Standard: 24.", 4),
             factory.Property(BuiltInDataTypes.Numeric, "paymentHoldMinutes", "Betalningsreservation (minuter)", "Hur länge en obetald bokning håller sin plats. Standard: 5.", 5),
             factory.Property(BuiltInDataTypes.Numeric, "cancellationDeadlineHours", "Avbokning stänger (timmar innan)", "Så nära starten går träningen inte längre att avboka. Standard: 12.", 6),
-            factory.Property(BuiltInDataTypes.ContentPicker, "memberPortalPage", "Medlemssidan", "Dit medlemmen skickas efter inloggning.", 6),
-            factory.Property(BuiltInDataTypes.ContentPicker, "registerPage", "Bli medlem-sidan", "Målet för Bli medlem-knapparna.", 7));
+            factory.Property(BuiltInDataTypes.ContentPicker, "memberPortalPage", "Medlemssidan", "Dit medlemmen skickas efter inloggning.", 7),
+            factory.Property(BuiltInDataTypes.ContentPicker, "registerPage", "Bli medlem-sidan", "Målet för Bli medlem-knapparna.", 8));
 
         if (settingsChanged)
         {
@@ -98,6 +98,17 @@ internal sealed class NdstkContentModelInstaller(
         if (memberChanged)
         {
             logger.LogInformation("Updated the membership properties on the Member member type.");
+        }
+
+        // The class start time was created against Umbraco's "Date Picker with time", which shows
+        // seconds. Changing the declaration above only reaches a fresh database, because
+        // EnsureContentTypeAsync never revisits a type that exists - so the swap has to be asked for
+        // explicitly here. Both data types store a Date, so every start time already entered stays
+        // exactly as it is.
+        if (await factory.RepointPropertyAsync(
+                DocumentTypes.TrainingClass, "start", DataTypes.DateTimeNoSeconds))
+        {
+            logger.LogInformation("Class start times now use the minute-precision date picker.");
         }
     }
 
@@ -268,6 +279,22 @@ internal sealed class NdstkContentModelInstaller(
                 ["multiple"] = false,
                 ["items"] = new[] { "INDEX,FOLLOW", "INDEX,NOFOLLOW", "NOINDEX,FOLLOW", "NOINDEX,NOFOLLOW" },
             });
+
+        // Same editor as Umbraco's "Date Picker with time", one field shorter. A class starts on the
+        // hour or the half hour; seconds are three characters of noise in every date an editor types.
+        //
+        // A data type of our own rather than reconfiguring the built-in: that one ships with Umbraco
+        // and an editor may reach for it elsewhere, so its format is not ours to change.
+        await factory.EnsureDataTypeAsync(
+            DataTypes.DateTimeNoSeconds,
+            "NDSTK - Datum och tid",
+            Constants.PropertyEditors.Aliases.DateTime,
+            "Umb.PropertyEditorUi.DatePicker",
+            new Dictionary<string, object>
+            {
+                ["format"] = "YYYY-MM-DD HH:mm",
+            },
+            ValueStorageType.Date);
     }
 
     private static Dictionary<string, object> Block(Guid elementTypeKey, string label) => new()
@@ -285,7 +312,8 @@ internal sealed class NdstkContentModelInstaller(
             DataTypes.StartContentBlocks,
             DataTypes.SidebarWidgetBlocks,
             DataTypes.MenuPicker,
-            DataTypes.MetaRobots);
+            DataTypes.MetaRobots,
+            DataTypes.DateTimeNoSeconds);
 
         IContentType baseType = await factory.EnsureContentTypeAsync(
             DocumentTypes.Base, "base", "Base", "icon-brick", type =>
@@ -409,7 +437,7 @@ internal sealed class NdstkContentModelInstaller(
                     factory.Property(BuiltInDataTypes.Textstring, "title", "Namn", "Faller tillbaka på nodens namn.", 0),
                     factory.Property(BuiltInDataTypes.Textarea, "description", "Beskrivning", sortOrder: 1),
                     // Swedish local time, converted to UTC on the way into the booking tables.
-                    factory.Property(BuiltInDataTypes.DatePickerWithTime, "start", "Starttid", "Datum och klockslag, svensk tid.", 2),
+                    factory.Property(DataTypes.DateTimeNoSeconds, "start", "Starttid", "Datum och klockslag, svensk tid.", 2),
                     factory.Property(BuiltInDataTypes.Numeric, "durationMinutes", "Längd (minuter)", "Standard: 60.", 3),
                     factory.Property(BuiltInDataTypes.Numeric, "capacity", "Max antal deltagare", "Hur många som kan boka den här träningen.", 4),
                     factory.Property(BuiltInDataTypes.Textstring, "instructor", "Tränare", sortOrder: 5),

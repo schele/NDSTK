@@ -57,17 +57,42 @@ internal sealed class NdstkContentTypeFactory(
         return attempt.Result!;
     }
 
+    /// <param name="storageType">
+    /// Which column the values land in. Worth stating for anything that is not text: the editor's
+    /// own default is not applied by this constructor, so a date editor created without it stores
+    /// Ntext, and a property bound to it then cannot hold a date at all. Left null for the editors
+    /// where Ntext is right anyway.
+    /// </param>
     public async Task<IDataType> EnsureDataTypeAsync(
         Guid key,
         string name,
         string editorAlias,
         string editorUiAlias,
-        IDictionary<string, object>? configuration = null)
+        IDictionary<string, object>? configuration = null,
+        ValueStorageType? storageType = null)
     {
         IDataType? existing = await dataTypeService.GetAsync(key);
         if (existing is not null)
         {
-            return existing;
+            // Corrected rather than accepted. These data types are declared in code, so code is
+            // the source of truth for how they store their values - and one created with the wrong
+            // storage type is unusable until it is put right, which no amount of restarting would
+            // otherwise achieve.
+            if (storageType is not { } wanted || existing.DatabaseType == wanted)
+            {
+                return existing;
+            }
+
+            existing.DatabaseType = wanted;
+
+            var correction = await dataTypeService.UpdateAsync(existing, UserKey);
+            if (correction.Success is false)
+            {
+                throw new InvalidOperationException(
+                    $"Could not correct the storage type of '{name}': {correction.Status}.");
+            }
+
+            return correction.Result;
         }
 
         if (propertyEditors.TryGet(editorAlias, out IDataEditor? editor) is false)
@@ -81,6 +106,11 @@ internal sealed class NdstkContentTypeFactory(
             Name = name,
             EditorUiAlias = editorUiAlias,
         };
+
+        if (storageType is { } declared)
+        {
+            dataType.DatabaseType = declared;
+        }
 
         dataType.SetConfigurationData(configuration ?? new Dictionary<string, object>());
 
@@ -359,6 +389,61 @@ internal sealed class NdstkContentTypeFactory(
         {
             throw new InvalidOperationException(
                 $"Could not add properties to member type '{memberTypeAlias}': {attempt.Result}.");
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Points an existing property at a different data type. Returns false when it already does.
+    /// </summary>
+    /// <remarks>
+    /// The third kind of upgrade, alongside <see cref="EnsureGroupAsync"/> and
+    /// <see cref="EnsureMemberPropertiesAsync"/>. Those add fields that are missing;
+    /// <see cref="EnsureContentTypeAsync"/> never revisits a type that exists. Neither can change
+    /// the editor behind a field that is already there, which is what reaches a live site when the
+    /// choice of data type turns out to be wrong.
+    ///
+    /// Safe only while the two data types agree on <c>ValueStorageType</c> - the stored values are
+    /// not touched, so swapping a date editor for another date editor keeps every existing value
+    /// readable, and swapping one for a text editor would not. That is asserted rather than assumed.
+    /// </remarks>
+    public async Task<bool> RepointPropertyAsync(Guid contentTypeKey, string propertyAlias, Guid dataTypeKey)
+    {
+        IContentType? contentType = await contentTypeService.GetAsync(contentTypeKey);
+        if (contentType is null)
+        {
+            return false;
+        }
+
+        IPropertyType? property = contentType.PropertyTypes
+            .FirstOrDefault(candidate => candidate.Alias == propertyAlias);
+
+        if (property is null || property.DataTypeKey == dataTypeKey)
+        {
+            return false;
+        }
+
+        IDataType dataType = await dataTypeService.GetAsync(dataTypeKey)
+                             ?? throw new InvalidOperationException($"Data type {dataTypeKey} was not found.");
+
+        if (property.ValueStorageType != dataType.DatabaseType)
+        {
+            throw new InvalidOperationException(
+                $"Refusing to repoint '{propertyAlias}' at {dataType.Name}: it stores "
+                + $"{dataType.DatabaseType} where the property holds {property.ValueStorageType}, "
+                + "so existing values would become unreadable.");
+        }
+
+        property.DataTypeId = dataType.Id;
+        property.DataTypeKey = dataType.Key;
+        property.PropertyEditorAlias = dataType.EditorAlias;
+
+        var attempt = await contentTypeService.UpdateAsync(contentType, UserKey);
+        if (attempt.Success is false)
+        {
+            throw new InvalidOperationException(
+                $"Could not repoint '{propertyAlias}' on '{contentType.Alias}': {attempt.Result}.");
         }
 
         return true;

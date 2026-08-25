@@ -68,6 +68,13 @@ internal static class NdstkKeys
         internal static readonly Guid SidebarWidgetBlocks = new("da7a0001-0000-4000-8000-000000000002");
         internal static readonly Guid MenuPicker = new("da7a0001-0000-4000-8000-000000000003");
         internal static readonly Guid MetaRobots = new("da7a0001-0000-4000-8000-000000000004");
+
+        /// <summary>
+        /// Date and time to the minute. Umbraco's built-in "Date Picker with time" shows seconds,
+        /// which a class start time never needs, and its configuration is not ours to change - it is
+        /// a type Umbraco ships and an editor may use for something else.
+        /// </summary>
+        internal static readonly Guid DateTimeNoSeconds = new("da7a0001-0000-4000-8000-000000000005");
     }
 
     /// <summary>Umbraco's built-in data types, reused as-is.</summary>
