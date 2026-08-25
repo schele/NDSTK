@@ -558,6 +558,18 @@ footer {
     font-size: 0.9rem;
 }
 
+/* Sits on the name's row and is pushed to the far edge, so the destructive action is nowhere near
+   the text you read to identify the child. */
+.child-list__remove {
+    margin-left: auto;
+}
+
+    /* The shared button rule carries margin-top for buttons that follow a paragraph. On a flex row
+       that just knocks this one out of line with the name beside it. */
+    .child-list__remove button {
+        margin-top: 0;
+    }
+
 .child-list__form {
     display: flex;
     flex-wrap: wrap;

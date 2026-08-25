@@ -36,6 +36,7 @@ public sealed class ParticipantSurfaceController(
     IPublishedUrlProvider publishedUrlProvider,
     IMemberManager memberManager,
     IParticipantRepository participants,
+    IBookingRepository bookings,
     MemberProfileService profiles,
     ILogger<ParticipantSurfaceController> logger)
     : SurfaceController(
@@ -71,17 +72,30 @@ public sealed class ParticipantSurfaceController(
             return RedirectToCurrentUmbracoPage();
         }
 
-        await participants.CreateAsync(
-            user.Key, form.FirstName.Trim(), form.LastName.Trim(), birthDate, DateTime.UtcNow);
+        var name = form.FirstName.Trim();
 
-        TempData["ChildMessage"] = $"{form.FirstName.Trim()} är tillagd.";
+        // A child who was removed and is being added back is the same person, not a new one. The
+        // welcome price lives on the participant, so creating a second row would hand them a trial
+        // class they had already used - and split their bookings across two rows nobody can pair up.
+        Guid? restored = await participants.TryRestoreAsync(
+            user.Key, name, form.LastName.Trim(), birthDate);
+
+        if (restored is not null)
+        {
+            TempData["ChildMessage"] =
+                $"{name} är tillagd igen. Tidigare bokningar finns kvar, och ett välkomstpris som "
+                + "redan använts räknas fortfarande som använt.";
+
+            return RedirectToCurrentUmbracoPage();
+        }
+
+        await participants.CreateAsync(
+            user.Key, name, form.LastName.Trim(), birthDate, DateTime.UtcNow);
+
+        TempData["ChildMessage"] = $"{name} är tillagd.";
         return RedirectToCurrentUmbracoPage();
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [ValidateUmbracoFormRouteString]
-    [EnableRateLimiting(BookingRateLimits.MemberActions)]
     /// <summary>
     /// Fills in a child the backfill could only guess at. Not a general edit.
     /// </summary>
@@ -91,6 +105,10 @@ public sealed class ParticipantSurfaceController(
     /// the UPDATE - it only touches a row whose birth date is still null - so this stays true even
     /// though the form is not rendered for a completed child.
     /// </remarks>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [ValidateUmbracoFormRouteString]
+    [EnableRateLimiting(BookingRateLimits.MemberActions)]
     public async Task<IActionResult> Complete(ParticipantFormModel form)
     {
         MemberIdentityUser? user = await memberManager.GetCurrentMemberAsync();
@@ -144,7 +162,25 @@ public sealed class ParticipantSurfaceController(
             return RedirectToCurrentUmbracoPage();
         }
 
+        // Their future bookings go with them. Left standing, the seat stays reserved against the
+        // class's capacity and the child keeps appearing on the coach's roster, while the parent
+        // believes they are gone - wrong in both directions.
+        //
+        // This does exactly what the member pressing "Avboka" on each booking would do, credit and
+        // all. Past bookings are untouched: cancelling those would rewrite attendance that already
+        // happened and mint a credit for a class the child went to.
+        (var cancelled, var credited) = await bookings.CancelFutureBookingsForParticipantAsync(
+            key, user.Key, DateTime.UtcNow);
+
         var message = "Barnet togs bort. Tidigare bokningar finns kvar.";
+
+        if (cancelled > 0)
+        {
+            message += $" {cancelled} kommande {(cancelled == 1 ? "bokning" : "bokningar")} avbokades";
+            message += credited > 0
+                ? $" och du fick {credited} {(credited == 1 ? "tillgodoträning" : "tillgodoträningar")}."
+                : ".";
+        }
 
         // Down to one child, so the account is no longer a family. Left alone, the supplement would
         // keep being charged at every renewal for ever, with nothing in the portal to stop it.

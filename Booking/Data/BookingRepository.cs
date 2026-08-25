@@ -481,6 +481,66 @@ public sealed class BookingRepository(
     /// can only happen if the backfill refused to complete, and failing closed - the child looks
     /// unbooked and the rules turn them away - is the safe direction.
     /// </remarks>
+    public async Task<(int Cancelled, int Credited)> CancelFutureBookingsForParticipantAsync(
+        Guid participantKey, Guid memberKey, DateTime nowUtc)
+    {
+        using IScope scope = scopeProvider.CreateScope();
+
+        Sql<ISqlContext> sql = scope.SqlContext.Sql()
+            .Select<BookingRecord>()
+            .From<BookingRecord>()
+            .Where<BookingRecord>(record =>
+                record.ParticipantKey == participantKey
+                && record.MemberKey == memberKey
+                && record.ClassStartUtc > nowUtc
+                && (record.Status == Domain.BookingStatus.Confirmed
+                    || record.Status == Domain.BookingStatus.Pending));
+
+        List<BookingRecord> live = await scope.Database.FetchAsync<BookingRecord>(sql);
+
+        var cancelled = 0;
+        var credited = 0;
+
+        foreach (BookingRecord booking in live)
+        {
+            // Conditional on the status not having moved since the read, so a cancellation racing
+            // this one cannot end up crediting the same booking twice.
+            var affected = await scope.Database.ExecuteAsync(
+                $"""
+                UPDATE {BookingTables.Booking}
+                SET Status = @0, CancelledUtc = @1, HoldExpiresUtc = NULL
+                WHERE Id = @2 AND Status = @3
+                """,
+                Domain.BookingStatus.Cancelled, nowUtc, booking.Id, booking.Status);
+
+            if (affected == 0)
+            {
+                continue;
+            }
+
+            cancelled++;
+
+            // Only a confirmed booking earns a credit. A pending one was never paid for, so there
+            // is nothing to compensate - and crediting it would be free money.
+            if (booking.Status != Domain.BookingStatus.Confirmed)
+            {
+                continue;
+            }
+
+            await scope.Database.InsertAsync(new CreditRecord
+            {
+                MemberKey = booking.MemberKey,
+                SourceBookingId = booking.Id,
+                IssuedUtc = nowUtc,
+            });
+
+            credited++;
+        }
+
+        scope.Complete();
+        return (cancelled, credited);
+    }
+
     private static BookingSnapshot ToSnapshot(BookingRecord record) => new(
         record.Id,
         record.MemberKey,

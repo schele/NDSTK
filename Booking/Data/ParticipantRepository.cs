@@ -71,6 +71,47 @@ public sealed class ParticipantRepository(IScopeProvider scopeProvider) : IParti
         return record.Key;
     }
 
+    public async Task<Guid?> TryRestoreAsync(
+        Guid memberKey, string firstName, string lastName, DateOnly birthDate)
+    {
+        using IScope scope = scopeProvider.CreateScope();
+
+        Sql<ISqlContext> sql = scope.SqlContext.Sql()
+            .Select<ParticipantRecord>()
+            .From<ParticipantRecord>()
+            .Where<ParticipantRecord>(record =>
+                record.MemberKey == memberKey && record.RemovedUtc != null)
+            .OrderBy<ParticipantRecord>(record => record.Id);
+
+        List<ParticipantRecord> removed = await scope.Database.FetchAsync<ParticipantRecord>(sql);
+
+        DateTime born = birthDate.ToDateTime(TimeOnly.MinValue);
+
+        // Same name and same birth date, on the same account, is the same child. Two children of
+        // one family sharing both is not a case that exists.
+        ParticipantRecord? match = removed.FirstOrDefault(record =>
+            record.BirthDate == born
+            && string.Equals(record.FirstName.Trim(), firstName, StringComparison.CurrentCultureIgnoreCase)
+            && string.Equals(record.LastName.Trim(), lastName, StringComparison.CurrentCultureIgnoreCase));
+
+        if (match is null)
+        {
+            scope.Complete();
+            return null;
+        }
+
+        await scope.Database.ExecuteAsync(
+            $"""
+            UPDATE {BookingTables.Participant}
+            SET RemovedUtc = NULL
+            WHERE Key = @0 AND MemberKey = @1
+            """,
+            match.Key, memberKey);
+
+        scope.Complete();
+        return match.Key;
+    }
+
     public async Task<bool> TryCompleteAsync(
         Guid participantKey, Guid memberKey, string firstName, string lastName, DateOnly birthDate)
     {

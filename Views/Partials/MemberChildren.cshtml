@@ -32,6 +32,24 @@
                            for the member to discover at the booking button. *@
                         <span class="tag tag--label">Fyll i födelsedatum för att kunna boka</span>
                     }
+
+                    @* On the same row as the name, pushed to the far edge: it belongs to this child
+                       and nothing else, and a row of its own made a two-line block out of one fact.
+                       Only offered when there is another child to fall back on - an account with
+                       nobody on it can never book anything. The controller enforces the same rule. *@
+                    @if (Model.Children.Count > 1)
+                    {
+                        using (Html.BeginUmbracoForm<ParticipantSurfaceController>(
+                            nameof(ParticipantSurfaceController.Remove), null,
+                            new { @class = "child-list__remove" }))
+                        {
+                            <input type="hidden" name="key" value="@child.Key" />
+                            <button type="submit" class="btn-danger btn--small"
+                                    title="Tidigare bokningar finns kvar">
+                                Ta bort
+                            </button>
+                        }
+                    }
                 </div>
 
                 @* A saved child is not editable. Their name and birth date identify a person on a
@@ -68,20 +86,6 @@
                     }
                 }
 
-                @* Only offered when there is another child to fall back on: an account with nobody
-                   on it can never book anything. The controller enforces the same rule. *@
-                @if (Model.Children.Count > 1)
-                {
-                    using (Html.BeginUmbracoForm<ParticipantSurfaceController>(
-                        nameof(ParticipantSurfaceController.Remove), null, new { @class = "child-list__form" }))
-                    {
-                        <input type="hidden" name="key" value="@child.Key" />
-                        <button type="submit" class="btn-danger btn--small"
-                                title="Tidigare bokningar finns kvar">
-                            Ta bort
-                        </button>
-                    }
-                }
             </li>
         }
     </ul>

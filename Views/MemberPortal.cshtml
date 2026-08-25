@@ -73,10 +73,11 @@
 
         </div>
 
-        @* Above the bookings: who you book for comes before what you booked. *@
-        @await Html.PartialAsync("MemberChildren", portal)
-
+        @* Bookings first: what a member comes back to the portal for is what they have coming up.
+           Managing children is occasional, so it sits below. *@
         @await Html.PartialAsync("MemberBookings", new MemberBookingsPanel(portal.MyBookings, AllowCancel: true))
+
+        @await Html.PartialAsync("MemberChildren", portal)
 
         @* Its own box, and last: signing out is not part of reading your membership or your
            bookings, and putting it after them keeps it out of the way of what the page is for.

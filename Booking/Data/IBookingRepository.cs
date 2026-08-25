@@ -117,4 +117,19 @@ public interface IBookingRepository
     /// second credit.
     /// </summary>
     Task<bool> TryCancelBookingAsync(int bookingId, Guid memberKey, DateTime nowUtc);
+
+    /// <summary>
+    /// Cancels one child's <em>future</em> bookings and issues a credit for each confirmed one, for
+    /// when that child is removed from the account.
+    /// </summary>
+    /// <remarks>
+    /// Only future ones. A class that has already run is history: cancelling it would rewrite last
+    /// month's attendance and mint a credit for a session the child actually went to.
+    ///
+    /// Scoped by member as well as participant, so a forged key cannot cancel a stranger's
+    /// bookings.
+    /// </remarks>
+    /// <returns>How many bookings were cancelled, and how many credits that earned.</returns>
+    Task<(int Cancelled, int Credited)> CancelFutureBookingsForParticipantAsync(
+        Guid participantKey, Guid memberKey, DateTime nowUtc);
 }

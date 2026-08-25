@@ -21,6 +21,22 @@ public interface IParticipantRepository
         Guid memberKey, string firstName, string lastName, DateOnly birthDate, DateTime nowUtc);
 
     /// <summary>
+    /// Brings back a child who was removed from this account, matched on name and birth date.
+    /// Returns their key, or null when this is genuinely somebody new.
+    /// </summary>
+    /// <remarks>
+    /// Adding a child back has to restore the same person rather than create a second one, because
+    /// the welcome price lives on the participant. A fresh row would arrive with FirstClassUsedUtc
+    /// null and hand them a second 100 kr trial class they had already used - and their bookings
+    /// would be split across two rows that the club has no way to tell apart.
+    ///
+    /// Matched in memory rather than in SQL: SQLite's default comparison is case-sensitive, and
+    /// COLLATE NOCASE only folds ASCII - it would treat "Åsa" and "åsa" as different people.
+    /// </remarks>
+    Task<Guid?> TryRestoreAsync(
+        Guid memberKey, string firstName, string lastName, DateOnly birthDate);
+
+    /// <summary>
     /// Fills in a child the backfill could only guess at - and only such a child.
     /// </summary>
     /// <remarks>
