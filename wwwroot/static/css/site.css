@@ -556,20 +556,34 @@ footer {
 }
 
 .child-list__item {
-    /* Matches .booking-list__item, deliberately. The 0.45rem margin under .child-list__head adds to
-       the bottom here, which is why that side of .booking-list__item is set 0.45rem higher than
-       this - the two boxes end up with the same air around the rule. */
-    padding: 1.25rem 0;
+    /* Stated outright rather than arrived at. This used to be 1.25rem all round and reach the same
+       bottom figure as Mina bokningar only because .child-list__head happened to carry a 0.45rem
+       margin - which is present for a child being filled in and pointless for one already saved.
+       Spacing that depends on which optional children a block happens to render is spacing nobody
+       can reason about, so both boxes now say the same two numbers. */
+    padding: 1.25rem 0 1.7rem;
     border-bottom: 1px solid #ddd;
 }
 
 .child-list__head {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    /* Split, because the two directions are doing different jobs. Sideways, 0.5rem separates the
+       name from the date. Downwards, this only ever applies when "Ta bort" has wrapped - in the
+       sidebar it usually does - and there it should hug the name it belongs to rather than sit in
+       the middle of a gap. A loose row-gap plus a right-aligned lone button left most of that line
+       empty, which read as extra space above the grey rule. */
+    column-gap: 0.5rem;
+    row-gap: 0.15rem;
     align-items: baseline;
-    margin-bottom: 0.45rem;
 }
+
+    /* Separates the name from the "fill this in" form under it - and only when there is one. On a
+       saved child the head is the last thing in the block, and a margin there was doing nothing but
+       quietly inflating the gap above the grey rule. */
+    .child-list__head:not(:last-child) {
+        margin-bottom: 0.45rem;
+    }
 
 .child-list__name {
     font-weight: 600;
