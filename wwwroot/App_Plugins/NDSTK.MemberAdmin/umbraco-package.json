@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../umbraco-package-schema.json",
+  "id": "NDSTK.MemberAdmin",
+  "name": "NDSTK Medlemsadministration",
+  "version": "1.0.0",
+  "extensions": [
+    {
+      "type": "dashboard",
+      "alias": "NDSTK.MemberAdmin.Dashboard",
+      "name": "Medlemmar",
+      "element": "/App_Plugins/NDSTK.MemberAdmin/members-dashboard.js",
+      "elementName": "ndstk-members-dashboard",
+      "meta": { "label": "Medlemmar", "pathname": "ndstk-medlemmar", "weight": 100 },
+      "conditions": [{ "alias": "Umb.Condition.SectionAlias", "match": "Umb.Section.Members" }]
+    },
+    {
+      "type": "workspaceView",
+      "alias": "NDSTK.MemberAdmin.ClassRoster",
+      "name": "Deltagare",
+      "element": "/App_Plugins/NDSTK.MemberAdmin/class-roster.js",
+      "elementName": "ndstk-class-roster",
+      "meta": { "label": "Deltagare", "pathname": "deltagare", "icon": "icon-users", "weight": 200 },
+      "conditions": [
+        { "alias": "Umb.Condition.WorkspaceAlias", "match": "Umb.Workspace.Document" },
+        { "alias": "Umb.Condition.WorkspaceContentTypeAlias", "match": "trainingClass" }
+      ]
+    }
+  ]
+}

@@ -24,7 +24,15 @@ have to stop the site to run are tests you stop running.
 assembly and the build fails with duplicate assembly attributes.
 
 While the site is running, `dotnet build` cannot overwrite the output. Use
-`dotnet build -t:CoreCompile` to type-check without linking.
+
+```
+dotnet build -t:"ResolveReferences;CoreCompile"
+```
+
+to type-check without linking. **`-t:CoreCompile` alone is not enough** once you have touched
+`NDSTK.Domain`: without `ResolveReferences` the compiler runs with no reference assemblies at all
+and buries the real errors under a hundred lines of "predefined type `System.Object` is not
+defined". It appears to work only while that project is already up to date.
 
 ## The content model is code-first
 
@@ -46,13 +54,20 @@ is already live.
 
 ## Member booking
 
-Register → confirm the emailed link → sign in → book a class → pay through the mocked Swish page.
+Register → confirm the emailed link → sign in → book a class for one of your children → pay
+through the mocked Swish page.
+
+**The account holder is a guardian; the people who attend are participants.** Even a solo account
+names one child, with a birth date — there is no such thing as an account that books for itself
+implicitly. Registration collects the guardian's name, phone and email, and the first child's name
+and birth date.
 
 Prices live on the **Settings** node under *Medlemskap*, in kronor:
 
 | Field | Default |
 | --- | --- |
 | Årsavgift | 150 |
+| Familjetillägg | 100 |
 | Pris första klassen | 100 |
 | Pris per klass | 200 |
 | Påminnelse (timmar innan) | 24 |
@@ -68,12 +83,31 @@ giveaway, so each falls back to its default independently.
 ### Pricing rules
 
 - The annual fee is charged on the first booking, and again on the first booking after it lapses.
-  Membership runs 365 days from the day the payment completes.
-- The 100 kr welcome price is **once per account, for life**. A lapsed member renewing pays
-  150 + 200, not 150 + 100.
+  Membership runs 365 days from the day the payment completes. **One expiry date per account**,
+  covering every child on it.
+- A **family account** may hold more than one child. It costs the annual fee *plus* the
+  familjetillägg, so renewal is 150 or 250 depending on one flag.
+- The 100 kr welcome price is **once per child, for life** — not once per account. A second child
+  on a family account gets their own trial class; a lapsed member renewing pays 150 + 200.
 - Cancelling gives no refund. It issues one **credit**, worth one place on any class with room.
+  Credits belong to the account, so any child can spend one.
 - Spending a credit costs nothing, so a paid-up member skips the payment step entirely. A lapsed
   member spending a credit still pays the annual fee.
+
+### Family accounts
+
+A solo account may have exactly one child. Upgrading is a purchase of its own from *Mina barn*:
+100 kr, no booking attached, and on settlement it sets `familjekonto` and **leaves
+`membershipPaidUntil` alone**.
+
+Leaving the date alone is the whole design. If the supplement moved the expiry a year forward it
+would be a cheaper renewal than the annual fee, and nobody would ever pay the annual fee twice.
+`SettlePaymentAsync` only extends the membership when `MembershipFeeOre > 0`, which an upgrade
+payment sets to zero — that one guard is what enforces it.
+
+Birth dates are entered and shown as **ÅÅÅÅMMDD**, the first eight digits of a personnummer,
+because that is what a parent types without being asked. A twelve-digit value is rejected rather
+than truncated: **no personnummer is collected or stored.**
 
 ### Classes
 
@@ -90,6 +124,13 @@ bookings at the new time, or cancels them and issues a credit each if the class 
 ### Tables
 
 `ndstkBooking`, `ndstkPayment`, `ndstkBookingCredit`, created by `AddBookingTables`.
+`ndstkParticipant` — the children — created by `AddParticipantTable`.
+
+Participants are a table rather than Umbraco members because Umbraco requires a unique email per
+member: three siblings would mean three synthesised addresses and three Identity logins to disable.
+They are a table rather than content nodes because they are minors' names and birth dates, and
+those have no business in the published cache. Removal is **soft**, so a departed child's bookings
+still have a name against them.
 
 Credits are a **ledger, not a counter** — spending one is a conditional `UPDATE`, which cannot
 double-spend, and the rows are an audit trail.
@@ -99,9 +140,57 @@ cannot both take the last place. Verified with 60 concurrent attempts at a capac
 that SQLite serialises writers, which helps this hold; on SQL Server the same statement would want a
 lock hint.
 
+**The one-live-booking index is keyed on the child, not the account** —
+`IX_ndstkBooking_OneLivePerParticipantClass` over `(ParticipantKey, ClassKey)`. That single line is
+the family feature: under the old `(MemberKey, ClassKey)` index a parent physically could not book
+two siblings into the same Tuesday group. It has to stay in step with `Capacity.HasLiveBooking`,
+which is the same rule in C#, and with the stale-hold cleanup in `TryReservePlaceAsync` — cleaning
+up by account there would retire a *sibling's* live hold.
+
+`NdstkParticipantBackfill` gives pre-participant members one child each, points their bookings at
+it and swaps the index. It runs once, guarded by a key/value marker, straight after the migration
+plan. **The index swap is last, after every `ParticipantKey` is filled in**: creating a unique index
+on a column that is null everywhere does not fail — SQLite treats nulls as distinct — it silently
+produces an index that enforces nothing, and the overbooking guarantee would be gone with no error.
+The backfill refuses to swap while any booking is unpointed, and only sets its marker if the swap
+happened, so a partial run retries on the next boot.
+
 Datetimes are stored as TEXT in NPoco's `yyyy-MM-dd HH:mm:ss.fffffff`. **Do not hand-format a date
 into raw SQL** — round-trip `"o"` format sorts differently as text (`T` above space), which silently
 breaks the reminder window.
+
+## Backoffice administration
+
+Two surfaces, both in `wwwroot/App_Plugins/NDSTK.MemberAdmin/`:
+
+- **Medlemmar** — a dashboard in the Members section. One row per account: verified date, member
+  since, expiry and days left, children, total paid, bookings, cancellations, unpaid holds and
+  unspent credits. Search covers child names as well as the parent's, because a coach knows the
+  child. Exports the visible rows as CSV.
+- **Deltagare** — a workspace view on the `trainingClass` node, so the roster is a tab on the class
+  an editor already has open rather than a screen they have to navigate to. Shows each booked child
+  with their age *on the class date*, and the guardian's name, email and phone.
+
+**No npm, no bundler, no build step.** A hand-written `umbraco-package.json` beside plain ES
+modules that import from `@umbraco-cms/backoffice/*` through the backoffice import map at runtime —
+the same pattern as `Esatto.Umbraco.Backoffice.Redirects`. Calls go through `umbHttpClient`, which
+**must** be given `security: [{ scheme: 'bearer', type: 'http' }]` explicitly or it attaches no
+token and every request 401s.
+
+Server side is `MemberAdminQueries` and `MemberAdminController`, read-only and gated on
+`AuthorizationPolicies.SectionAccessMembers`. Kept out of `IBookingRepository` so the booking path's
+interface does not grow a reporting surface. The counts come from four grouped queries joined in
+memory — two hundred members must not mean two hundred round trips.
+
+### What "missade" can and cannot mean
+
+**Attendance is not recorded.** The dashboard shows *Avbok.* (the member cancelled, and got a
+credit) and *Ej bet.* (the payment hold expired and the place was released). A child who booked,
+never cancelled and never turned up is indistinguishable from one who attended, and appears in
+neither column.
+
+That is a deliberate choice, and it is recoverable: a nullable `AttendedUtc` on `ndstkBooking` and a
+toggle on the Deltagare view would be the whole change. Nothing else would have to move.
 
 ## Mail
 
@@ -155,6 +244,18 @@ Both buttons are POSTs with antiforgery, and both verify the payment belongs to 
   response as success, and a wrong password is indistinguishable from an unknown address. "Activate
   your account" appears only after an explicit password check, because Identity decides
   `IsNotAllowed` before verifying the password.
+
+  The birth-date checks added for the child fields sit **after** the bot guards and **before**
+  `CreateAsync`, so this ordering is untouched. A malformed date is true of the value whatever
+  address it was paired with, so reporting it reveals nothing.
+- Every participant write verifies ownership **inside the `UPDATE`** rather than reading first, so a
+  forged key in a POST changes nothing instead of racing a check that passed. Booking re-checks the
+  same thing in `BookAsync`: the participant key arrives on a form.
+- The backoffice API is gated on `SectionAccessMembers` and has **no write endpoints**. Members
+  manage their own children; an administrator editing a birth date would need an audit trail a
+  dashboard does not have.
+- Participants are minors' names and birth dates. They live in a database table, never in the
+  published cache, and are never rendered on a public page. **No personnummer is collected.**
 - Per-IP rate limiting on the member forms. `UseRateLimiter()` must stay **inside** the
   `WithMiddleware` callback: registered before `UseUmbraco()` it finds no matched endpoint, no policy,
   and silently permits everything.
