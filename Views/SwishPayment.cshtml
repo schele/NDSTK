@@ -55,20 +55,37 @@
 
                 <h1 class="swish__amount">@Kr(pay.AmountOre) kr</h1>
 
+                @{
+                    @* A family upgrade is bought on its own, with no class attached, so the
+                       "Tillgodoträning" fallback below would be nonsense for it. *@
+                    var isUpgradeOnly = pay.BookingId is null;
+                }
+
                 <ul class="swish__lines">
                     @if (pay.MembershipFeeOre > 0)
                     {
                         <li><span>Årsavgift</span><span>@Kr(pay.MembershipFeeOre) kr</span></li>
                     }
+                    @if (pay.FamilyFeeOre > 0)
+                    {
+                        <li><span>Familjetillägg</span><span>@Kr(pay.FamilyFeeOre) kr</span></li>
+                    }
                     @if (pay.ClassFeeOre > 0)
                     {
                         <li><span>Träningsavgift</span><span>@Kr(pay.ClassFeeOre) kr</span></li>
                     }
-                    else
+                    else if (isUpgradeOnly is false)
                     {
                         <li><span>Träningsavgift</span><span>Tillgodoträning</span></li>
                     }
                 </ul>
+
+                @if (isUpgradeOnly)
+                {
+                    <p class="swish__what">
+                        Familjekonto i ett år. Datumet då medlemskapet går ut ändras inte.
+                    </p>
+                }
 
                 @if (pay.ClassTitle is { Length: > 0 } title)
                 {

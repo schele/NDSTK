@@ -1,0 +1,116 @@
+@using NDSTK.Booking.Web
+@model MemberPortalViewModel
+
+@* Who the account books for. A solo account has exactly one child and can only edit it; a family
+   account can add and remove. *@
+<div class="widget">
+    <h3>Mina barn</h3>
+
+    @if (TempData["ChildMessage"] is string childMessage)
+    {
+        <p class="form-notice form-notice--ok" role="status">@childMessage</p>
+    }
+    @if (TempData["ChildError"] is string childError)
+    {
+        <p class="form-notice form-notice--error" role="status">@childError</p>
+    }
+
+    <ul class="child-list">
+        @foreach (var child in Model.Children)
+        {
+            <li class="child-list__item">
+                <div class="child-list__head">
+                    <span class="child-list__name">@child.FullName</span>
+                    @if (child.IsComplete)
+                    {
+                        <span class="child-list__meta">@child.BirthDateCompact · @child.Age år</span>
+                    }
+                    else
+                    {
+                        @* Only ever reachable for a child the backfill created. Booking is refused
+                           until this is filled in, so the reason is stated here rather than left
+                           for the member to discover at the booking button. *@
+                        <span class="tag tag--label">Fyll i födelsedatum för att kunna boka</span>
+                    }
+                </div>
+
+                @using (Html.BeginUmbracoForm<ParticipantSurfaceController>(
+                    nameof(ParticipantSurfaceController.Edit), null, new { @class = "child-list__form" }))
+                {
+                    <input type="hidden" name="Key" value="@child.Key" />
+
+                    <label class="visually-hidden" for="first-@child.Key">Förnamn</label>
+                    <input type="text" id="first-@child.Key" name="FirstName" maxlength="100"
+                           required value="@child.FirstName" placeholder="Förnamn" />
+
+                    <label class="visually-hidden" for="last-@child.Key">Efternamn</label>
+                    <input type="text" id="last-@child.Key" name="LastName" maxlength="100"
+                           required value="@child.LastName" placeholder="Efternamn" />
+
+                    <label class="visually-hidden" for="born-@child.Key">Födelsedatum</label>
+                    <input type="text" id="born-@child.Key" name="BirthDate" inputmode="numeric"
+                           pattern="\d{8}" maxlength="8" required placeholder="ÅÅÅÅMMDD"
+                           value="@child.BirthDateCompact" />
+
+                    <button type="submit" class="btn-secondary btn--small">Spara</button>
+                }
+
+                @* Only offered when there is another child to fall back on: an account with nobody
+                   on it can never book anything. The controller enforces the same rule. *@
+                @if (Model.Children.Count > 1)
+                {
+                    using (Html.BeginUmbracoForm<ParticipantSurfaceController>(
+                        nameof(ParticipantSurfaceController.Remove), null, new { @class = "child-list__form" }))
+                    {
+                        <input type="hidden" name="key" value="@child.Key" />
+                        <button type="submit" class="btn-danger btn--small"
+                                title="Tidigare bokningar finns kvar">
+                            Ta bort
+                        </button>
+                    }
+                }
+            </li>
+        }
+    </ul>
+
+    @if (Model.CanAddChild)
+    {
+        <h4>Lägg till ett barn</h4>
+        using (Html.BeginUmbracoForm<ParticipantSurfaceController>(
+            nameof(ParticipantSurfaceController.Add), null, new { @class = "child-list__form" }))
+        {
+            <label class="visually-hidden" for="new-first">Förnamn</label>
+            <input type="text" id="new-first" name="FirstName" maxlength="100" required
+                   placeholder="Förnamn" />
+
+            <label class="visually-hidden" for="new-last">Efternamn</label>
+            <input type="text" id="new-last" name="LastName" maxlength="100" required
+                   placeholder="Efternamn" />
+
+            <label class="visually-hidden" for="new-born">Födelsedatum</label>
+            <input type="text" id="new-born" name="BirthDate" inputmode="numeric" pattern="\d{8}"
+                   maxlength="8" required placeholder="ÅÅÅÅMMDD" />
+
+            <button type="submit" class="btn-primary btn--small">Lägg till</button>
+        }
+    }
+    else
+    {
+        @* The upgrade is sold here rather than in the membership box, because this is where the
+           member has just discovered they cannot do what they wanted. *@
+        <p class="form-notice">
+            Ditt konto har plats för ett barn. Med ett <strong>familjekonto</strong> kan du anmäla
+            flera barn på samma inloggning. Tillägget kostar
+            @(Model.Prices.FamilyFeeOre / 100) kr per år och ändrar inte datumet då medlemskapet
+            går ut.
+        </p>
+
+        using (Html.BeginUmbracoForm<FamilyUpgradeSurfaceController>(
+            nameof(FamilyUpgradeSurfaceController.Upgrade)))
+        {
+            <button type="submit" class="btn-primary">
+                Uppgradera till familjekonto — @(Model.Prices.FamilyFeeOre / 100) kr
+            </button>
+        }
+    }
+</div>

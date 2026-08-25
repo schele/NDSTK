@@ -1,0 +1,157 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
+using NDSTK.Booking.Data;
+using NDSTK.Booking.Domain;
+using NDSTK.Booking.Services;
+using Umbraco.Cms.Core.Cache;
+using Umbraco.Cms.Core.Logging;
+using Umbraco.Cms.Core.Routing;
+using Umbraco.Cms.Core.Security;
+using Umbraco.Cms.Core.Services;
+using Umbraco.Cms.Core.Web;
+using Umbraco.Cms.Infrastructure.Persistence;
+using Umbraco.Cms.Web.Common.Filters;
+using Umbraco.Cms.Web.Website.Controllers;
+
+namespace NDSTK.Booking.Web;
+
+/// <summary>
+/// "Mina barn": the member manages the children on their own account.
+/// </summary>
+/// <remarks>
+/// Every action verifies ownership through the repository's conditional UPDATE rather than reading
+/// first and trusting the result, so a forged key in a POST changes nothing rather than racing a
+/// check that passed.
+///
+/// The portal is behind Umbraco's public access, so an anonymous visitor never reaches these. The
+/// null check on the current member is a belt-and-braces guard, not the gate.
+/// </remarks>
+public sealed class ParticipantSurfaceController(
+    IUmbracoContextAccessor umbracoContextAccessor,
+    IUmbracoDatabaseFactory databaseFactory,
+    ServiceContext services,
+    AppCaches appCaches,
+    IProfilingLogger profilingLogger,
+    IPublishedUrlProvider publishedUrlProvider,
+    IMemberManager memberManager,
+    IParticipantRepository participants,
+    MemberProfileService profiles,
+    ILogger<ParticipantSurfaceController> logger)
+    : SurfaceController(
+        umbracoContextAccessor, databaseFactory, services, appCaches, profilingLogger, publishedUrlProvider)
+{
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [ValidateUmbracoFormRouteString]
+    [EnableRateLimiting(BookingRateLimits.MemberActions)]
+    public async Task<IActionResult> Add(ParticipantFormModel form)
+    {
+        MemberIdentityUser? user = await memberManager.GetCurrentMemberAsync();
+        if (user is null)
+        {
+            logger.LogWarning("A child was added with no signed-in member.");
+            return Forbid();
+        }
+
+        // The supplement is what buys more than one child. This is the rule; the view only hides
+        // the button, and a hidden button is not a rule.
+        MemberState member = await profiles.GetStateAsync(user.Key);
+        IReadOnlyList<ParticipantRecord> existing = await participants.GetForMemberAsync(user.Key);
+
+        if (member.IsFamilyAccount is false && existing.Count >= 1)
+        {
+            TempData["ChildError"] = "Uppgradera till familjekonto för att lägga till fler barn.";
+            return RedirectToCurrentUmbracoPage();
+        }
+
+        if (Validate(form, out DateOnly birthDate) is { } error)
+        {
+            TempData["ChildError"] = error;
+            return RedirectToCurrentUmbracoPage();
+        }
+
+        await participants.CreateAsync(
+            user.Key, form.FirstName.Trim(), form.LastName.Trim(), birthDate, DateTime.UtcNow);
+
+        TempData["ChildMessage"] = $"{form.FirstName.Trim()} är tillagd.";
+        return RedirectToCurrentUmbracoPage();
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [ValidateUmbracoFormRouteString]
+    [EnableRateLimiting(BookingRateLimits.MemberActions)]
+    public async Task<IActionResult> Edit(ParticipantFormModel form)
+    {
+        MemberIdentityUser? user = await memberManager.GetCurrentMemberAsync();
+        if (user is null)
+        {
+            logger.LogWarning("A child was edited with no signed-in member.");
+            return Forbid();
+        }
+
+        if (Validate(form, out DateOnly birthDate) is { } error)
+        {
+            TempData["ChildError"] = error;
+            return RedirectToCurrentUmbracoPage();
+        }
+
+        var updated = await participants.TryUpdateAsync(
+            form.Key, user.Key, form.FirstName.Trim(), form.LastName.Trim(), birthDate);
+
+        TempData[updated ? "ChildMessage" : "ChildError"] =
+            updated ? "Ändringen sparades." : "Barnet hittades inte.";
+
+        return RedirectToCurrentUmbracoPage();
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [ValidateUmbracoFormRouteString]
+    [EnableRateLimiting(BookingRateLimits.MemberActions)]
+    public async Task<IActionResult> Remove(Guid key)
+    {
+        MemberIdentityUser? user = await memberManager.GetCurrentMemberAsync();
+        if (user is null)
+        {
+            logger.LogWarning("A child was removed with no signed-in member.");
+            return Forbid();
+        }
+
+        // An account with no children can never book anything, so the last one stays.
+        IReadOnlyList<ParticipantRecord> existing = await participants.GetForMemberAsync(user.Key);
+        if (existing.Count <= 1)
+        {
+            TempData["ChildError"] = "Kontot måste ha minst ett barn.";
+            return RedirectToCurrentUmbracoPage();
+        }
+
+        var removed = await participants.TryRemoveAsync(key, user.Key, DateTime.UtcNow);
+
+        TempData[removed ? "ChildMessage" : "ChildError"] =
+            removed ? "Barnet togs bort. Tidigare bokningar finns kvar." : "Barnet hittades inte.";
+
+        return RedirectToCurrentUmbracoPage();
+    }
+
+    /// <summary>The message to show, or null when the form is fine.</summary>
+    private static string? Validate(ParticipantFormModel form, out DateOnly birthDate)
+    {
+        birthDate = default;
+
+        if (string.IsNullOrWhiteSpace(form.FirstName) || string.IsNullOrWhiteSpace(form.LastName))
+        {
+            return "Ange både förnamn och efternamn.";
+        }
+
+        if (SwedishDate.TryParseCompact(form.BirthDate, out birthDate) is false)
+        {
+            return "Skriv födelsedatumet som ÅÅÅÅMMDD, till exempel 20170413.";
+        }
+
+        return birthDate > DateOnly.FromDateTime(SwedishTime.ToSwedish(DateTime.UtcNow))
+            ? "Födelsedatumet ligger i framtiden."
+            : null;
+    }
+}

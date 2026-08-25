@@ -528,6 +528,53 @@ footer {
     font-weight: 600;
 }
 
+/* "Mina barn". Each row is a name and an inline edit form; the forms wrap on a narrow screen
+   rather than forcing the page to scroll sideways. */
+.child-list {
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.child-list__item {
+    padding: 0.7rem 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.child-list__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: baseline;
+    margin-bottom: 0.45rem;
+}
+
+.child-list__name {
+    font-weight: 600;
+}
+
+.child-list__meta {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.child-list__form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+    margin-bottom: 0.35rem;
+}
+
+    .child-list__form input {
+        flex: 1 1 8rem;
+        min-width: 0;
+        padding: 0.35rem 0.5rem;
+        border: 1px solid #bbb;
+        border-radius: 4px;
+        font: inherit;
+    }
+
 /* Whose place a booking is. Sits between the class name and the time, and is weighted
    between them: it identifies the row, but the class is still the headline. */
 .booking-list__child {

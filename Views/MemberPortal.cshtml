@@ -73,6 +73,9 @@
 
         </div>
 
+        @* Above the bookings: who you book for comes before what you booked. *@
+        @await Html.PartialAsync("MemberChildren", portal)
+
         @await Html.PartialAsync("MemberBookings", new MemberBookingsPanel(portal.MyBookings, AllowCancel: true))
 
         @* Its own box, and last: signing out is not part of reading your membership or your
