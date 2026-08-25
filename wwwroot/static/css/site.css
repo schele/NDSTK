@@ -919,6 +919,17 @@ footer {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.3rem;
+    /* More below than above, on purpose, and this is why Mina barn already looked right while this
+       box did not: over there .child-list__head carries margin-bottom:0.45rem, so its blocks have
+       0.9 + 0.45 under the last row against 0.9 over the first. Equal padding is what looks
+       unequal here.
+
+       The reason is optical. A block ending in a filled button ends at a hard coloured edge with no
+       slack, while the text under the grey rule starts a few pixels below its own box - text
+       carries half-leading and a gap above its cap height, a button does not. So the same measured
+       gap reads as roughly a third smaller above the rule than below it. Matching the figure Mina
+       barn arrives at keeps the two boxes at one density. */
+    padding-bottom: 1.35rem;
 }
 
 .booking-list__tags {
