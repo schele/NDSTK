@@ -57,6 +57,10 @@ internal sealed class NdstkMemberPages(
 
         pages.EnsurePage(Nodes.TrainingClasses, "Träningar", Nodes.Start, "trainingClasses");
 
+        // Empty on a fresh site. NdstkInstructorBackfill fills it from the names already typed on
+        // the classes; on a brand-new database there are none, and an editor adds their own.
+        pages.EnsurePage(Nodes.Instructors, "Tränare", Nodes.Start, "instructors");
+
         SeedExampleClasses();
 
         logger.LogDebug("Member pages checked.");

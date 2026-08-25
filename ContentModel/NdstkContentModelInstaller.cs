@@ -110,6 +110,25 @@ internal sealed class NdstkContentModelInstaller(
         {
             logger.LogInformation("Class start times now use the minute-precision date picker.");
         }
+
+        // The coach became a picker. Not a repoint of the old field: a content picker stores a UDI
+        // where the text field stored a name, so the two cannot share a column - it is a new
+        // property, and NdstkInstructorBackfill turns the old names into nodes and fills it in.
+        //
+        // The text field is kept and relabelled rather than deleted, because the backfill reads it -
+        // the same arrangement as firstClassDiscountUsed on the member type.
+        var classChanged = await factory.EnsureGroupAsync(
+            DocumentTypes.TrainingClass,
+            DeriveKey(DocumentTypes.TrainingClass, 1),
+            "content",
+            "Träningen",
+            factory.Property(BuiltInDataTypes.ContentPicker, "coach", "Tränare", "Välj en tränare under Tränare.", 5),
+            factory.Property(BuiltInDataTypes.Textstring, "instructor", "Tränare (utgått)", "Ersatt av väljaren ovan. Läses bara av importen som skapade tränarna.", 7));
+
+        if (classChanged)
+        {
+            logger.LogInformation("Updated the fields on the training class document type.");
+        }
     }
 
     // ---------------------------------------------------------------- templates
@@ -440,8 +459,28 @@ internal sealed class NdstkContentModelInstaller(
                     factory.Property(DataTypes.DateTimeNoSeconds, "start", "Starttid", "Datum och klockslag, svensk tid.", 2),
                     factory.Property(BuiltInDataTypes.Numeric, "durationMinutes", "Längd (minuter)", "Standard: 60.", 3),
                     factory.Property(BuiltInDataTypes.Numeric, "capacity", "Max antal deltagare", "Hur många som kan boka den här träningen.", 4),
-                    factory.Property(BuiltInDataTypes.Textstring, "instructor", "Tränare", sortOrder: 5),
+                    factory.Property(BuiltInDataTypes.ContentPicker, "coach", "Tränare", "Välj en tränare under Tränare.", 5),
                     factory.Property(BuiltInDataTypes.Textstring, "location", "Plats", sortOrder: 6));
+            });
+
+        // Folder and profile for the coaches. No templates: an instructor is data the class listing
+        // renders in a dialog, not a page of its own - the same reasoning as a training class.
+        await factory.EnsureContentTypeAsync(
+            DocumentTypes.Instructors, "instructors", "Tränare", "icon-users", type =>
+            {
+                type.Description = "Mappen som håller tränarna.";
+            });
+
+        await factory.EnsureContentTypeAsync(
+            DocumentTypes.Instructor, "instructor", "Tränare", "icon-user", type =>
+            {
+                type.Description = "En tränare. Namnet är nodens namn.";
+                NdstkContentTypeFactory.AddGroup(type, DeriveKey(DocumentTypes.Instructor, 1), "content", "Tränaren", 0,
+                    factory.Property(BuiltInDataTypes.Textstring, "role", "Roll", "Till exempel Huvudtränare. Frivilligt.", 0),
+                    factory.Property(BuiltInDataTypes.ImageMediaPicker, "photo", "Foto", "Visas i rutan som öppnas när någon klickar på namnet.", 1),
+                    factory.Property(BuiltInDataTypes.Textarea, "quote", "Citat", "Något tränaren själv säger. Frivilligt.", 2),
+                    // Rich text, so a list of merits can actually be a list.
+                    factory.Property(BuiltInDataTypes.RichtextEditor, "merits", "Meriter", "Erfarenhet, utbildning, tävlingar.", 3));
             });
 
         // A child of the portal, so it inherits the portal's public access: an anonymous visitor
@@ -466,11 +505,16 @@ internal sealed class NdstkContentModelInstaller(
             (DocumentTypes.MemberVerify, "memberVerify"),
             (DocumentTypes.MemberPortal, "memberPortal"),
             (DocumentTypes.TrainingClasses, "trainingClasses"),
+            (DocumentTypes.Instructors, "instructors"),
             (DocumentTypes.Error, "error"));
 
         await factory.SetAllowedChildrenAsync(
             DocumentTypes.TrainingClasses,
             (DocumentTypes.TrainingClass, "trainingClass"));
+
+        await factory.SetAllowedChildrenAsync(
+            DocumentTypes.Instructors,
+            (DocumentTypes.Instructor, "instructor"));
 
         await factory.SetAllowedChildrenAsync(
             DocumentTypes.MemberPortal,

@@ -254,8 +254,13 @@ internal sealed class NdstkContentTypeFactory(
     /// additions to the group survive.
     /// </summary>
     /// <param name="groupKey">
-    /// Applied only when this call creates the group. Umbraco would otherwise assign a random key,
-    /// which would make a uSync export differ between environments for no reason.
+    /// How the group is recognised, and applied only when this call creates it. Umbraco would
+    /// otherwise assign a random key, which would make a uSync export differ between environments
+    /// for no reason.
+    /// </param>
+    /// <param name="groupAlias">
+    /// Used only when the group has to be created. An existing group keeps the alias it has, which
+    /// need not be this one - see the comment below.
     /// </param>
     /// <returns>True when something was added, so the caller can log only real changes.</returns>
     public async Task<bool> EnsureGroupAsync(
@@ -268,7 +273,16 @@ internal sealed class NdstkContentTypeFactory(
         IContentType contentType = contentTypeService.Get(contentTypeKey)
                                    ?? throw new InvalidOperationException($"Content type {contentTypeKey} was not found.");
 
-        var groupExisted = contentType.PropertyGroups.Any(group => group.Alias == groupAlias);
+        // The group is found by its key first, because that is the part this code owns and the alias
+        // has drifted: an earlier version of the installer let Umbraco derive the alias from the
+        // caption, so the same group is "träningen" on a site installed then and "content" on one
+        // installed since. Matching on alias alone would add the property to a second group and then
+        // fail on the key, which is unique across every document type.
+        PropertyGroup? owned = contentType.PropertyGroups.FirstOrDefault(group => group.Key == groupKey);
+        var targetAlias = owned?.Alias ?? groupAlias;
+
+        var groupExisted = owned is not null
+                           || contentType.PropertyGroups.Any(group => group.Alias == targetAlias);
         var changed = false;
 
         foreach (IPropertyType property in properties)
@@ -283,7 +297,7 @@ internal sealed class NdstkContentTypeFactory(
                 continue;
             }
 
-            contentType.AddPropertyType(property, groupAlias, groupCaption);
+            contentType.AddPropertyType(property, targetAlias, groupCaption);
             changed = true;
         }
 
@@ -294,7 +308,7 @@ internal sealed class NdstkContentTypeFactory(
 
         if (groupExisted is false)
         {
-            PropertyGroup? created = contentType.PropertyGroups.FirstOrDefault(group => group.Alias == groupAlias);
+            PropertyGroup? created = contentType.PropertyGroups.FirstOrDefault(group => group.Alias == targetAlias);
             if (created is not null)
             {
                 created.Key = groupKey;
@@ -305,7 +319,7 @@ internal sealed class NdstkContentTypeFactory(
         if (attempt.Success is false)
         {
             throw new InvalidOperationException(
-                $"Could not add group '{groupAlias}' to '{contentType.Alias}': {attempt.Result}.");
+                $"Could not add group '{targetAlias}' to '{contentType.Alias}': {attempt.Result}.");
         }
 
         return true;

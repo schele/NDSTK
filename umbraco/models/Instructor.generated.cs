@@ -18,14 +18,14 @@ using Umbraco.Extensions;
 
 namespace Umbraco.Cms.Web.Common.PublishedModels
 {
-	/// <summary>Träningsklass</summary>
-	[PublishedModel("trainingClass")]
-	public partial class TrainingClass : PublishedContentModel
+	/// <summary>Tränare</summary>
+	[PublishedModel("instructor")]
+	public partial class Instructor : PublishedContentModel
 	{
 		// helpers
 #pragma warning disable 0109 // new is redundant
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
-		public new const string ModelTypeAlias = "trainingClass";
+		public new const string ModelTypeAlias = "instructor";
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		public new const PublishedItemType ModelItemType = PublishedItemType.Content;
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
@@ -34,14 +34,14 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 			=> PublishedModelUtility.GetModelContentType(contentTypeCache, ModelItemType, ModelTypeAlias);
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		[return: global::System.Diagnostics.CodeAnalysis.MaybeNull]
-		public static IPublishedPropertyType GetModelPropertyType<TValue>(IPublishedContentTypeCache contentTypeCache, Expression<Func<TrainingClass, TValue>> selector)
+		public static IPublishedPropertyType GetModelPropertyType<TValue>(IPublishedContentTypeCache contentTypeCache, Expression<Func<Instructor, TValue>> selector)
 			=> PublishedModelUtility.GetModelPropertyType(GetModelContentType(contentTypeCache), selector);
 #pragma warning restore 0109
 
 		private IPublishedValueFallback _publishedValueFallback;
 
 		// ctor
-		public TrainingClass(IPublishedContent content, IPublishedValueFallback publishedValueFallback)
+		public Instructor(IPublishedContent content, IPublishedValueFallback publishedValueFallback)
 			: base(content, publishedValueFallback)
 		{
 			_publishedValueFallback = publishedValueFallback;
@@ -50,64 +50,35 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		// properties
 
 		///<summary>
-		/// Max antal deltagare: Hur många som kan boka den här träningen.
-		///</summary>
-		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
-		[ImplementPropertyType("capacity")]
-		public virtual int Capacity => this.Value<int>(_publishedValueFallback, "capacity");
-
-		///<summary>
-		/// Tränare: Välj en tränare under Tränare.
+		/// Meriter: Erfarenhet, utbildning, tävlingar.
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
-		[ImplementPropertyType("coach")]
-		public virtual global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent Coach => this.Value<global::Umbraco.Cms.Core.Models.PublishedContent.IPublishedContent>(_publishedValueFallback, "coach");
+		[ImplementPropertyType("merits")]
+		public virtual global::Umbraco.Cms.Core.Strings.IHtmlEncodedString Merits => this.Value<global::Umbraco.Cms.Core.Strings.IHtmlEncodedString>(_publishedValueFallback, "merits");
 
 		///<summary>
-		/// Beskrivning
+		/// Foto: Visas i rutan som öppnas när någon klickar på namnet.
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
-		[ImplementPropertyType("description")]
-		public virtual string Description => this.Value<string>(_publishedValueFallback, "description");
+		[ImplementPropertyType("photo")]
+		public virtual global::Umbraco.Cms.Core.Models.MediaWithCrops Photo => this.Value<global::Umbraco.Cms.Core.Models.MediaWithCrops>(_publishedValueFallback, "photo");
 
 		///<summary>
-		/// Längd (minuter): Standard: 60.
-		///</summary>
-		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
-		[ImplementPropertyType("durationMinutes")]
-		public virtual int DurationMinutes => this.Value<int>(_publishedValueFallback, "durationMinutes");
-
-		///<summary>
-		/// Tränare (utgått): Ersatt av väljaren ovan. Läses bara av importen som skapade tränarna.
+		/// Citat: Något tränaren själv säger. Frivilligt.
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
-		[ImplementPropertyType("instructor")]
-		public virtual string Instructor => this.Value<string>(_publishedValueFallback, "instructor");
+		[ImplementPropertyType("quote")]
+		public virtual string Quote => this.Value<string>(_publishedValueFallback, "quote");
 
 		///<summary>
-		/// Plats
+		/// Roll: Till exempel Huvudtränare. Frivilligt.
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
 		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
-		[ImplementPropertyType("location")]
-		public virtual string Location => this.Value<string>(_publishedValueFallback, "location");
-
-		///<summary>
-		/// Starttid: Datum och klockslag, svensk tid.
-		///</summary>
-		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
-		[ImplementPropertyType("start")]
-		public virtual global::System.DateTime Start => this.Value<global::System.DateTime>(_publishedValueFallback, "start");
-
-		///<summary>
-		/// Namn: Faller tillbaka på nodens namn.
-		///</summary>
-		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
-		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
-		[ImplementPropertyType("title")]
-		public virtual string Title => this.Value<string>(_publishedValueFallback, "title");
+		[ImplementPropertyType("role")]
+		public virtual string Role => this.Value<string>(_publishedValueFallback, "role");
 	}
 }

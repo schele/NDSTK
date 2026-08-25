@@ -16,6 +16,7 @@ internal sealed class NdstkContentModelInstallHandler(
     NdstkContentSeeder seeder,
     NdstkMemberPages memberPages,
     NdstkMemberContentUpgrade memberContentUpgrade,
+    NdstkInstructorBackfill instructorBackfill,
     NdstkMemberAccessInstaller memberAccess,
     ILogger<NdstkContentModelInstallHandler> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
@@ -39,6 +40,9 @@ internal sealed class NdstkContentModelInstallHandler(
 
             // After the pages exist, so the Settings pickers have something to point at.
             memberContentUpgrade.Upgrade();
+
+            // After the Tränare folder exists, since that is where the coach nodes go.
+            instructorBackfill.Run();
 
             // Last: the portal node has to exist before it can be protected.
             await memberAccess.InstallAsync();

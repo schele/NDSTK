@@ -43,9 +43,10 @@
                     {
                         <span class="booking-list__where">
                             @detail.DurationMinutes min
-                            @if (detail.Instructor is { Length: > 0 } coach)
+                            @if (detail.Instructor is { } coach)
                             {
-                                <text>· @coach</text>
+                                <text>· </text>
+                                @await Html.PartialAsync("InstructorName", coach)
                             }
                             @if (detail.Location is { Length: > 0 } court)
                             {

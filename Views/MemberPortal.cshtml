@@ -200,9 +200,10 @@
                             <div class="class-list__meta">
                                 @When(bookable.Class.StartUtc)
                                 · @bookable.Class.DurationMinutes min
-                                @if (bookable.Class.Instructor is { Length: > 0 } coach)
+                                @if (bookable.Class.Instructor is { } coach)
                                 {
-                                    <text>· @coach </text>
+                                    <text>· </text>
+                                    @await Html.PartialAsync("InstructorName", coach)
                                 }
                                 @if (bookable.Class.Location is { Length: > 0 } where)
                                 {
@@ -344,3 +345,8 @@
         </article>
     }
 </div>
+
+@* Opens the coach profiles rendered by the InstructorName partial - both in the class list above
+   and in Mina bokningar. One tag for the whole page: the script listens on the document rather
+   than binding each button. *@
+<script src="~/static/js/coach-dialog.js" defer></script>

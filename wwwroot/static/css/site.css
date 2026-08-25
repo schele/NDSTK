@@ -1022,3 +1022,105 @@ footer {
     /* An address with no spaces will not wrap on its own, and would widen the whole column. */
     overflow-wrap: anywhere;
 }
+
+/* Coach profiles
+   The name on a class listing becomes a button when there is a profile behind it. Styled as a link
+   rather than a button, because it sits inside a run of plain text - "60 min · Anna Lind · Bana 1" -
+   and a button-shaped control there would read as the primary action on the row, which it is not. */
+.coach-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--primary);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+    .coach-link:hover {
+        text-decoration-style: solid;
+    }
+
+    .coach-link:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+    }
+
+.coach-dialog {
+    max-width: 32rem;
+    width: calc(100% - 2rem);
+    padding: 1.5rem;
+    border: 0;
+    border-radius: 8px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+    color: var(--text);
+}
+
+    .coach-dialog::backdrop {
+        background: rgba(0, 31, 84, 0.55);
+    }
+
+.coach-dialog__body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    align-items: flex-start;
+    margin-bottom: 1.25rem;
+}
+
+/* Fixed width so a portrait and a landscape photo occupy the same column and the text beside them
+   starts in the same place on every profile. */
+.coach-dialog__photo {
+    flex: 0 0 8rem;
+    width: 8rem;
+    height: 8rem;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.coach-dialog__text {
+    flex: 1 1 12rem;
+    min-width: 0;
+}
+
+.coach-dialog__name {
+    margin: 0;
+    color: var(--primary);
+    font-size: 1.2rem;
+}
+
+.coach-dialog__role {
+    margin: 0.15rem 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+/* Their own words, so it is set apart from the merits below rather than running into them. */
+.coach-dialog__quote {
+    margin: 0.9rem 0 0;
+    padding-left: 0.9rem;
+    border-left: 3px solid var(--accent);
+    font-style: italic;
+}
+
+.coach-dialog__merits {
+    margin-top: 0.9rem;
+    font-size: 0.95rem;
+}
+
+    /* Rich text from the backoffice, so the list markup is an editor's and needs taming rather than
+       styling from scratch. */
+    .coach-dialog__merits :first-child {
+        margin-top: 0;
+    }
+
+    .coach-dialog__merits :last-child {
+        margin-bottom: 0;
+    }
+
+    .coach-dialog__merits ul {
+        margin: 0;
+        padding-left: 1.2rem;
+    }

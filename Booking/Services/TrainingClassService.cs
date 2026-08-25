@@ -83,7 +83,37 @@ public sealed class TrainingClassService(
             // Capacity is read as-is: a missing value is zero, and BookableClass treats zero as
             // "not bookable" rather than "unlimited".
             Capacity: content.Value<int>("capacity"),
-            Instructor: content.Value<string>("instructor"),
+            Instructor: ReadInstructor(content),
             Location: content.Value<string>("location"));
+    }
+
+    /// <summary>
+    /// The picked coach, or nothing. Falls back to the retired text field so a class an editor has
+    /// not repicked yet still shows a name - the backfill fills the picker in, but an editor who
+    /// clears it should not silently blank the listing.
+    /// </summary>
+    /// <remarks>
+    /// This is the only place that knows an instructor is a content node, in the same way this class
+    /// is the only place that knows a training class is one. The media item is resolved to a URL
+    /// here too, so nothing above ever holds an IPublishedContent.
+    /// </remarks>
+    private static ClassInstructor? ReadInstructor(IPublishedContent content)
+    {
+        IPublishedContent? coach = content.Value<IPublishedContent>("coach");
+
+        if (coach is null)
+        {
+            var legacy = content.Value<string>("instructor");
+            return string.IsNullOrWhiteSpace(legacy) ? null : new ClassInstructor(legacy);
+        }
+
+        return new ClassInstructor(
+            Name: coach.Value<string>("name").IfNullOrWhiteSpace(coach.Name),
+            Title: coach.Value<string>("role"),
+            Quote: coach.Value<string>("quote"),
+            // Rich text comes back as IHtmlEncodedString; ToString gives the markup the view writes
+            // out raw. Only backoffice users author it.
+            Merits: coach.Value<object>("merits")?.ToString(),
+            PhotoUrl: coach.Value<IPublishedContent>("photo")?.Url());
     }
 }

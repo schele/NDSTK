@@ -14,7 +14,7 @@ public sealed record TrainingClass(
     DateTime StartUtc,
     int DurationMinutes,
     int Capacity,
-    string? Instructor,
+    ClassInstructor? Instructor,
     string? Location)
 {
     public DateTime EndUtc => StartUtc.AddMinutes(DurationMinutes);

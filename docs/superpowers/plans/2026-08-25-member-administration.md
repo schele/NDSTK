@@ -2286,12 +2286,72 @@ Two tasks were reordered against the plan as written, and one grew:
 
 ### Not verified
 
-**The rendered backoffice UI.** The manifest parses, Umbraco logged no warning at boot, all three
-files are served and both modules are valid ES modules — but the dashboard and roster have never
-been looked at in a browser, because that needs an interactive backoffice login. The aliases
-(`Umb.Section.Members`, `Umb.Condition.WorkspaceContentTypeAlias`) were read out of the 18.1.1
-assemblies rather than guessed, which is the part most likely to fail silently.
+**The Medlemmar dashboard.** The Deltagare tab on a training class has been used in the backoffice
+and works. The dashboard in the Members section has not been looked at in a browser — same manifest,
+same client, and the aliases (`Umb.Section.Members`,
+`Umb.Condition.WorkspaceContentTypeAlias`) were read out of the 18.1.1 assemblies rather than
+guessed, so the part most likely to fail silently is the part that has been checked.
 
 One known cosmetic wrinkle: `EnsureGroupAsync` appends new fields at the end on an already-installed
 site, so *Familjetillägg* sits last in the Medlemskap group here rather than beside the other
 prices. A fresh install uses the declared order; an editor can drag it.
+
+---
+
+## Follow-on work, after the plan closed
+
+Everything below was asked for after the fourteen tasks were done, and verified the same way.
+
+### Cancellation deadline
+
+`Cancellation.IsOpen` closes cancellation a configurable number of hours before the class starts —
+12 by default, set on the Settings node. Past the deadline the *Avboka* button renders disabled with
+the rule in its tooltip rather than disappearing, so a member learns why instead of wondering
+whether they missed something. The repository enforces it too: `TryCancelBookingAsync` takes the
+earliest cancellable start and puts it in the `UPDATE ... WHERE`, so a replayed form post is refused
+by the database rather than by the view.
+
+### Coaches became content
+
+The coach was a line of text on every class, so the same person was retyped once per class with
+nothing tying the copies together. Now:
+
+- `instructor` document type (Tränare) with role, photo, quote and merits, under an `instructors`
+  folder. No template — a coach is not a page.
+- `trainingClass.coach` is a content picker. The old `instructor` textstring is kept and relabelled
+  *Tränare (utgått)*, because the import reads it. Not a repoint: a picker stores a UDI where the
+  text field stored a name.
+- `NdstkInstructorBackfill` creates one node per distinct name, case-insensitively, and links the
+  classes. Guarded by `NDSTK/InstructorBackfill`.
+- `Views/Partials/InstructorName.cshtml` renders the name as plain text until an editor fills the
+  profile in, and as a button opening an inline `<dialog>` once they have. `ClassInstructor.HasDetails`
+  is that switch, and `ClassInstructorTests` pins it.
+
+`EnsureGroupAsync` had to be fixed to make this land. It matched the target group by alias, but an
+earlier version of the installer let Umbraco derive the alias from the caption — so the group is
+`träningen` on this database and `content` on a fresh one. Adding `coach` by alias created a second
+group and then failed on `cmsPropertyTypeGroup.uniqueID`, which is unique across every document
+type. It now finds the group by the key it owns and uses whatever alias that group already has.
+
+### Verified at runtime
+
+| Claim | Evidence |
+| --- | --- |
+| Deltagare tab works | Used in the backoffice; roster lists the booked children with payment status |
+| A late cancellation is refused | Button renders disabled; the `UPDATE` has the deadline in its `WHERE` |
+| Removing a child cancels their future bookings | Booking 53 released with a credit issued |
+| The date-picker swap kept the data | 12 start times intact after `RepointPropertyAsync` |
+| Coach nodes were created from the names | 1134 Carl Schéle, 1135 Johan Berg, 1136 Anna Lind, all published |
+| The classes were linked | 4 of 4 classes under *Träningar* carry a `coach` UDI |
+| Nothing else broke | 90 tests pass; no errors in the boot log |
+
+One class was skipped, correctly: node 1128 *Nybörjartennis* is unpublished and sits at the content
+root rather than under *Träningar*, left over from an earlier test. It is not reachable and the
+import only walks the children of *Träningar*.
+
+### Not verified
+
+**The dialog itself, in a browser.** Every coach the import created is a bare name, so all five
+class rows currently render plain text — the correct branch, and the only one reachable until a
+profile is filled in. Adding a role or quote to a Tränare node needs a backoffice login, which is
+not available from here. The branch it selects on is unit-tested; the markup and the styles are not.

@@ -1,0 +1,58 @@
+@using NDSTK.Booking.Domain
+@model ClassInstructor
+@{
+    // Unique per render, so the same coach appearing on three classes gets three dialogs and each
+    // button opens its own. Generated here rather than passed in, so no caller has to invent one.
+    var dialogId = $"coach-{Guid.NewGuid():N}";
+}
+
+@if (Model.HasDetails is false)
+{
+    @* A coach the backfill created is a name and nothing else. A button that opens an empty box is
+       worse than plain text, so until an editor fills the profile in this stays text. *@
+    <text>@Model.Name</text>
+}
+else
+{
+    <button type="button" class="coach-link" aria-haspopup="dialog"
+            data-coach-open="@dialogId">@Model.Name</button>
+
+    @* Rendered inline rather than fetched: the whole profile is a few lines, and a dialog that is
+       already in the page opens with no request, no spinner and nothing to fail.
+
+       A <dialog> has no declarative opener, so any page rendering this must also load
+       static/js/coach-dialog.js - see MemberPortal.cshtml and SwishPayment.cshtml. *@
+    <dialog id="@dialogId" class="coach-dialog" aria-label="Om @Model.Name">
+        <div class="coach-dialog__body">
+            @if (Model.PhotoUrl is { Length: > 0 } photo)
+            {
+                @* Decorative beside the name it sits next to, so the alt text is empty rather than
+                   repeating "Carl Schéle" to a screen reader twice. *@
+                <img src="@photo" alt="" class="coach-dialog__photo" />
+            }
+
+            <div class="coach-dialog__text">
+                <h4 class="coach-dialog__name">@Model.Name</h4>
+
+                @if (Model.Title is { Length: > 0 } role)
+                {
+                    <p class="coach-dialog__role">@role</p>
+                }
+
+                @if (Model.Quote is { Length: > 0 } quote)
+                {
+                    <blockquote class="coach-dialog__quote">@quote</blockquote>
+                }
+
+                @if (Model.Merits is { Length: > 0 } merits)
+                {
+                    @* Rich text from the backoffice, written out as markup so an editor's list stays
+                       a list. Only backoffice users can author it. *@
+                    <div class="coach-dialog__merits">@Html.Raw(merits)</div>
+                }
+            </div>
+        </div>
+
+        <button type="button" class="btn-secondary btn--small" data-coach-close>Stäng</button>
+    </dialog>
+}

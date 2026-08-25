@@ -27,7 +27,7 @@ public class BookableClassTests
         StartUtc: Now.AddHours(hoursFromNow),
         DurationMinutes: 60,
         Capacity: capacity,
-        Instructor: "Anna",
+        Instructor: new ClassInstructor("Anna"),
         Location: "Bana 1");
 
     private static BookingSnapshot Booking(Guid participant, string status = BookingStatus.Confirmed)
