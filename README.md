@@ -161,7 +161,7 @@ breaks the reminder window.
 
 ## Backoffice administration
 
-Two surfaces, both in `wwwroot/App_Plugins/NDSTK.MemberAdmin/`:
+Two surfaces, both in `App_Plugins/NDSTK.MemberAdmin/` — **at the content root, not under `wwwroot`**:
 
 - **Medlemmar** — a dashboard in the Members section. One row per account: verified date, member
   since, expiry and days left, children, total paid, bookings, cancellations, unpaid holds and
@@ -391,3 +391,10 @@ Zero counts as "not set" and falls back to the default, like every other field o
 Umbraco's numeric editor cannot tell an emptied field from a deliberate 0, so there is no way to
 express "no deadline" through it. For a club that does not want late cancellations, that is the
 safer of the two readings.
+
+**`App_Plugins` must sit at the content root.** Umbraco scans `<contentRoot>/App_Plugins` for
+`umbraco-package.json`; it does not scan `wwwroot/App_Plugins`. Files placed there are still *served*
+at `/App_Plugins/...`, which makes the mistake hard to spot — every URL returns 200 and the boot log
+says nothing, but no extension ever registers. A NuGet package like
+`Esatto.Umbraco.Backoffice.Redirects` can keep its files under `wwwroot` because its manifest is
+found through the referenced assembly's static web assets instead, which is a different reader.

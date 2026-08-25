@@ -118,13 +118,10 @@
                     {
                         <p><a href="@portalPage.Url()" class="btn-primary">Mina sidor</a></p>
                     }
-                    @* A POST, not a link: signing someone out on a GET means any image or
-                       prefetched URL on another site could log them out. *@
-                    @using (Html.BeginUmbracoForm<NDSTK.Booking.Web.LoginSurfaceController>(
-                        nameof(NDSTK.Booking.Web.LoginSurfaceController.Logout)))
-                    {
-                        <button type="submit" class="consent-btn consent-btn--link">Logga ut</button>
-                    }
+                    @* No sign-out here on purpose. This box appears on every page of the site, and
+                       signing out is not something a member wants within reach while reading an
+                       article. It lives on Mina sidor, at the bottom, where managing the account is
+                       what you came for. *@
                 </div>
             }
             else if (loginPage is not null)
