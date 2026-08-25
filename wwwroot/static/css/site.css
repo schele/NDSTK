@@ -526,6 +526,19 @@ footer {
     border-bottom: 1px solid #ddd;
 }
 
+    /* The shared button rule carries margin-top:1rem, meant for a button that follows a paragraph.
+       On a flex row it instead pushes the button down, so the gap under the content grew by 1rem
+       while the gap above it did not - which is why this box read as looser than Mina barn despite
+       both using the same 0.9rem padding.
+
+       Third place this reset has been needed (see .class-list__actions and .child-list__remove).
+       The real fix is to take margin-top off the shared rule and add it only where a button really
+       does follow a paragraph, but that rule reaches the payment page, the forms and the logout
+       widget, so it wants a look at every page rather than a blind edit. */
+    .booking-list__item button {
+        margin-top: 0;
+    }
+
 .booking-list__title {
     font-weight: 600;
 }
