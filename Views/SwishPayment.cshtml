@@ -105,12 +105,27 @@
                     Referens<br /><code>@pay.Reference</code>
                 </p>
 
-                @* Rendered server-side so it reads correctly with no JavaScript; the script below
+                @* Only when a place is actually being held.
+
+                   A family upgrade holds nothing - it buys a capability, not a seat - so it has no
+                   HoldExpiresUtc, and MinutesLeft falls out as zero. Rendering it anyway put
+                   "Platsen är reserverad i 0 minuter till" on the page, describing a reservation
+                   that does not exist and implying a deadline that is not there. The countdown
+                   script could not correct it either: with no date to parse it bails out and leaves
+                   the server-rendered sentence exactly as it is.
+
+                   Conditioned on the hold rather than on "is this an upgrade", so any future
+                   payment that holds no place is covered by the same rule.
+
+                   Rendered server-side so it reads correctly with no JavaScript; the script below
                    then keeps it ticking rather than leaving a snapshot from page load. *@
-                <p class="swish__hold" data-hold-expires="@pay.HoldExpiresIso">
-                    Platsen är reserverad i @pay.MinutesLeft
-                    @(pay.MinutesLeft == 1 ? "minut" : "minuter") till.
-                </p>
+                @if (pay.HoldExpiresUtc is not null)
+                {
+                    <p class="swish__hold" data-hold-expires="@pay.HoldExpiresIso">
+                        Platsen är reserverad i @pay.MinutesLeft
+                        @(pay.MinutesLeft == 1 ? "minut" : "minuter") till.
+                    </p>
+                }
 
                 <div class="swish__actions" data-hold-actions>
                     @using (Html.BeginUmbracoForm<SwishPaymentSurfaceController>(
@@ -134,7 +149,12 @@
                 </p>
             </div>
 
-            <script src="~/static/js/payment-countdown.js" defer></script>
+            @* Nothing to count down without a hold, and the script would only find no element and
+               return. Not loading it at all is one fewer request on a page that has no clock. *@
+            @if (pay.HoldExpiresUtc is not null)
+            {
+                <script src="~/static/js/payment-countdown.js" defer></script>
+            }
         }
     </article>
 </div>
