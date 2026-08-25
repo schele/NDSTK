@@ -99,13 +99,20 @@ public sealed record MemberChildRow(
 }
 
 /// <summary>One row in "Mina bokningar".</summary>
+/// <param name="PaidOre">
+/// What this booking was actually paid, or null when nothing was - a paid-up member spending a
+/// credit owes nothing, so no payment exists at all. The full amount rather than the class fee
+/// alone: this is a receipt, and the first booking of a membership year legitimately carries the
+/// annual fee and the family supplement with it.
+/// </param>
 public sealed record MemberBookingRow(
     int BookingId,
     TrainingClass? Class,
     string ChildName,
     string Status,
     DateTime ClassStartUtc,
-    bool UsedCredit)
+    bool UsedCredit,
+    int? PaidOre)
 {
     public bool IsUpcoming => ClassStartUtc > DateTime.UtcNow;
 

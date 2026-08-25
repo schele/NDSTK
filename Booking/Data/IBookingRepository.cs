@@ -28,6 +28,17 @@ public interface IBookingRepository
     Task<IReadOnlyList<CreditSnapshot>> GetCreditsForMemberAsync(Guid memberKey);
 
     /// <summary>
+    /// What each of one member's bookings was actually paid, in öre, keyed by booking id. Only
+    /// completed payments count, and a booking with none is simply absent.
+    /// </summary>
+    /// <remarks>
+    /// The full amount of the payment, not the class fee alone. This is a receipt - the figure that
+    /// left the member's account at that moment - and the first booking of a membership year
+    /// legitimately carries the annual fee and the family supplement with it.
+    /// </remarks>
+    Task<IReadOnlyDictionary<int, int>> GetPaidAmountsByBookingAsync(Guid memberKey);
+
+    /// <summary>
     /// Whether a completed payment has carried the family supplement since the given moment.
     /// </summary>
     /// <remarks>

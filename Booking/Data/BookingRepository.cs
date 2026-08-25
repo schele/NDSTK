@@ -70,6 +70,30 @@ public sealed class BookingRepository(
         return [.. records.Select(record => new CreditSnapshot(record.Id, record.MemberKey, record.SpentOnBookingId))];
     }
 
+    public async Task<IReadOnlyDictionary<int, int>> GetPaidAmountsByBookingAsync(Guid memberKey)
+    {
+        using IScope scope = scopeProvider.CreateScope(autoComplete: true);
+
+        // Grouped rather than one row per payment: a booking could in principle carry more than one
+        // completed payment, and the member cares what it cost them in total.
+        List<PaidBooking> rows = await scope.Database.FetchAsync<PaidBooking>(
+            $"""
+            SELECT BookingId, SUM(AmountOre) AS PaidOre
+            FROM {BookingTables.Payment}
+            WHERE MemberKey = @0 AND Status = @1 AND BookingId IS NOT NULL
+            GROUP BY BookingId
+            """,
+            memberKey, PaymentStatus.Paid);
+
+        return rows.ToDictionary(row => row.BookingId, row => row.PaidOre);
+    }
+
+    private sealed class PaidBooking
+    {
+        public int BookingId { get; set; }
+        public int PaidOre { get; set; }
+    }
+
     public async Task<bool> HasPaidFamilyFeeSinceAsync(Guid memberKey, DateTime sinceUtc)
     {
         using IScope scope = scopeProvider.CreateScope(autoComplete: true);

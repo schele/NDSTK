@@ -4,6 +4,10 @@
 @{
     var culture = new System.Globalization.CultureInfo("sv-SE");
     string When(DateTime utc) => SwedishTime.ToSwedish(utc).ToString("dddd d MMMM HH:mm", culture);
+
+    // Öre to kronor, in the one place this partial needs it - the same conversion the portal does,
+    // and the only arithmetic on money that happens outside MembershipSettingsService.
+    string Kr(int ore) => (ore / 100).ToString("N0", culture);
 }
 
 @* Shared by the member portal and the payment page, so the two cannot show different bookings. *@
@@ -50,9 +54,26 @@
                         </span>
                     }
                     <span class="booking-list__tags">
+                        @* What this place cost, so the list doubles as a receipt.
+
+                           The two are not exclusive: a lapsed member spending a credit pays the
+                           annual fee and nothing for the class, so both labels are true and both
+                           appear. A paid-up member spending one owes nothing at all, and gets only
+                           the credit label because no payment exists. *@
                         @if (row.UsedCredit)
                         {
                             <span class="tag tag--label">Tillgodoträning</span>
+                        }
+                        @if (row.PaidOre is { } paidOre)
+                        {
+                            <span class="tag tag--label">Betald @Kr(paidOre) kr</span>
+                        }
+                        else if (row.UsedCredit is false)
+                        {
+                            @* Confirmed but nothing recorded against it - a comped place, or a
+                               booking from before payments were tracked. Better to say so than to
+                               imply it was free. *@
+                            <span class="tag tag--label">Ingen betalning registrerad</span>
                         }
                         @if (row.Class is null)
                         {

@@ -73,6 +73,7 @@ public sealed class MemberBookingsProvider(
     public async Task<IReadOnlyList<MemberBookingRow>> GetCurrentAsync(Guid memberKey)
     {
         IReadOnlyList<BookingSnapshot> snapshots = await repository.GetBookingsForMemberAsync(memberKey);
+        IReadOnlyDictionary<int, int> paid = await repository.GetPaidAmountsByBookingAsync(memberKey);
         IReadOnlyList<CreditSnapshot> credits = await repository.GetCreditsForMemberAsync(memberKey);
 
         // Which child each booking is for. On a family account the list is otherwise ambiguous -
@@ -105,7 +106,8 @@ public sealed class MemberBookingsProvider(
                     childNames.TryGetValue(snapshot.ParticipantKey, out var name) ? name : string.Empty,
                     snapshot.Status,
                     snapshot.ClassStartUtc,
-                    UsedCredit: paidByCredit.Contains(snapshot.Id))),
+                    UsedCredit: paidByCredit.Contains(snapshot.Id),
+                    PaidOre: paid.TryGetValue(snapshot.Id, out var amount) ? amount : null)),
         ];
     }
 }

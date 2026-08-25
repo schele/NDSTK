@@ -51,6 +51,24 @@
                 </p>
             }
 
+            @* What kind of account this is. It changes what the renewal costs and how many children
+               the account may hold, so a member paying the supplement should be able to see they
+               are getting it - and one who is not should be able to see that too. *@
+            @if (portal.Membership.IsFamilyAccount)
+            {
+                <p class="form-notice form-notice--ok">
+                    <strong>Familjekonto</strong> – flera barn på samma inloggning. Årsavgiften är
+                    @Kr(portal.Prices.MembershipFeeOre) + @Kr(portal.Prices.FamilyFeeOre) kr per år.
+                </p>
+            }
+            else
+            {
+                <p class="form-notice">
+                    <strong>Solokonto</strong> – plats för ett barn. Årsavgiften är
+                    @Kr(portal.Prices.MembershipFeeOre) kr per år.
+                </p>
+            }
+
             @* Priced per child: the welcome price is once per child, so on a family account two
                children routinely have two different next-class prices.
 
@@ -303,16 +321,16 @@
                                                Names the child when there is only one left to book,
                                                the same way the paying button does. On a family
                                                account with one sibling already on the class, an
-                                               unqualified "Boka med tillgodoträning" leaves the
+                                               unqualified "Boka tillgodoträning" leaves the
                                                member to work out who it would apply to. *@
                                             <button type="submit" class="btn-secondary">
                                                 @if (choices.Length == 1)
                                                 {
-                                                    <text>Boka med tillgodoträning för @choices[0].FirstName</text>
+                                                    <text>Boka tillgodoträning för @choices[0].FirstName</text>
                                                 }
                                                 else
                                                 {
-                                                    <text>Boka med tillgodoträning</text>
+                                                    <text>Boka tillgodoträning</text>
                                                 }
                                             </button>
                                         }

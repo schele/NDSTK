@@ -17,6 +17,11 @@
     }
     @if (!string.IsNullOrWhiteSpace(phone))
     {
-        <p>Telefon: <a href="tel:@phone" class="email">@phone</a></p>
+        @* The label keeps the editor's spacing and dashes, because that is how a Swedish number is
+           read. The href does not: a tel: URI may only carry digits and a leading +, so spaces and
+           dashes are stripped rather than passed through and left for the phone to guess at. *@
+        var dialable = new string([.. phone.Where(c => char.IsDigit(c) || c == '+')]);
+
+        <p>Telefon: <a href="tel:@dialable" class="email">@phone</a></p>
     }
 </div>
