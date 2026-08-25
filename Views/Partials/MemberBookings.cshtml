@@ -30,6 +30,25 @@
                         <span class="booking-list__child">@child</span>
                     }
                     <span class="booking-list__when">@When(row.ClassStartUtc)</span>
+
+                    @* The practical details - how long, who is coaching, which court - belong on the
+                       booking a member is about to turn up for, not on a class-list row they have
+                       finished with. Null when an editor has deleted the class; the booking still
+                       renders from its own copy of the start time. *@
+                    @if (row.Class is { } detail)
+                    {
+                        <span class="booking-list__where">
+                            @detail.DurationMinutes min
+                            @if (detail.Instructor is { Length: > 0 } coach)
+                            {
+                                <text>· @coach</text>
+                            }
+                            @if (detail.Location is { Length: > 0 } court)
+                            {
+                                <text>· @court</text>
+                            }
+                        </span>
+                    }
                     <span class="booking-list__tags">
                         @if (row.UsedCredit)
                         {

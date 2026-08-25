@@ -190,34 +190,33 @@
                             }
                             <div class="class-list__actions">
                                 @{
-                                    @* Which of my children are already on this class, named. On a
-                                       family account "Redan bokad" alone is ambiguous - it has to
-                                       say who. *@
-                                    var bookedNames = portal.Children
-                                        .Where(child => bookable.BookedParticipantKeys.Contains(child.Key))
-                                        .Select(child => child.FirstName)
-                                        .ToArray();
-
+                                    @* Only the children who can still be booked onto this class.
+                                       There is deliberately no "Bokad: Steve" label any more: a
+                                       class only appears here while somebody can still be booked,
+                                       so who is already on it is answered by Mina bokningar, and
+                                       repeating it beside a button that names the child who *can*
+                                       book was one fact too many. *@
                                     var choices = portal.Children
                                         .Where(child => bookable.BookableParticipantKeys.Contains(child.Key))
                                         .ToArray();
                                 }
 
-                                @if (bookedNames.Length > 0)
-                                {
-                                    @* A label, not a filled tag: this states a fact about the
-                                       class, it is not something to click. Same treatment as
-                                       "Tillgodoträning" in the bookings list. *@
-                                    <span class="tag tag--label">
-                                        Bokad: @string.Join(", ", bookedNames)
-                                    </span>
-                                }
-
                                 @if (bookable.CanBook && choices.Length > 0)
                                 {
-                                    @* Two separate forms rather than one with a toggle: each button
+                                    @* A credit in hand beats paying, so while the account has one
+                                       the paying option is not offered at all. Showing both invites
+                                       a member to pay for something they have already paid for.
+
+                                       Credits belong to the account, not the child, and there may
+                                       be fewer of them than children. That resolves itself: after
+                                       spending the last one the page re-renders with none left and
+                                       the paying option comes back for whoever is still unbooked.
+
+                                       Two separate forms rather than one with a toggle: each button
                                        posts exactly what it says it does, so there is no state to
                                        get out of step with the label. *@
+                                    if (portal.UnspentCredits == 0)
+                                    {
                                     using (Html.BeginUmbracoForm<BookingSurfaceController>(
                                         nameof(BookingSurfaceController.Book), null,
                                         new { @class = "class-list__book" }))
@@ -258,12 +257,10 @@
                                             <button type="submit" class="btn-primary">Boka</button>
                                         }
                                     }
+                                    }
 
                                     @if (portal.UnspentCredits > 0)
                                     {
-                                        @* Its own row. Side by side with the paying button - each
-                                           with its own child picker - the two read as one confusing
-                                           control rather than two alternatives. *@
                                         using (Html.BeginUmbracoForm<BookingSurfaceController>(
                                             nameof(BookingSurfaceController.Book), null,
                                             new { @class = "class-list__credit" }))
