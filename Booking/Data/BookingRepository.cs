@@ -74,14 +74,21 @@ public sealed class BookingRepository(
     {
         using IScope scope = scopeProvider.CreateScope(autoComplete: true);
 
-        // Grouped rather than one row per payment: a booking could in principle carry more than one
-        // completed payment, and the member cares what it cost them in total.
+        // The class fee, not the payment total. A payment carries the annual fee and the family
+        // supplement when they fall due, so the first booking of a membership year totals 350 for a
+        // class that cost 100 - and against one booking in a list that reads as the price of that
+        // booking. What the year costs is answered by the membership box above the list.
+        //
+        // Grouped, because a booking could in principle carry more than one completed payment.
+        // Zero is filtered out: a place covered by a credit has no class fee, and the credit label
+        // says more than "0 kr" would.
         List<PaidBooking> rows = await scope.Database.FetchAsync<PaidBooking>(
             $"""
-            SELECT BookingId, SUM(AmountOre) AS PaidOre
+            SELECT BookingId, SUM(ClassFeeOre) AS PaidOre
             FROM {BookingTables.Payment}
             WHERE MemberKey = @0 AND Status = @1 AND BookingId IS NOT NULL
             GROUP BY BookingId
+            HAVING SUM(ClassFeeOre) > 0
             """,
             memberKey, PaymentStatus.Paid);
 

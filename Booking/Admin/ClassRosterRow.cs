@@ -2,9 +2,11 @@ namespace NDSTK.Booking.Admin;
 
 /// <summary>One line of a class roster: the child, how to reach their guardian, and what they paid.</summary>
 /// <param name="PaidOre">
-/// What this booking was actually paid, or null when nothing was. The whole payment rather than the
-/// class fee alone - the first booking of a membership year legitimately carries the annual fee and
-/// the family supplement with it, and the club wants to see the figure that arrived.
+/// What the class cost on this booking, or null when nothing did - a place covered by a credit has
+/// no class fee. Deliberately not the payment total: on one class's roster a column headed
+/// "Betalning" reads as the price of that class, and the first booking of a membership year comes to
+/// 350 for a class that cost 100. The whole payment, split three ways, is on the member's row in the
+/// Medlemmar dashboard.
 /// </param>
 /// <param name="UsedCredit">
 /// A credit was spent on this place. Not exclusive with <paramref name="PaidOre"/>: a lapsed member

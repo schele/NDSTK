@@ -155,13 +155,22 @@ public sealed class MemberAdminQueries(
 
         // What each place on this class was paid, and which were paid with a credit. Two grouped
         // queries scoped by the class rather than a lookup per row.
+        // The CLASS fee, not the payment total. A payment legitimately carries the annual fee and
+        // the family supplement alongside it - the first booking of a membership year comes to 350
+        // when the class itself was 100 - and in a column headed "Betalning" on one class's roster
+        // that reads as the price of the class. The whole payment, split three ways, is on the
+        // member's row in the Medlemmar dashboard, which is where a question about fees belongs.
+        //
+        // Zero is filtered out rather than stored: a place covered by a credit has no class fee, and
+        // "0 kr" says less than the credit label that replaces it.
         Dictionary<int, int> paid = (await scope.Database.FetchAsync<PaidBooking>(
             $"""
-            SELECT p.BookingId AS BookingId, SUM(p.AmountOre) AS PaidOre
+            SELECT p.BookingId AS BookingId, SUM(p.ClassFeeOre) AS PaidOre
             FROM {BookingTables.Payment} p
             JOIN {BookingTables.Booking} b ON b.Id = p.BookingId
             WHERE b.ClassKey = @0 AND p.Status = @1
             GROUP BY p.BookingId
+            HAVING SUM(p.ClassFeeOre) > 0
             """,
             classKey, PaymentStatus.Paid))
             .ToDictionary(row => row.BookingId, row => row.PaidOre);

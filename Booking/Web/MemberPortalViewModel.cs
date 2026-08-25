@@ -100,10 +100,11 @@ public sealed record MemberChildRow(
 
 /// <summary>One row in "Mina bokningar".</summary>
 /// <param name="PaidOre">
-/// What this booking was actually paid, or null when nothing was - a paid-up member spending a
-/// credit owes nothing, so no payment exists at all. The full amount rather than the class fee
-/// alone: this is a receipt, and the first booking of a membership year legitimately carries the
-/// annual fee and the family supplement with it.
+/// What the class cost on this booking, or null when nothing did - a place covered by a credit has
+/// no class fee. Deliberately not the payment total: a payment carries the annual fee and the family
+/// supplement when they fall due, so the first booking of a membership year comes to 350 for a class
+/// that cost 100, and shown against that one booking it reads as its price. What the year costs is
+/// answered by the membership box above the list.
 /// </param>
 public sealed record MemberBookingRow(
     int BookingId,
