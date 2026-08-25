@@ -2250,3 +2250,48 @@ git commit -m "Add the class roster workspace view and document the feature"
 **Two things deliberately left to verify at implementation**, both flagged inline with a stated fallback rather than guessed: the declaring type of `EmailConfirmedDate` (Task 12), and the document workspace context's observable name (Task 14).
 
 **Naming checked across tasks.** `ParticipantKey` throughout, never `ChildKey`. `FirstClassUsedUtc` on the record, `FirstClassUsed` on `ParticipantState`, `FirstClassAvailable` on the view row — three names because they are three different things: a timestamp, a rule input, and its negation for a view. `IsFamilyAccount` in C#, `familjekonto` as the Umbraco alias. `FamilyDueOre` on the quote but `FamilyFeeOre` on the price list and the payment record: the quote says what is *due now*, the others say what the fee *is*.
+
+---
+
+## Status
+
+**All fourteen tasks complete.** 69 tests pass; the site builds and runs.
+
+Two tasks were reordered against the plan as written, and one grew:
+
+- **Task 5 (repository) was done before Task 4 (backfill)**, so the web project compiled again
+  before the backfill needed runtime verification. Only Tasks 1–3 sit on a non-compiling web
+  project; the domain tests are green throughout.
+- **`BookableClass` was rewritten in Task 2**, which the plan had not anticipated. It reported
+  "already booked" as one flag per account, which is wrong the moment a family has two children —
+  a class is routinely bookable for one and not the other. It now carries the booked and bookable
+  sets, and `CanBook` distinguishes an anonymous visitor from an account whose every child is on
+  the class. Task 11's picker depends on this.
+- **`RegisterSurfaceController` gained `RedisplayForm`.** `ViewData["Email"]` was read by the view
+  and set by nobody, so a rejected form always came back blank. A wart with three fields; not
+  acceptable with nine.
+
+### Verified at runtime, not just compiled
+
+| Claim | Evidence |
+| --- | --- |
+| Backfill is correct | 12 participants created, 18/18 bookings repointed, exactly one index left and it is the participant one |
+| Backfill is idempotent | Second boot logged nothing and created nothing |
+| Registration writes a child | "Anna Svensson" + participant "Elsa Svensson", born 2017-04-13 |
+| Bad birth dates are refused | `20261301` → Swedish error, no member created, form redisplayed filled in |
+| The upgrade does not move the expiry | Paid 100 kr → `familjekonto` set, `membershipPaidUntil` still absent |
+| Fees are per account, welcome price per child | First booking quoted 350 (150+100+100), second 100 |
+| **Two siblings fit one class** | Bookings 48 and 49, both Confirmed, same `ClassKey` |
+| The API is gated | Both routes answer 401 unauthenticated rather than 404 |
+
+### Not verified
+
+**The rendered backoffice UI.** The manifest parses, Umbraco logged no warning at boot, all three
+files are served and both modules are valid ES modules — but the dashboard and roster have never
+been looked at in a browser, because that needs an interactive backoffice login. The aliases
+(`Umb.Section.Members`, `Umb.Condition.WorkspaceContentTypeAlias`) were read out of the 18.1.1
+assemblies rather than guessed, which is the part most likely to fail silently.
+
+One known cosmetic wrinkle: `EnsureGroupAsync` appends new fields at the end on an already-installed
+site, so *Familjetillägg* sits last in the Medlemskap group here rather than beside the other
+prices. A fresh install uses the declared order; an editor can drag it.
