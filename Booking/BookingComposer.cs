@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using NDSTK.Booking.Admin;
 using NDSTK.Booking.Data;
 using NDSTK.Booking.Data.Migrations;
 using NDSTK.Booking.Jobs;
@@ -38,6 +39,9 @@ public sealed class BookingComposer : IComposer
         builder.Services.AddScoped<IParticipantRepository, ParticipantRepository>();
         builder.Services.AddScoped<BookingService>();
         builder.Services.AddScoped<NdstkParticipantBackfill>();
+
+        // Read-only reporting for the backoffice. Deliberately not on IBookingRepository.
+        builder.Services.AddScoped<MemberAdminQueries>();
 
         // The mock is registered as THE payment provider. Swapping in a real Swish integration is
         // this one line plus a new IPaymentProvider implementation.
