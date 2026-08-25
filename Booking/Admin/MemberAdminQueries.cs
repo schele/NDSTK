@@ -153,6 +153,35 @@ public sealed class MemberAdminQueries(
             return [];
         }
 
+        // What each place on this class was paid, and which were paid with a credit. Two grouped
+        // queries scoped by the class rather than a lookup per row.
+        Dictionary<int, int> paid = (await scope.Database.FetchAsync<PaidBooking>(
+            $"""
+            SELECT p.BookingId AS BookingId, SUM(p.AmountOre) AS PaidOre
+            FROM {BookingTables.Payment} p
+            JOIN {BookingTables.Booking} b ON b.Id = p.BookingId
+            WHERE b.ClassKey = @0 AND p.Status = @1
+            GROUP BY p.BookingId
+            """,
+            classKey, PaymentStatus.Paid))
+            .ToDictionary(row => row.BookingId, row => row.PaidOre);
+
+        // Mapped through a record rather than FetchAsync<int>. NPoco does handle a scalar column,
+        // but this endpoint needs backoffice auth to exercise, so the version that cannot surprise
+        // anybody is the one worth shipping.
+        HashSet<int> creditPaid =
+        [
+            .. (await scope.Database.FetchAsync<CreditedBooking>(
+                $"""
+                SELECT c.SpentOnBookingId AS BookingId
+                FROM {BookingTables.Credit} c
+                JOIN {BookingTables.Booking} b ON b.Id = c.SpentOnBookingId
+                WHERE b.ClassKey = @0
+                """,
+                classKey))
+                .Select(row => row.BookingId),
+        ];
+
         // One lookup covering every guardian on the class, rather than one per row.
         Dictionary<Guid, IMember> guardians =
             (await memberService.GetByKeysAsync([.. rows.Select(row => row.MemberKey).Distinct()]))
@@ -179,6 +208,8 @@ public sealed class MemberAdminQueries(
                     guardian?.Email ?? string.Empty,
                     guardian?.GetValue<string>(MemberProfileService.PhoneAlias),
                     row.Status,
+                    paid.TryGetValue(row.Id, out var amount) ? amount : null,
+                    creditPaid.Contains(row.Id),
                     row.CreatedUtc);
             }),
         ];
@@ -257,6 +288,17 @@ public sealed class MemberAdminQueries(
         public string Status { get; set; } = string.Empty;
         public string? FirstName { get; set; }
         public string? LastName { get; set; }
+    }
+
+    private sealed class PaidBooking
+    {
+        public int BookingId { get; set; }
+        public int PaidOre { get; set; }
+    }
+
+    private sealed class CreditedBooking
+    {
+        public int BookingId { get; set; }
     }
 
     private sealed class RosterRecord

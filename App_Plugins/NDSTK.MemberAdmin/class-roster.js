@@ -15,6 +15,20 @@ const STATUS_LABELS = {
     Pending: 'Väntar på betalning',
 };
 
+// Öre to kronor, here at the edge, the same way the dashboard and the portal do it.
+const kr = (ore) => `${(ore / 100).toLocaleString('sv-SE')} kr`;
+
+// What the club actually received for this place. A credit and a payment are not exclusive: a
+// lapsed member spending one pays the annual fee and nothing for the class, so both show.
+const payment = (row) => {
+    const parts = [];
+    if (row.usedCredit) parts.push('Tillgodoträning');
+    if (row.paidOre) parts.push(kr(row.paidOre));
+
+    // Says so rather than leaving a blank cell that could mean either "free" or "not loaded".
+    return parts.length ? parts.join(' + ') : 'Ingen betalning';
+};
+
 class NdstkClassRoster extends UmbElementMixin(LitElement) {
     static properties = {
         _rows: { state: true },
@@ -93,6 +107,7 @@ class NdstkClassRoster extends UmbElementMixin(LitElement) {
                                 <uui-table-head-cell>Målsman</uui-table-head-cell>
                                 <uui-table-head-cell>E-post</uui-table-head-cell>
                                 <uui-table-head-cell>Telefon</uui-table-head-cell>
+                                <uui-table-head-cell>Betalning</uui-table-head-cell>
                                 <uui-table-head-cell>Status</uui-table-head-cell>
                             </uui-table-head>
                             ${this._rows.map((row) => html`
@@ -107,6 +122,10 @@ class NdstkClassRoster extends UmbElementMixin(LitElement) {
                                         ${row.guardianPhone
                                             ? html`<a href="tel:${row.guardianPhone}">${row.guardianPhone}</a>`
                                             : '—'}
+                                    </uui-table-cell>
+                                    <uui-table-cell
+                                        class=${!row.usedCredit && !row.paidOre ? 'unpaid' : ''}>
+                                        ${payment(row)}
                                     </uui-table-cell>
                                     <uui-table-cell
                                         class=${row.status === 'Pending' ? 'pending' : ''}>
@@ -138,6 +157,12 @@ class NdstkClassRoster extends UmbElementMixin(LitElement) {
         /* An unpaid hold is the one row a coach should treat differently, so it is marked. */
         .pending {
             color: var(--uui-color-warning-emphasis, var(--uui-color-text-alt));
+        }
+
+        /* A confirmed place with nothing recorded against it is worth spotting: either it was
+           comped, or something went wrong between booking and payment. */
+        .unpaid {
+            color: var(--uui-color-danger, var(--uui-color-text-alt));
         }
 
         .note {
