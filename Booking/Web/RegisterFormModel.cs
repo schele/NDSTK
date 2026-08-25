@@ -23,6 +23,44 @@ public sealed class RegisterFormModel
     [Display(Name = "Upprepa lösenord")]
     public string ConfirmPassword { get; set; } = string.Empty;
 
+    // ---------------------------------------------------------------- the guardian
+
+    [Required(ErrorMessage = "Ange ditt förnamn.")]
+    [StringLength(100)]
+    [Display(Name = "Ditt förnamn")]
+    public string FirstName { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Ange ditt efternamn.")]
+    [StringLength(100)]
+    [Display(Name = "Ditt efternamn")]
+    public string LastName { get; set; } = string.Empty;
+
+    /// <summary>Shown on the class roster, so a coach can reach a parent.</summary>
+    [Required(ErrorMessage = "Ange ditt telefonnummer.")]
+    [StringLength(30)]
+    [Display(Name = "Telefon")]
+    public string Phone { get; set; } = string.Empty;
+
+    // ------------------------------------------------------------------- the child
+
+    [Required(ErrorMessage = "Ange barnets förnamn.")]
+    [StringLength(100)]
+    [Display(Name = "Barnets förnamn")]
+    public string ChildFirstName { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Ange barnets efternamn.")]
+    [StringLength(100)]
+    [Display(Name = "Barnets efternamn")]
+    public string ChildLastName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Eight digits, ÅÅÅÅMMDD. The real date check lives in the controller, which is also where the
+    /// "not in the future" rule is - a data annotation cannot express either.
+    /// </summary>
+    [Required(ErrorMessage = "Ange barnets födelsedatum.")]
+    [Display(Name = "Barnets födelsedatum (ÅÅÅÅMMDD)")]
+    public string ChildBirthDate { get; set; } = string.Empty;
+
     /// <summary>
     /// Honeypot. Hidden from people with CSS, so a human leaves it empty and a naive bot that fills
     /// every input does not. Named to look worth filling in.

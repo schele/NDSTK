@@ -377,6 +377,22 @@ footer {
     max-width: 420px;
 }
 
+/* The registration form asks for two people's names. Grouping them under a legend is what stops
+   someone typing their own name into the child's field - a fieldset is the semantic tool for it,
+   so screen readers announce the group too. */
+.form-group {
+    margin: 0 0 1.25rem;
+    padding: 1rem 1rem 0.25rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+
+    .form-group legend {
+        padding: 0 0.4rem;
+        font-weight: 600;
+        color: var(--primary);
+    }
+
 .form-field {
     margin-bottom: 1rem;
 }

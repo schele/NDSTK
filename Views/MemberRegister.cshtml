@@ -29,12 +29,81 @@
                 {
                     <div asp-validation-summary="ModelOnly" class="form-notice form-notice--error"></div>
 
-                    <div class="form-field">
-                        <label for="Email">E-postadress</label>
-                        <input type="email" id="Email" name="Email" autocomplete="email" required
-                               value="@(ViewData["Email"] ?? string.Empty)" />
-                        <span class="form-error">@Html.ValidationMessage("Email")</span>
-                    </div>
+                    @* Two named groups, because the form now asks for two people's names and
+                       "Förnamn" twice with nothing between them is a form people fill in wrongly. *@
+                    <fieldset class="form-group">
+                        <legend>Du</legend>
+
+                        <div class="form-field">
+                            <label for="FirstName">Förnamn</label>
+                            <input type="text" id="FirstName" name="FirstName" autocomplete="given-name"
+                                   maxlength="100" required
+                                   value="@(ViewData["FirstName"] ?? string.Empty)" />
+                            <span class="form-error">@Html.ValidationMessage("FirstName")</span>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="LastName">Efternamn</label>
+                            <input type="text" id="LastName" name="LastName" autocomplete="family-name"
+                                   maxlength="100" required
+                                   value="@(ViewData["LastName"] ?? string.Empty)" />
+                            <span class="form-error">@Html.ValidationMessage("LastName")</span>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="Email">E-postadress</label>
+                            <input type="email" id="Email" name="Email" autocomplete="email" required
+                                   value="@(ViewData["Email"] ?? string.Empty)" />
+                            <span class="form-error">@Html.ValidationMessage("Email")</span>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="Phone">Telefon</label>
+                            <input type="tel" id="Phone" name="Phone" autocomplete="tel"
+                                   maxlength="30" required
+                                   value="@(ViewData["Phone"] ?? string.Empty)" />
+                            <span class="form-hint">Så att tränaren kan nå dig om något ändras.</span>
+                            <span class="form-error">@Html.ValidationMessage("Phone")</span>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-group">
+                        <legend>Barnet</legend>
+
+                        <div class="form-field">
+                            <label for="ChildFirstName">Förnamn</label>
+                            <input type="text" id="ChildFirstName" name="ChildFirstName"
+                                   maxlength="100" required
+                                   value="@(ViewData["ChildFirstName"] ?? string.Empty)" />
+                            <span class="form-error">@Html.ValidationMessage("ChildFirstName")</span>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="ChildLastName">Efternamn</label>
+                            <input type="text" id="ChildLastName" name="ChildLastName"
+                                   maxlength="100" required
+                                   value="@(ViewData["ChildLastName"] ?? string.Empty)" />
+                            <span class="form-error">@Html.ValidationMessage("ChildLastName")</span>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="ChildBirthDate">Födelsedatum</label>
+                            @* Eight digits only. We do not ask for, or store, a personnummer. *@
+                            <input type="text" id="ChildBirthDate" name="ChildBirthDate"
+                                   inputmode="numeric" pattern="\d{8}" maxlength="8"
+                                   placeholder="ÅÅÅÅMMDD" required
+                                   aria-describedby="birthdate-hint"
+                                   value="@(ViewData["ChildBirthDate"] ?? string.Empty)" />
+                            <span class="form-hint" id="birthdate-hint">
+                                Åtta siffror, till exempel 20170413. Vi frågar inte efter personnummer.
+                            </span>
+                            <span class="form-error">@Html.ValidationMessage("ChildBirthDate")</span>
+                        </div>
+
+                        <p class="form-hint">
+                            Vill du anmäla flera barn lägger du till dem på Mina sidor efteråt.
+                        </p>
+                    </fieldset>
 
                     <div class="form-field">
                         <label for="Password">Lösenord</label>

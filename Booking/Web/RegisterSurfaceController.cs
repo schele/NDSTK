@@ -2,12 +2,15 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
+using NDSTK.Booking.Data;
+using NDSTK.Booking.Domain;
 using NDSTK.Booking.Security;
 using NDSTK.Booking.Services;
 using NDSTK.ContentModel;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Cache;
 using Umbraco.Cms.Core.Logging;
+using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Security;
@@ -38,6 +41,8 @@ public sealed class RegisterSurfaceController(
     IMemberManager memberManager,
     IPublishedContentQuery contentQuery,
     BookingMailService mailService,
+    IParticipantRepository participants,
+    IMemberService memberService,
     IdentityErrorMessages messages,
     ILogger<RegisterSurfaceController> logger)
     : SurfaceController(
@@ -74,7 +79,25 @@ public sealed class RegisterSurfaceController(
 
         if (ModelState.IsValid is false)
         {
-            return CurrentUmbracoPage();
+            return RedisplayForm(form);
+        }
+
+        // Checked after the bot guards and before CreateAsync, so the password-errors-before-
+        // duplicate-address ordering below - which is what keeps the response leak-free - is
+        // untouched. A bad birth date is true of the value whatever address it was paired with,
+        // so reporting it reveals nothing about who is a member.
+        if (SwedishDate.TryParseCompact(form.ChildBirthDate, out DateOnly childBirthDate) is false)
+        {
+            ModelState.AddModelError(
+                nameof(form.ChildBirthDate),
+                "Skriv födelsedatumet som ÅÅÅÅMMDD, till exempel 20170413.");
+            return RedisplayForm(form);
+        }
+
+        if (childBirthDate > DateOnly.FromDateTime(SwedishTime.ToSwedish(DateTime.UtcNow)))
+        {
+            ModelState.AddModelError(nameof(form.ChildBirthDate), "Födelsedatumet ligger i framtiden.");
+            return RedisplayForm(form);
         }
 
         var email = form.Email.Trim();
@@ -92,6 +115,17 @@ public sealed class RegisterSurfaceController(
 
         if (created.Succeeded)
         {
+            await SaveGuardianDetailsAsync(user.Key, form);
+
+            // Every account has at least one participant from the moment it exists, so nothing
+            // downstream has to handle a member with nobody to book for.
+            await participants.CreateAsync(
+                user.Key,
+                form.ChildFirstName.Trim(),
+                form.ChildLastName.Trim(),
+                childBirthDate,
+                DateTime.UtcNow);
+
             await SendVerificationMailAsync(user);
             TempData["RegisterMessage"] = CheckYourInboxMessage;
             return RedirectToCurrentUmbracoPage();
@@ -121,7 +155,7 @@ public sealed class RegisterSurfaceController(
                 ModelState.AddModelError(nameof(form.Password), messages.Describe(error));
             }
 
-            return CurrentUmbracoPage();
+            return RedisplayForm(form);
         }
 
         var isDuplicate = created.Errors.Any(error =>
@@ -148,7 +182,7 @@ public sealed class RegisterSurfaceController(
             string.Join("; ", created.Errors.Select(error => error.Code)));
 
         ModelState.AddModelError(string.Empty, messages.Describe(created.Errors.First()));
-        return CurrentUmbracoPage();
+        return RedisplayForm(form);
     }
 
     /// <summary>
@@ -189,6 +223,55 @@ public sealed class RegisterSurfaceController(
 
         logger.LogInformation("Re-registration for an unverified account; resent the verification link.");
         await SendVerificationMailAsync(existing);
+    }
+
+    /// <summary>
+    /// Puts everything the member typed back into ViewData so a rejected form comes back filled in.
+    /// </summary>
+    /// <remarks>
+    /// Neither password is carried back: they are the two fields a browser's own password manager
+    /// refills, and round-tripping a password through the rendered HTML is not worth doing to save
+    /// a keystroke.
+    ///
+    /// Not carrying the rest back would mean retyping nine fields to fix one typo, which is how
+    /// people give up on joining a tennis club.
+    /// </remarks>
+    private IActionResult RedisplayForm(RegisterFormModel form)
+    {
+        ViewData["Email"] = form.Email;
+        ViewData["FirstName"] = form.FirstName;
+        ViewData["LastName"] = form.LastName;
+        ViewData["Phone"] = form.Phone;
+        ViewData["ChildFirstName"] = form.ChildFirstName;
+        ViewData["ChildLastName"] = form.ChildLastName;
+        ViewData["ChildBirthDate"] = form.ChildBirthDate;
+
+        return CurrentUmbracoPage();
+    }
+
+    /// <summary>
+    /// Names the member and stores their phone number.
+    /// </summary>
+    /// <remarks>
+    /// The member's Name is what the backoffice member list shows, and Umbraco defaults it to the
+    /// username - which here is the email address. A list of email addresses is not something
+    /// anyone can administer, so the guardian's real name replaces it.
+    ///
+    /// A failure here is logged, not fatal: the account and its verification mail matter more than
+    /// the display name, and an administrator can fill it in.
+    /// </remarks>
+    private async Task SaveGuardianDetailsAsync(Guid memberKey, RegisterFormModel form)
+    {
+        IMember? member = (await memberService.GetByKeysAsync(memberKey)).FirstOrDefault();
+        if (member is null)
+        {
+            logger.LogError("Created member {Key} but could not read it back to name it.", memberKey);
+            return;
+        }
+
+        member.Name = $"{form.FirstName.Trim()} {form.LastName.Trim()}".Trim();
+        member.SetValue(MemberProfileService.PhoneAlias, form.Phone.Trim());
+        memberService.Save(member);
     }
 
     private async Task SendVerificationMailAsync(MemberIdentityUser user)
