@@ -22,6 +22,7 @@ internal sealed class BookingMigrationRunner(
     ICoreScopeProvider scopeProvider,
     IKeyValueService keyValueService,
     NdstkParticipantBackfill backfill,
+    NdstkStrandedBookingCleanup strandedBookings,
     ILogger<BookingMigrationRunner> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
@@ -56,6 +57,17 @@ internal sealed class BookingMigrationRunner(
         catch (Exception exception)
         {
             logger.LogError(exception, "Backfilling NDSTK participants failed.");
+            return;
+        }
+
+        try
+        {
+            // After the backfill, because it reads participants the backfill may have just created.
+            await strandedBookings.RunAsync();
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Releasing stranded NDSTK bookings failed.");
         }
     }
 }

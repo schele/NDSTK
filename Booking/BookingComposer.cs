@@ -39,6 +39,7 @@ public sealed class BookingComposer : IComposer
         builder.Services.AddScoped<IParticipantRepository, ParticipantRepository>();
         builder.Services.AddScoped<BookingService>();
         builder.Services.AddScoped<NdstkParticipantBackfill>();
+        builder.Services.AddScoped<NdstkStrandedBookingCleanup>();
 
         // Read-only reporting for the backoffice. Deliberately not on IBookingRepository.
         builder.Services.AddScoped<MemberAdminQueries>();

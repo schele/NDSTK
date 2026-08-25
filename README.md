@@ -308,3 +308,37 @@ An **incremental** build can leave the Razor views half-compiled: the build repo
 then every front-end route 404s with `No physical template file was found for template …` in the
 log while the backoffice keeps working. `dotnet build --no-incremental` clears it. If the site
 suddenly serves nothing but `/umbraco`, reach for that before suspecting the content cache.
+
+### Removing a child
+
+Removal is a soft delete: `RemovedUtc` is stamped and the row stays, so past bookings keep a name
+against them and last season's class numbers do not change. "Mina bokningar" resolves names through
+`GetAllForMemberAsync`, which includes removed children for exactly that reason.
+
+Two things go with the child:
+
+- **Their future bookings are cancelled and credited**, exactly as if the member had pressed
+  *Avboka* on each. Left standing, the seat stayed reserved against the class's capacity and the
+  child kept appearing on the coach's roster while the parent believed they were gone. Past
+  bookings are untouched — cancelling those would rewrite attendance that already happened.
+- **The account drops to solo** if that leaves one child. See above.
+
+**Adding a child back restores the same row**, matched on name and birth date within the account.
+It must: the welcome price lives on the participant, so a fresh row would arrive with
+`FirstClassUsedUtc` null and hand the same child a second trial class — and their bookings would be
+split across two rows nobody can pair up. The match is done in memory rather than in SQL, because
+SQLite's default comparison is case-sensitive and `COLLATE NOCASE` folds only ASCII, which would
+make *Åsa* and *åsa* two different children.
+
+`NdstkStrandedBookingCleanup` releases places left held by children removed before that rule
+existed. Guarded by a key/value marker like the participant backfill, so it runs once per database.
+
+### A child's name and birth date are fixed once saved
+
+They identify a person on a class roster, and a coach cannot trust a list a parent can rewrite after
+the fact. `TryCompleteAsync` only touches a row whose `BirthDate` is still null — the rule is in the
+`WHERE` clause, not in the absence of a form.
+
+That null is the exception that has to stay: `NdstkParticipantBackfill` creates children from email
+local parts with no birth date, and `BookAsync` refuses a child without one. Without a way to
+correct those placeholders, the accounts holding them could never book.
