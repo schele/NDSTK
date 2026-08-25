@@ -342,3 +342,19 @@ the fact. `TryCompleteAsync` only touches a row whose `BirthDate` is still null 
 That null is the exception that has to stay: `NdstkParticipantBackfill` creates children from email
 local parts with no birth date, and `BookAsync` refuses a child without one. Without a way to
 correct those placeholders, the accounts holding them could never book.
+
+### A class you are already on drops off the list
+
+"Boka träning" only lists classes there is still someone to book. A class every child on the account
+is already on is in *Mina bokningar* a few lines above; leaving it in the list too — stripped of its
+buttons, carrying only a "Bokad:" label — reads as something you failed to do rather than something
+you have done.
+
+`BookableClass.EveryChildBooked` is deliberately not the same as `MemberHasBooking`. A family with
+one of two children booked keeps the class, because there is a real action left on it: the other
+child. An anonymous visitor never satisfies it — with no children, nothing is booked — so the list
+stays a full shop window.
+
+Two empty states, not one. No classes at all says so; being booked on all of them says *that*,
+because telling a member "inga träningar är upplagda" when they are booked on every one would read
+as though the club had cancelled the term.

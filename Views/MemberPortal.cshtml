@@ -135,14 +135,27 @@
 
         <article class="post">
             <h2>Boka träning</h2>
-            @if (portal.UpcomingClasses.Count == 0)
+            @if (portal.ClassesToOffer.Count == 0)
             {
-                <p>Inga träningar är upplagda just nu. Håll utkik!</p>
+                @* Two different nothings, and telling a member "inga träningar är upplagda" when
+                   they are booked on every one of them would read as though the club had cancelled
+                   the term. *@
+                @if (portal.UpcomingClasses.Count == 0)
+                {
+                    <p>Inga träningar är upplagda just nu. Håll utkik!</p>
+                }
+                else
+                {
+                    <p>
+                        Du är bokad på alla träningar som är upplagda just nu. De finns under
+                        <strong>Mina bokningar</strong>.
+                    </p>
+                }
             }
             else
             {
                 <ul class="class-list">
-                    @foreach (var bookable in portal.UpcomingClasses)
+                    @foreach (var bookable in portal.ClassesToOffer)
                     {
                         <li class="class-list__item">
                             <div class="class-list__head">

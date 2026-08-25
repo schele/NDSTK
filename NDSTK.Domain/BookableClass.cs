@@ -25,6 +25,21 @@ public sealed record BookableClass(
     public bool MemberHasBooking => BookedParticipantKeys.Count > 0;
 
     /// <summary>
+    /// Every one of the account's children is already on this class, so it has nothing left to
+    /// offer them and does not belong in a list headed "Boka träning".
+    /// </summary>
+    /// <remarks>
+    /// A family with one of two children booked is not finished with the class - the other can
+    /// still be booked onto it - so this is deliberately not the same as
+    /// <see cref="MemberHasBooking"/>.
+    ///
+    /// An anonymous visitor never satisfies it: with no children, nothing is booked, and the list
+    /// stays a full shop window.
+    /// </remarks>
+    public bool EveryChildBooked =>
+        BookedParticipantKeys.Count > 0 && BookableParticipantKeys.Count == 0;
+
+    /// <summary>
     /// Every reason a booking button should be hidden, in one place, so the view cannot forget one.
     /// </summary>
     /// <remarks>

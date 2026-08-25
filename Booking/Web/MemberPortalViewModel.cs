@@ -55,6 +55,21 @@ public sealed record MemberPortalViewModel(
 
     /// <summary>The child a single-child account books for without being asked.</summary>
     public MemberChildRow? OnlyChild => Children.Count == 1 ? Children[0] : null;
+
+    /// <summary>
+    /// The classes worth showing under "Boka träning": the ones there is still someone to book.
+    /// </summary>
+    /// <remarks>
+    /// A class every child is already on drops out. It is in "Mina bokningar" a few lines above,
+    /// and leaving it here - stripped of its buttons, carrying only a "Bokad:" label - reads as
+    /// something you failed to do rather than something you have already done.
+    ///
+    /// A family with one child still to book keeps the class: there is a real action left on it.
+    /// </remarks>
+    public IReadOnlyList<BookableClass> ClassesToOffer =>
+    [
+        .. UpcomingClasses.Where(bookable => bookable.EveryChildBooked is false),
+    ];
 }
 
 /// <summary>One row in "Mina barn".</summary>

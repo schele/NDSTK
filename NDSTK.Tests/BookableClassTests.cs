@@ -153,4 +153,62 @@ public class BookableClassTests
         Assert.False(result.MemberHasBooking);
         Assert.True(result.CanBook);
     }
+
+    // A class the whole account is already on has nothing left to offer it, and drops out of
+    // "Boka träning" - it is in "Mina bokningar" instead. Left there, stripped of its buttons and
+    // carrying only a "Bokad:" label, it reads as something you failed to do rather than something
+    // you have already done.
+    [Fact]
+    public void A_solo_account_whose_child_is_booked_has_nothing_left_on_the_class()
+    {
+        BookingSnapshot[] bookings = [Booking(Elsa)];
+
+        BookableClass result = BookableClass.From(Class(), bookings, Mine, Now);
+
+        Assert.True(result.EveryChildBooked);
+    }
+
+    // The case that must NOT drop out: one sibling booked, the other still free to book.
+    [Fact]
+    public void A_family_with_one_child_still_to_book_keeps_the_class()
+    {
+        BookingSnapshot[] bookings = [Booking(Elsa)];
+
+        BookableClass result = BookableClass.From(Class(), bookings, MyFamily, Now);
+
+        Assert.False(result.EveryChildBooked);
+    }
+
+    [Fact]
+    public void A_family_with_both_children_booked_has_nothing_left_on_the_class()
+    {
+        BookingSnapshot[] bookings = [Booking(Elsa), Booking(Nils)];
+
+        BookableClass result = BookableClass.From(Class(), bookings, MyFamily, Now);
+
+        Assert.True(result.EveryChildBooked);
+    }
+
+    // An anonymous visitor has no children, so nothing of theirs is booked and the list stays a
+    // full shop window rather than collapsing to nothing.
+    [Fact]
+    public void An_anonymous_visitor_never_has_everything_booked()
+    {
+        BookingSnapshot[] bookings = [Booking(Stranger), Booking(Elsa)];
+
+        BookableClass result = BookableClass.From(Class(), bookings, Anonymous, Now);
+
+        Assert.False(result.EveryChildBooked);
+    }
+
+    // Cancelling frees the child up again, so the class comes back onto the list.
+    [Fact]
+    public void Cancelling_puts_the_class_back_on_offer()
+    {
+        BookingSnapshot[] bookings = [Booking(Elsa, BookingStatus.Cancelled)];
+
+        BookableClass result = BookableClass.From(Class(), bookings, Mine, Now);
+
+        Assert.False(result.EveryChildBooked);
+    }
 }
