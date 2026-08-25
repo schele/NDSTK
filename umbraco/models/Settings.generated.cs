@@ -153,5 +153,13 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
 		[ImplementPropertyType("siteName")]
 		public virtual string SiteName => this.Value<string>(_publishedValueFallback, "siteName");
+
+		///<summary>
+		/// Adress: Klubbens adress, t.ex. "Gymnastik- och idrottshögskolan, Lidingövägen 1, Stockholm". Platsen på varje träning blir en länk till Google Maps på den här adressen. Lämnas den tom visas platsen som vanlig text.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
+		[ImplementPropertyType("venueAddress")]
+		public virtual string VenueAddress => this.Value<string>(_publishedValueFallback, "venueAddress");
 	}
 }

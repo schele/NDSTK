@@ -16,6 +16,13 @@ internal sealed class NdstkContentModelInstaller(
     IHostEnvironment hostEnvironment,
     ILogger<NdstkContentModelInstaller> logger)
 {
+    // Declared once because it is used twice: in the fresh-install declaration and in the upgrade
+    // that reaches a site already installed. Two copies of the same help text drift apart.
+    private const string VenueAddressHelp =
+        "Klubbens adress, t.ex. \"Gymnastik- och idrottshögskolan, Lidingövägen 1, Stockholm\". " +
+        "Platsen på varje träning blir en länk till Google Maps på den här adressen. Lämnas den " +
+        "tom visas platsen som vanlig text.";
+
     public async Task InstallAsync()
     {
         await languages.InstallAsync();
@@ -76,6 +83,19 @@ internal sealed class NdstkContentModelInstaller(
             // changed, and a log line that says "added" for a reworded help text sends the next
             // person looking for a field that was already there.
             logger.LogInformation("Updated the Medlemskap fields on the settings document type.");
+        }
+
+        // The club's address, so the court an editor types on a class can link to a map. It goes on
+        // the settings group rather than on the class because "Bana 2" is a court and not a place -
+        // one address, typed once, and every class listing gets a link without being touched.
+        if (await factory.EnsureGroupAsync(
+                DocumentTypes.Settings,
+                DeriveKey(DocumentTypes.Settings, 1),
+                "settings",
+                "Settings",
+                factory.Property(BuiltInDataTypes.Textstring, "venueAddress", "Adress", VenueAddressHelp, 5)))
+        {
+            logger.LogInformation("Added the club address to the settings document type.");
         }
 
         // The membership facts are administrative: a member may see them, but one who could edit
@@ -365,7 +385,8 @@ internal sealed class NdstkContentModelInstaller(
                     factory.Property(DataTypes.MenuPicker, "menu", "Header menu", sortOrder: 1),
                     factory.Property(BuiltInDataTypes.ContentPicker, "loginPage", "Login page", "Target of the Logga in button in the sidebar.", 2),
                     factory.Property(DataTypes.SidebarWidgetBlocks, "sidebarWidgets", "Sidebar widgets", sortOrder: 3),
-                    factory.Property(BuiltInDataTypes.Textstring, "footerText", "Footer text", sortOrder: 4));
+                    factory.Property(BuiltInDataTypes.Textstring, "footerText", "Footer text", sortOrder: 4),
+                    factory.Property(BuiltInDataTypes.Textstring, "venueAddress", "Adress", VenueAddressHelp, 5));
             });
 
         await factory.EnsureContentTypeAsync(

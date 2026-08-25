@@ -1124,3 +1124,24 @@ footer {
         margin: 0;
         padding-left: 1.2rem;
     }
+
+/* Bottom right, out of the reading path of the profile above it and where a dismiss control is
+   looked for. The dialog has no header bar to put it in. */
+.coach-dialog > [data-coach-close] {
+    display: block;
+    margin-left: auto;
+}
+
+/* The court on a class listing, linking out to the map. Underlined dotted like .coach-link, because
+   both sit inside a run of plain meta text - "60 min · Anna Lind · GIH, bana 1" - where a button or
+   a solid link would read as the row's main action, which neither is. */
+.map-link {
+    color: var(--primary);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+}
+
+    .map-link:hover {
+        text-decoration-style: solid;
+    }

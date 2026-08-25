@@ -78,4 +78,43 @@ public class ReminderMailTests
 
         Assert.Contains("https://ndstk.se/mina-sidor/", mail.HtmlBody);
     }
+
+    // The reminder is the mail somebody opens on the way to the courts, so the court name links to
+    // the map when the club has an address configured.
+    [Fact]
+    public void Reminder_links_the_location_to_the_map()
+    {
+        var map = MapLink.ForAddress("Lidingövägen 1, Stockholm");
+
+        MailContent mail = MailTemplates.ClassReminder("Teknikpass", StartUtc, "Bana 1", null, map);
+
+        // The ampersand before query= arrives as &amp;, which is what an href in an HTML attribute
+        // has to carry - a bare & there is a malformed entity, and mail clients are the last place
+        // to find out whether one is forgiving.
+        Assert.Contains(
+            """<a href="https://www.google.com/maps/search/?api=1&amp;query=""", mail.HtmlBody);
+        Assert.Contains(">Bana 1</a>", mail.HtmlBody);
+    }
+
+    // No address on Inställningar: the court is still named, just not linked. An <a> with an empty
+    // href would look like a link and go nowhere.
+    [Fact]
+    public void Without_an_address_the_location_stays_plain_text()
+    {
+        MailContent mail = MailTemplates.ClassReminder("Teknikpass", StartUtc, "Bana 1", null, null);
+
+        Assert.Contains("Plats: Bana 1", mail.HtmlBody);
+        Assert.DoesNotContain("<a href=\"\"", mail.HtmlBody);
+    }
+
+    // A class with no location has no line at all, whether or not an address is configured - a
+    // "Plats:" with nothing after it is worse than silence.
+    [Fact]
+    public void An_address_alone_does_not_produce_a_location_line()
+    {
+        MailContent mail = MailTemplates.ClassReminder(
+            "Teknikpass", StartUtc, null, null, MapLink.ForAddress("Lidingövägen 1, Stockholm"));
+
+        Assert.DoesNotContain("Plats:", mail.HtmlBody);
+    }
 }

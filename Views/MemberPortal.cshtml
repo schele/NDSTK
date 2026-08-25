@@ -151,9 +151,9 @@
             <div class="reminder-banner" role="status">
                 <strong>Påminnelse:</strong>
                 @(reminder.Class?.Title ?? "Din träning") börjar @When(reminder.ClassStartUtc).
-                @if (reminder.Class?.Location is { Length: > 0 } place)
+                @if (reminder.Class is { Location.Length: > 0 } soon)
                 {
-                    <span>Plats: @place.</span>
+                    <span>Plats: @await Html.PartialAsync("ClassLocation", soon).</span>
                 }
             </div>
         }
@@ -205,9 +205,10 @@
                                     <text>· </text>
                                     @await Html.PartialAsync("InstructorName", coach)
                                 }
-                                @if (bookable.Class.Location is { Length: > 0 } where)
+                                @if (bookable.Class.Location is { Length: > 0 })
                                 {
-                                    <text>· @where</text>
+                                    <text>· </text>
+                                    @await Html.PartialAsync("ClassLocation", bookable.Class)
                                 }
                             </div>
                             @if (bookable.Class.Description is { Length: > 0 } about)

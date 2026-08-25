@@ -48,9 +48,10 @@
                                 <text>· </text>
                                 @await Html.PartialAsync("InstructorName", coach)
                             }
-                            @if (detail.Location is { Length: > 0 } court)
+                            @if (detail.Location is { Length: > 0 })
                             {
-                                <text>· @court</text>
+                                <text>· </text>
+                                @await Html.PartialAsync("ClassLocation", detail)
                             }
                         </span>
                     }

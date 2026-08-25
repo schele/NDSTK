@@ -51,7 +51,7 @@ public sealed class BookingMailService(
     /// reminder job works from booking rows, which carry the key and not the email.
     /// </summary>
     public async Task SendClassReminderAsync(
-        Guid memberKey, string classTitle, DateTime startUtc, string? location)
+        Guid memberKey, string classTitle, DateTime startUtc, string? location, string? mapUrl)
     {
         IMember? member = (await memberService.GetByKeysAsync(memberKey)).FirstOrDefault();
         if (member?.Email is not { Length: > 0 } email)
@@ -61,7 +61,7 @@ public sealed class BookingMailService(
             return;
         }
 
-        await SendAsync(email, MailTemplates.ClassReminder(classTitle, startUtc, location, null));
+        await SendAsync(email, MailTemplates.ClassReminder(classTitle, startUtc, location, null, mapUrl));
     }
 
     private async Task SendAsync(string toEmail, MailContent content)

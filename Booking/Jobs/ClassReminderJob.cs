@@ -123,7 +123,8 @@ public sealed class ClassReminderJob(
                 booking.MemberKey,
                 trainingClass?.Title ?? "Din träning",
                 booking.ClassStartUtc,
-                trainingClass?.Location);
+                trainingClass?.Location,
+                trainingClass?.MapUrl);
 
             sent++;
         }

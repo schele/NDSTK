@@ -19,6 +19,7 @@ public sealed class TrainingClassService(
     IBookingRepository bookings)
 {
     private const string ClassAlias = "trainingClass";
+    private const string SettingsAlias = "settings";
     private const int DefaultDurationMinutes = 60;
 
     /// <summary>
@@ -62,12 +63,31 @@ public sealed class TrainingClassService(
         => ReadClasses().FirstOrDefault(trainingClass => trainingClass.Key == classKey);
 
     private IEnumerable<TrainingClass> ReadClasses()
-        => contentQuery
-            .ContentAtRoot()
-            .SelectMany(root => root.DescendantsOrSelfOfType(ClassAlias))
-            .Select(ToTrainingClass);
+    {
+        IPublishedContent[] roots = [.. contentQuery.ContentAtRoot()];
 
-    private static TrainingClass ToTrainingClass(IPublishedContent content)
+        // Read once for the whole set rather than per class: it is the same address on every one of
+        // them, and turning it into a URL is the only work either way.
+        var mapUrl = MapLink.ForAddress(ReadVenueAddress(roots));
+
+        return roots
+            .SelectMany(root => root.DescendantsOrSelfOfType(ClassAlias))
+            .Select(content => ToTrainingClass(content, mapUrl));
+    }
+
+    /// <summary>The club's address, from the Settings node under the site root.</summary>
+    /// <remarks>
+    /// One address for the club, not one per class: the court an editor types on a class ("Bana 2")
+    /// is not something a map can find. A site with no address configured simply has no link.
+    /// </remarks>
+    private static string? ReadVenueAddress(IEnumerable<IPublishedContent> roots)
+        => roots
+            .Select(root => root.ChildrenOfType(SettingsAlias).FirstOrDefault())
+            .OfType<IPublishedContent>()
+            .Select(settings => settings.Value<string>("venueAddress"))
+            .FirstOrDefault(address => string.IsNullOrWhiteSpace(address) is false);
+
+    private static TrainingClass ToTrainingClass(IPublishedContent content, string? mapUrl)
     {
         // The editor picks Swedish local time; everything stored and compared is UTC.
         DateTime start = SwedishTime.ToUtc(content.Value<DateTime>("start"));
@@ -84,7 +104,8 @@ public sealed class TrainingClassService(
             // "not bookable" rather than "unlimited".
             Capacity: content.Value<int>("capacity"),
             Instructor: ReadInstructor(content),
-            Location: content.Value<string>("location"));
+            Location: content.Value<string>("location"),
+            MapUrl: mapUrl);
     }
 
     /// <summary>

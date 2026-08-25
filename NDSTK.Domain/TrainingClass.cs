@@ -6,6 +6,10 @@ namespace NDSTK.Booking.Domain;
 /// <remarks>
 /// <paramref name="StartUtc"/> is UTC. The editor types Swedish local time and
 /// <see cref="SwedishTime"/> converts it, so nothing downstream has to know about the offset.
+///
+/// <paramref name="MapUrl"/> comes from the club's address on the Settings node rather than from
+/// anything on the class. It rides along here so the views and the reminder mail all get it from
+/// the class they are already holding - see <see cref="MapLink"/>.
 /// </remarks>
 public sealed record TrainingClass(
     Guid Key,
@@ -15,7 +19,8 @@ public sealed record TrainingClass(
     int DurationMinutes,
     int Capacity,
     ClassInstructor? Instructor,
-    string? Location)
+    string? Location,
+    string? MapUrl = null)
 {
     public DateTime EndUtc => StartUtc.AddMinutes(DurationMinutes);
 }

@@ -1,0 +1,24 @@
+@* Fully qualified: _ViewImports pulls in Umbraco's generated models, which have a TrainingClass of
+   their own - the content node this record was projected from. *@
+@model NDSTK.Booking.Domain.TrainingClass
+
+@* Where the training is, as a link to the map when the club's address is filled in on Inställningar
+   and as plain text when it is not. Shared by the class list, Mina bokningar and the reminder
+   banner, so all three link the same way and none of them has to know how the URL is built.
+
+   Renders nothing at all when the class has no location, so a caller writing a separator has to
+   check that itself - the same arrangement as InstructorName. *@
+@if (Model.Location is { Length: > 0 } place)
+{
+    if (Model.MapUrl is { Length: > 0 } map)
+    {
+        @* New tab: a member checking where the courts are has not finished with the page they are
+           on, and on a phone the search hands over to the map app. *@
+        <a class="map-link" href="@map" target="_blank" rel="noopener"
+           title="Visa på Google Maps">@place</a>
+    }
+    else
+    {
+        @place
+    }
+}

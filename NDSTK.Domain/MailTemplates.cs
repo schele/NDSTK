@@ -80,15 +80,21 @@ public static class MailTemplates
     /// reason the stored instant is UTC and the display is converted.
     /// </remarks>
     public static MailContent ClassReminder(
-        string classTitle, DateTime startUtc, string? location, string? portalUrl)
+        string classTitle, DateTime startUtc, string? location, string? portalUrl, string? mapUrl = null)
     {
         var title = WebUtility.HtmlEncode(classTitle);
         DateTime local = SwedishTime.ToSwedish(startUtc);
         var when = local.ToString("dddd d MMMM 'kl.' HH:mm", Swedish);
 
-        var locationLine = string.IsNullOrWhiteSpace(location)
+        // The court, linked to the map when the club has an address configured. Worth more in a
+        // reminder than anywhere else: this is the mail somebody opens on the way there.
+        var place = string.IsNullOrWhiteSpace(location)
             ? string.Empty
-            : $"<p>Plats: {WebUtility.HtmlEncode(location)}</p>";
+            : string.IsNullOrWhiteSpace(mapUrl)
+                ? WebUtility.HtmlEncode(location)
+                : $"""<a href="{WebUtility.HtmlEncode(mapUrl)}">{WebUtility.HtmlEncode(location)}</a>""";
+
+        var locationLine = place.Length == 0 ? string.Empty : $"<p>Plats: {place}</p>";
 
         var portalLine = string.IsNullOrWhiteSpace(portalUrl)
             ? string.Empty
