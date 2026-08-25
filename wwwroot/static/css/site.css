@@ -602,10 +602,16 @@ footer {
        it. It does not need shortening to keep the button in place: the button sits in column two,
        and a grid column does not move with the width of what is beside it. */
 
-    /* Left edge of its column, so it lines up with Efternamn above rather than stretching across. */
+    /* Left edge of its column, so it lines up with Efternamn above rather than stretching across -
+       and full row height, so its top and bottom meet the field beside it.
+
+       align-self rather than a padding of its own: the row is as tall as the input, so stretching
+       to it matches by construction. Hand-tuning the button's padding to the same visual height
+       would need redoing the moment either font size or input padding moved. */
     .child-list__form button {
         margin-top: 0;
         justify-self: start;
+        align-self: stretch;
     }
 
 /* One column when there is not room for two: side-by-side name fields under about 30rem are

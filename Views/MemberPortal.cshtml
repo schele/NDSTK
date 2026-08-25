@@ -298,9 +298,22 @@
 
                                             @* Secondary, not a link: it is an equal alternative to
                                                paying, so it should look like a choice rather than a
-                                               footnote - just not competing with the yellow. *@
+                                               footnote - just not competing with the yellow.
+
+                                               Names the child when there is only one left to book,
+                                               the same way the paying button does. On a family
+                                               account with one sibling already on the class, an
+                                               unqualified "Boka med tillgodoträning" leaves the
+                                               member to work out who it would apply to. *@
                                             <button type="submit" class="btn-secondary">
-                                                Boka med tillgodoträning
+                                                @if (choices.Length == 1)
+                                                {
+                                                    <text>Boka med tillgodoträning för @choices[0].FirstName</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>Boka med tillgodoträning</text>
+                                                }
                                             </button>
                                         }
                                     }
