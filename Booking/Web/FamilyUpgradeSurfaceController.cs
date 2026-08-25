@@ -68,6 +68,33 @@ public sealed class FamilyUpgradeSurfaceController(
         }
 
         MembershipSettings config = settings.Get();
+        DateOnly today = DateOnly.FromDateTime(SwedishTime.ToSwedish(DateTime.UtcNow));
+
+        // Nothing to sell yet.
+        //
+        // The supplement buys family status for the remainder of the CURRENT membership year, and a
+        // member who has never paid - or who has lapsed - has no current year for it to cover. Their
+        // next booking will renew the membership, and Pricing.Quote charges the supplement alongside
+        // the annual fee whenever this flag is set. Taking 100 kr here as well would charge them
+        // twice for one thing, minutes apart.
+        //
+        // So the flag is simply set, free, and the money is collected once, on the booking that
+        // creates the membership year it belongs to.
+        if (Pricing.IsMembershipValid(member, today) is false)
+        {
+            await profiles.SetFamilyAccountAsync(user.Key);
+
+            TempData["ChildMessage"] =
+                $"Familjekonto aktiverat. Tillägget på {config.Prices.FamilyFeeOre / 100} kr läggs "
+                + "till tillsammans med årsavgiften på din nästa bokning.";
+
+            logger.LogInformation(
+                "Member {MemberKey} became a family account with no membership to charge against; "
+                + "the supplement rides along with their next booking.", user.Key);
+
+            return RedirectToCurrentUmbracoPage();
+        }
+
         BookingQuote quote = Pricing.FamilyUpgradeQuote(config.Prices);
 
         var payment = new PaymentRecord

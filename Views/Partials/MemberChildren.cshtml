@@ -96,7 +96,7 @@
     }
     else
     {
-        @* The upgrade is sold here rather than in the membership box, because this is where the
+        @* The upgrade is offered here rather than in the membership box, because this is where the
            member has just discovered they cannot do what they wanted. *@
         <p class="form-notice">
             Ditt konto har plats för ett barn. Med ett <strong>familjekonto</strong> kan du anmäla
@@ -105,12 +105,32 @@
             går ut.
         </p>
 
-        using (Html.BeginUmbracoForm<FamilyUpgradeSurfaceController>(
-            nameof(FamilyUpgradeSurfaceController.Upgrade)))
+        @* What the button costs depends on whether there is a membership year to spread the
+           supplement across. With no live membership it is charged with the årsavgift on the next
+           booking instead - promising a payment here and then charging again there would take the
+           same 100 kr twice. *@
+        @if (Model.Membership.IsValid)
         {
-            <button type="submit" class="btn-primary">
-                Uppgradera till familjekonto — @(Model.Prices.FamilyFeeOre / 100) kr
-            </button>
+            using (Html.BeginUmbracoForm<FamilyUpgradeSurfaceController>(
+                nameof(FamilyUpgradeSurfaceController.Upgrade)))
+            {
+                <button type="submit" class="btn-primary">
+                    Uppgradera till familjekonto — @(Model.Prices.FamilyFeeOre / 100) kr
+                </button>
+            }
+        }
+        else
+        {
+            <p class="form-hint">
+                Du betalar tillägget tillsammans med årsavgiften nästa gång du bokar
+                (@(Model.Prices.MembershipFeeOre / 100) + @(Model.Prices.FamilyFeeOre / 100) kr).
+            </p>
+
+            using (Html.BeginUmbracoForm<FamilyUpgradeSurfaceController>(
+                nameof(FamilyUpgradeSurfaceController.Upgrade)))
+            {
+                <button type="submit" class="btn-primary">Aktivera familjekonto</button>
+            }
         }
     }
 </div>
