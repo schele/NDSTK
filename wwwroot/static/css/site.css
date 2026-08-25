@@ -595,12 +595,9 @@ footer {
         font: inherit;
     }
 
-    /* Eight digits, never more. Narrower than its column rather than filling it, which is what
-       leaves the space between it and the button while the button stays in column two. */
-    .child-list__form input[name="BirthDate"] {
-        width: 8.5rem;
-        max-width: 100%;
-    }
+    /* The birth date fills its column like every other field, so it matches Förnamn directly above
+       it. It does not need shortening to keep the button in place: the button sits in column two,
+       and a grid column does not move with the width of what is beside it. */
 
     /* Left edge of its column, so it lines up with Efternamn above rather than stretching across. */
     .child-list__form button {
@@ -614,10 +611,6 @@ footer {
     .child-list__form {
         grid-template-columns: 1fr;
     }
-
-        .child-list__form input[name="BirthDate"] {
-            width: 100%;
-        }
 }
 
 /* Whose place a booking is. Sits between the class name and the time, and is weighted
