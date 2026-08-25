@@ -52,17 +52,24 @@
             }
 
             @* Priced per child: the welcome price is once per child, so on a family account two
-               children routinely have two different next-class prices. *@
-            @foreach (var child in portal.Children)
-            {
-                var welcomeNote = child.FirstClassAvailable ? " (välkomstpris)" : string.Empty;
-                <p>
-                    Nästa träning för <strong>@child.FullName</strong> kostar
-                    <strong>@Kr(portal.NextClassFeeOreFor(child)) kr</strong>@welcomeNote.
-                </p>
-            }
+               children routinely have two different next-class prices.
 
-            @if (portal.UnspentCredits > 0)
+               Not shown at all while the account holds a credit. The paying option is not offered
+               in that state either, so a price nobody is about to be charged is just a number to
+               misread. The lapsed-membership notice above still says the årsavgift is coming, which
+               is the one charge a credit does not cover. *@
+            @if (portal.UnspentCredits == 0)
+            {
+                foreach (var child in portal.Children)
+                {
+                    var welcomeNote = child.FirstClassAvailable ? " (välkomstpris)" : string.Empty;
+                    <p>
+                        Nästa träning för <strong>@child.FullName</strong> kostar
+                        <strong>@Kr(portal.NextClassFeeOreFor(child)) kr</strong>@welcomeNote.
+                    </p>
+                }
+            }
+            else
             {
                 <p class="form-notice form-notice--ok">
                     Du har <strong>@portal.UnspentCredits</strong>
