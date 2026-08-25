@@ -568,13 +568,11 @@ footer {
        Spacing that depends on which optional children a block happens to render is spacing nobody
        can reason about, so both boxes now say the same two numbers. */
     padding: 1.25rem 0 1.7rem;
+    /* Kept on the last child too, unlike the other two lists. The "Lägg till ett barn" form sits
+       directly below this list, so the final rule is still separating two things rather than
+       trailing off under nothing. */
     border-bottom: 1px solid #ddd;
 }
-
-    /* Same as the bookings list: nothing below the last child to separate it from. */
-    .child-list__item:last-child {
-        border-bottom: 0;
-    }
 
 .child-list__head {
     display: flex;
