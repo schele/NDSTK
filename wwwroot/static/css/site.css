@@ -470,6 +470,12 @@ footer {
 .form-notice {
     padding: 0.75rem 1rem;
     border-radius: 4px;
+    /* Neutral grey, at the same lightness as the green of --ok and the red of --error, so all three
+       read as one family of boxes that differ only in what they mean. The base carries it because
+       the base IS the neutral case; both modifiers set a background of their own. Without a fill
+       the neutral notice was a bare left rule floating on the card, which looked like a different
+       component rather than the same one saying something unremarkable. */
+    background: #f1f1f4;
     /* The colour is stated rather than left to currentColor. Without it the neutral notice - the
        one that just tells a member what the next charge will be - inherited --text and drew a
        near-black bar, which read as an unstyled element rather than as information. The brand blue

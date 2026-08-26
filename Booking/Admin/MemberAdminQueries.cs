@@ -244,8 +244,15 @@ public sealed class MemberAdminQueries(
             member.GetValue<string>(MemberProfileService.PhoneAlias),
             member.GetValue<bool>(MemberProfileService.FamilyAccountAlias),
             member.EmailConfirmedDate,
-            // A comped membership was never paid for, so fall back to when the account was made.
-            total?.MemberSinceUtc ?? member.CreateDate,
+            // The first payment that included the årsavgift is when somebody became a member. A
+            // comped membership has no such payment, so fall back to when the account was made -
+            // but only where a membership actually exists.
+            //
+            // Without that guard the fallback fired for every account, so one that registered and
+            // never confirmed its address showed a "member since" date. Registration creates the
+            // member unapproved and only verification approves it, so such an account cannot even
+            // sign in - it is a dead registration, and this column was calling it a membership.
+            total?.MemberSinceUtc ?? (paidUntil is null ? null : member.CreateDate),
             paidUntil is null ? null : DateOnly.FromDateTime(paidUntil.Value),
             total?.TotalPaidOre ?? 0,
             total?.LastPaymentUtc,
