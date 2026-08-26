@@ -1,4 +1,11 @@
-﻿:root {
+﻿/* ":host" is here for the backoffice. BlockPreview renders each block into a shadow root and
+   adopts this stylesheet into it, and inside a shadow root ":root" matches nothing at all - so
+   without ":host" every var() below resolves to nothing and the previews come out with black
+   buttons and black headings. ":host" is a valid selector that simply never matches outside a
+   shadow tree, so the rule stays correct on the site. One palette, both places, nothing to keep
+   in sync. */
+:root,
+:host {
     --primary: #001F54;
     --accent: #F7E300;
     --bg: #E5E6E8;
@@ -11,6 +18,24 @@ body {
     font-family: 'Segoe UI', Roboto, sans-serif;
     background-color: var(--bg);
     color: var(--text);
+}
+
+/* And "body" does not match inside a shadow root either, so a preview would otherwise inherit the
+   backoffice's own font and text colour. The background is deliberately not repeated: a block
+   should sit on the editor's surface, not on a grey card of its own.
+
+   "line-height: normal" is the one that matters most. Selectors do not cross a shadow boundary but
+   inheritance does, and the backoffice states its line-height in fixed pixels - 21px and 18px
+   throughout umb-css.css. Nothing in this file sets line-height, so on the site every element
+   computes "normal" and sizes its lines from its own font-size; inside the preview each one instead
+   got 21px. A 2.2rem hero heading is 35.2px of glyph in a 21px line, so the moment the editor
+   column was narrow enough to wrap the heading, the second line landed on top of the first. It read
+   as a block that would not reflow, when in fact it reflowed correctly and then had nowhere to put
+   the lines. */
+:host {
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    color: var(--text);
+    line-height: normal;
 }
 
 a {

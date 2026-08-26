@@ -20,6 +20,7 @@
     <PackageReference Include="Esatto.Umbraco.Backoffice.DictionaryFilterValues" Version="1.0.3" />
     <PackageReference Include="Esatto.Umbraco.Backoffice.MediaTreeDragAndDrop" Version="1.0.1" />
     <PackageReference Include="Umbraco.Cms" Version="18.1.1" />
+    <PackageReference Include="Umbraco.Community.BlockPreview" Version="6.0.0" />
     <PackageReference Include="uSync" Version="18.1.1" />
   </ItemGroup>
 

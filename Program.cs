@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Esatto.Umbraco.Backoffice.CookieBanner;
 using NDSTK.Booking.Admin;
 using NDSTK.Booking.Web;
+using Umbraco.Community.BlockPreview.Extensions;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -77,6 +78,31 @@ builder.CreateUmbracoBuilder()
     .AddBackOffice()
     .AddWebsite()
     .AddComposers()
+    // Renders each block in the backoffice through the same Razor partial the site uses, so an
+    // editor sees the hero, the news list and the widgets rather than a row of labels. Configured
+    // here rather than in appsettings.json because these values describe what this site's content
+    // model contains - two Umbraco.BlockList data types, no block grid, no rich text blocks - and
+    // so should change with the content model, not per environment.
+    .AddBlockPreview(options =>
+    {
+        options.BlockList.Enabled = true;
+
+        // The site's own stylesheet, so a preview is styled by the same rules as the page. Previews
+        // render into shadow DOM, which is why site.css declares its custom properties on
+        // ":root, :host" - see the comment at the top of that file.
+        options.BlockList.Stylesheets = ["/static/css/site.css"];
+
+        // ContentTypes is deliberately left unset: the package reads "no content types" as "every
+        // element type", which covers both block lists and needs no edit when an eighth block is
+        // added. ViewLocations is left alone too - the package's default for a block list is
+        // /Views/Partials/blocklist/Components/{0}.cshtml, which is where the partials already are.
+
+        // Neither editor exists on this site, so nothing would render for them anyway. Stated
+        // rather than left at the default, because it is the line that has to change on the day a
+        // block grid is added and its blocks show up as labels again.
+        options.BlockGrid.Enabled = false;
+        options.RichText.Enabled = false;
+    })
     .Build();
 
 WebApplication app = builder.Build();
