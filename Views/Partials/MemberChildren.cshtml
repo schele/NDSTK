@@ -152,12 +152,9 @@
         else
         {
             @* No membership year for the supplement to cover, so it is charged with the årsavgift
-               on the next booking instead. *@
-            <p class="form-hint">
-                Du betalar tillägget tillsammans med årsavgiften nästa gång du bokar
-                (@(Model.Prices.MembershipFeeOre / 100) + @(Model.Prices.FamilyFeeOre / 100) kr).
-            </p>
-
+               on the next booking instead - which is why this button, unlike the one above, quotes
+               no price. What it will cost is in the Mitt medlemskap notice, which states the
+               årsavgift and the supplement as one sum the moment the account becomes a family. *@
             using (Html.BeginUmbracoForm<FamilyUpgradeSurfaceController>(
                 nameof(FamilyUpgradeSurfaceController.Upgrade)))
             {
