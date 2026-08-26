@@ -462,7 +462,12 @@ footer {
 .form-notice {
     padding: 0.75rem 1rem;
     border-radius: 4px;
-    border-left: 4px solid;
+    /* The colour is stated rather than left to currentColor. Without it the neutral notice - the
+       one that just tells a member what the next charge will be - inherited --text and drew a
+       near-black bar, which read as an unstyled element rather than as information. The brand blue
+       is the right weight for that: --ok and --error override it and keep their green and red for
+       the two cases where the colour carries meaning. */
+    border-left: 4px solid var(--primary);
     /* Equal above and below, and stated explicitly because these are rendered as a <p> inside cards
        but as a <div> for the page-level messages - a div has no default margin, so a standalone
        notice was sitting flush against the card beneath it. 1.5rem matches .post's own spacing, so
