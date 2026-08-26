@@ -240,7 +240,17 @@ a.email:hover {
     margin-top: 2rem;
 }
 
-.post {
+/* The cookie policy's sections are cards on the same terms as a news post: the package that renders
+   that page styles its own components - the dialog, the buttons, the cookie tables - and says
+   nothing at all about the <article>s wrapping them, deliberately, because a page's frame belongs to
+   the site and not to the package. Left alone they sat straight on the grey page background, the one
+   page on the site whose content had no card under it.
+
+   Joined to this selector rather than declared again: two copies of the same four properties drift,
+   and consent-overrides.css is the wrong home for it - that file is for redeclaring the package's
+   --consent-* tokens, and this overrides nothing the package states. */
+.post,
+.consent-policy > article {
     background: white;
     padding: 1.5rem;
     border-radius: 6px;
@@ -257,6 +267,13 @@ a.email:hover {
         color: var(--muted);
         display: block;
         margin-bottom: 0.5rem;
+    }
+
+    /* Same treatment .post gives an h2 and .widget an h3: a heading inside a card is the brand
+       colour. The h2s only - the policy's h1 is the page title, and no rule in this file colours an
+       h1, so the article page's is the default too. Colouring this one would make it the odd page. */
+    .consent-policy > article h2 {
+        color: var(--primary);
     }
 
 /* Sidebar */
@@ -380,13 +397,15 @@ footer {
 /* Rich text inside a block should not add stray top/bottom margins */
 .post > :first-child,
 .widget > :first-child,
-.rich-text > :first-child {
+.rich-text > :first-child,
+.consent-policy > article > :first-child {
     margin-top: 0;
 }
 
 .post > :last-child,
 .widget > :last-child,
-.rich-text > :last-child {
+.rich-text > :last-child,
+.consent-policy > article > :last-child {
     margin-bottom: 0;
 }
 
