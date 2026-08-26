@@ -33,12 +33,11 @@ public sealed class MemberAdminQueries(
             $"""
             SELECT MemberKey,
                    SUM(CASE WHEN Status = @0 THEN 1 ELSE 0 END) AS Confirmed,
-                   SUM(CASE WHEN Status = @1 THEN 1 ELSE 0 END) AS Cancelled,
-                   SUM(CASE WHEN Status = @2 THEN 1 ELSE 0 END) AS Expired
+                   SUM(CASE WHEN Status = @1 THEN 1 ELSE 0 END) AS Cancelled
             FROM {BookingTables.Booking}
             GROUP BY MemberKey
             """,
-            BookingStatus.Confirmed, BookingStatus.Cancelled, BookingStatus.Expired))
+            BookingStatus.Confirmed, BookingStatus.Cancelled))
             .ToDictionary(row => row.MemberKey);
 
         Dictionary<Guid, PaymentTotals> totals = (await scope.Database.FetchAsync<PaymentTotals>(
@@ -253,7 +252,6 @@ public sealed class MemberAdminQueries(
             names?.Count ?? 0,
             count?.Confirmed ?? 0,
             count?.Cancelled ?? 0,
-            count?.Expired ?? 0,
             credits.TryGetValue(member.Key, out var unspent) ? unspent : 0,
             names ?? []);
     }
@@ -266,7 +264,6 @@ public sealed class MemberAdminQueries(
         public Guid MemberKey { get; set; }
         public int Confirmed { get; set; }
         public int Cancelled { get; set; }
-        public int Expired { get; set; }
     }
 
     private sealed class PaymentTotals

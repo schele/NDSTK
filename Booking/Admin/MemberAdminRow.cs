@@ -19,7 +19,6 @@ public sealed record MemberAdminRow(
     int ParticipantCount,
     int ConfirmedBookings,
     int CancelledBookings,
-    int ExpiredBookings,
     int UnspentCredits,
     IReadOnlyList<string> ChildNames)
 {

@@ -175,7 +175,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
         const header = [
             'Namn', 'E-post', 'Telefon', 'Familjekonto', 'Verifierad', 'Medlem sedan',
             'Går ut', 'Dagar kvar', 'Deltagare', 'Barn', 'Betalt (kr)', 'Senaste betalning',
-            'Bokade', 'Avbokade', 'Ej betalda', 'Krediter',
+            'Bokade', 'Avbokade', 'Krediter',
         ];
 
         const rows = this.#filtered.map((row) => [
@@ -183,7 +183,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
             date(row.verifiedUtc), date(row.memberSinceUtc), row.paidUntil ?? '',
             row.daysLeft ?? '', row.participantCount, (row.childNames ?? []).join('; '),
             row.totalPaidOre / 100, date(row.lastPaymentUtc), row.confirmedBookings,
-            row.cancelledBookings, row.expiredBookings, row.unspentCredits,
+            row.cancelledBookings, row.unspentCredits,
         ]);
 
         // Every field quoted and embedded quotes doubled: a child's name can contain a comma.
@@ -259,7 +259,6 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                     <uui-table-head-cell>Betalt</uui-table-head-cell>
                     <uui-table-head-cell>Bokade</uui-table-head-cell>
                     <uui-table-head-cell title="Avbokade av medlemmen">Avbok.</uui-table-head-cell>
-                    <uui-table-head-cell title="Bokningar där betalningen aldrig slutfördes">Ej bet.</uui-table-head-cell>
                     <uui-table-head-cell title="Outnyttjade tillgodoträningar">Kred.</uui-table-head-cell>
                     ${this._resetAvailable ? html`<uui-table-head-cell></uui-table-head-cell>` : ''}
                 </uui-table-head>
@@ -283,7 +282,6 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                         <uui-table-cell>${kr(row.totalPaidOre)}</uui-table-cell>
                         <uui-table-cell>${row.confirmedBookings}</uui-table-cell>
                         <uui-table-cell>${row.cancelledBookings}</uui-table-cell>
-                        <uui-table-cell>${row.expiredBookings}</uui-table-cell>
                         <uui-table-cell>${row.unspentCredits}</uui-table-cell>
                         ${/* The row itself opens the detail panel, so this click stops here. */
                           this._resetAvailable ? html`
@@ -307,9 +305,8 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
 
             <p class="note">
                 <strong>Avbok.</strong> är träningar medlemmen själv avbokat och fått en
-                tillgodoträning för. <strong>Ej bet.</strong> är bokningar där betalningen aldrig
-                slutfördes och platsen släpptes. Frånvaro registreras inte, så en deltagare som var
-                bokad men inte kom syns inte i någon av kolumnerna.
+                tillgodoträning för. Frånvaro registreras inte, så en deltagare som var bokad men
+                inte kom syns inte i någon av kolumnerna.
             </p>
         `;
     }
