@@ -38,7 +38,17 @@
         .SelectMany(node => node.DescendantsOfType("cookiePolicy"))
         .FirstOrDefault(page => page.IsPublished());
 
-    var metaTitle = Model?.Value<string>("metaTitle").IfNullOrWhiteSpace(Model?.Name).IfNullOrWhiteSpace(siteName);
+    // The club's name belongs in the tab: a tab is read out of context, and "Mina sidor" on its own
+    // does not say whose pages they are - particularly beside a dozen other tabs.
+    //
+    // An explicit metaTitle is used exactly as typed. An editor who fills that field in is writing
+    // the whole title, and the start page's already opens with the club's name - prefixing it again
+    // would give "NDSTK - NDSTK - Tennisklubben...".
+    var pageName = Model?.Name;
+    var metaTitle = Model?.Value<string>("metaTitle").IfNullOrWhiteSpace(
+        string.IsNullOrWhiteSpace(pageName) || pageName == siteName
+            ? siteName
+            : $"{siteName} - {pageName}");
     var metaDescription = Model?.Value<string>("metaDescription");
     var metaAuthor = Model?.Value<string>("metaAuthor");
     var metaRobots = Model?.Value<string>("metaRobots").IfNullOrWhiteSpace("INDEX,FOLLOW");
