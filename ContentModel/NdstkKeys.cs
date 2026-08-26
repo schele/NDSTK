@@ -114,5 +114,9 @@ internal static class NdstkKeys
         internal static readonly Guid ExampleClass3 = new("c0117e17-0000-4000-8000-00000000000c");
         internal static readonly Guid SwishPayment = new("c0117e17-0000-4000-8000-00000000000d");
         internal static readonly Guid Instructors = new("c0117e17-0000-4000-8000-00000000000e");
+
+        /// <summary>The coaches the example classes are assigned to on a fresh site.</summary>
+        internal static readonly Guid ExampleCoach1 = new("c0117e17-0000-4000-8000-00000000000f");
+        internal static readonly Guid ExampleCoach2 = new("c0117e17-0000-4000-8000-000000000010");
     }
 }

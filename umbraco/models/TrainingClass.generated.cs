@@ -80,14 +80,6 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		public virtual int DurationMinutes => this.Value<int>(_publishedValueFallback, "durationMinutes");
 
 		///<summary>
-		/// Tränare (utgått): Ersatt av väljaren ovan. Läses bara av importen som skapade tränarna.
-		///</summary>
-		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
-		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
-		[ImplementPropertyType("instructor")]
-		public virtual string Instructor => this.Value<string>(_publishedValueFallback, "instructor");
-
-		///<summary>
 		/// Plats
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]

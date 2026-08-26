@@ -42,7 +42,7 @@ internal sealed class NdstkContentModelInstallHandler(
             memberContentUpgrade.Upgrade();
 
             // After the Tränare folder exists, since that is where the coach nodes go.
-            instructorBackfill.Run();
+            await instructorBackfill.RunAsync();
 
             // Last: the portal node has to exist before it can be protected.
             await memberAccess.InstallAsync();

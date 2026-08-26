@@ -326,6 +326,39 @@ internal sealed class NdstkContentTypeFactory(
     }
 
     /// <summary>
+    /// Drops a property from a document type that already has it.
+    /// </summary>
+    /// <remarks>
+    /// The third kind of change this file makes, and the only destructive one: removing a property
+    /// type takes every value stored against it with it. So it is only ever used on a field whose
+    /// contents have already been carried somewhere else, and the caller is responsible for having
+    /// done that first.
+    ///
+    /// Naturally idempotent - a property that is already gone returns false - so the call can sit
+    /// in the install path and run on every start.
+    /// </remarks>
+    /// <returns>True when the property was there and is now gone.</returns>
+    public async Task<bool> RemovePropertyAsync(Guid contentTypeKey, string propertyAlias)
+    {
+        IContentType? contentType = contentTypeService.Get(contentTypeKey);
+        if (contentType is null || contentType.PropertyTypeExists(propertyAlias) is false)
+        {
+            return false;
+        }
+
+        contentType.RemovePropertyType(propertyAlias);
+
+        var attempt = await contentTypeService.UpdateAsync(contentType, UserKey);
+        if (attempt.Success is false)
+        {
+            throw new InvalidOperationException(
+                $"Could not remove '{propertyAlias}' from '{contentType.Alias}': {attempt.Result}.");
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Brings an existing property's label and description into line with the declaration.
     /// </summary>
     /// <remarks>

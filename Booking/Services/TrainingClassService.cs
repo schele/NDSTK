@@ -109,9 +109,7 @@ public sealed class TrainingClassService(
     }
 
     /// <summary>
-    /// The picked coach, or nothing. Falls back to the retired text field so a class an editor has
-    /// not repicked yet still shows a name - the backfill fills the picker in, but an editor who
-    /// clears it should not silently blank the listing.
+    /// The picked coach, or nothing when an editor has not picked one.
     /// </summary>
     /// <remarks>
     /// This is the only place that knows an instructor is a content node, in the same way this class
@@ -124,8 +122,7 @@ public sealed class TrainingClassService(
 
         if (coach is null)
         {
-            var legacy = content.Value<string>("instructor");
-            return string.IsNullOrWhiteSpace(legacy) ? null : new ClassInstructor(legacy);
+            return null;
         }
 
         return new ClassInstructor(

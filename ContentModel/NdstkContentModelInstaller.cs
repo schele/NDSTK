@@ -135,15 +135,16 @@ internal sealed class NdstkContentModelInstaller(
         // where the text field stored a name, so the two cannot share a column - it is a new
         // property, and NdstkInstructorBackfill turns the old names into nodes and fills it in.
         //
-        // The text field is kept and relabelled rather than deleted, because the backfill reads it -
-        // the same arrangement as firstClassDiscountUsed on the member type.
+        // The old text field is not declared here at all. It only ever existed on sites installed
+        // before the picker, and the backfill deletes it once it has carried the names over - which
+        // happens after this method, so a site arriving here with names still in it keeps them long
+        // enough to migrate.
         var classChanged = await factory.EnsureGroupAsync(
             DocumentTypes.TrainingClass,
             DeriveKey(DocumentTypes.TrainingClass, 1),
             "content",
             "Träningen",
-            factory.Property(BuiltInDataTypes.ContentPicker, "coach", "Tränare", "Välj en tränare under Tränare.", 5),
-            factory.Property(BuiltInDataTypes.Textstring, "instructor", "Tränare (utgått)", "Ersatt av väljaren ovan. Läses bara av importen som skapade tränarna.", 7));
+            factory.Property(BuiltInDataTypes.ContentPicker, "coach", "Tränare", "Välj en tränare under Tränare.", 5));
 
         if (classChanged)
         {

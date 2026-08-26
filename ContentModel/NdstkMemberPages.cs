@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NDSTK.Booking.Domain;
+using Umbraco.Cms.Core;
 using static NDSTK.ContentModel.NdstkKeys;
 
 namespace NDSTK.ContentModel;
@@ -57,13 +58,28 @@ internal sealed class NdstkMemberPages(
 
         pages.EnsurePage(Nodes.TrainingClasses, "Träningar", Nodes.Start, "trainingClasses");
 
-        // Empty on a fresh site. NdstkInstructorBackfill fills it from the names already typed on
-        // the classes; on a brand-new database there are none, and an editor adds their own.
         pages.EnsurePage(Nodes.Instructors, "Tränare", Nodes.Start, "instructors");
 
+        // Before the classes: each example class picks one of these, so the picker has something to
+        // resolve the moment the class is created.
+        SeedExampleCoaches();
         SeedExampleClasses();
 
         logger.LogDebug("Member pages checked.");
+    }
+
+    /// <summary>
+    /// The two coaches the example classes are assigned to.
+    /// </summary>
+    /// <remarks>
+    /// Names only. The photo, role, quote and merits are what an editor fills in, and inventing
+    /// biographies for two fictional coaches would put words in the club's mouth - a coach with
+    /// nothing but a name renders as plain text, which is the honest state for seed data.
+    /// </remarks>
+    private void SeedExampleCoaches()
+    {
+        pages.EnsurePage(Nodes.ExampleCoach1, "Anna Lind", Nodes.Instructors, "instructor");
+        pages.EnsurePage(Nodes.ExampleCoach2, "Johan Berg", Nodes.Instructors, "instructor");
     }
 
     /// <summary>
@@ -77,13 +93,13 @@ internal sealed class NdstkMemberPages(
         // UTC on the way out, so seeding in local time is what keeps the two consistent.
         DateTime todaySwedish = SwedishTime.ToSwedish(DateTime.UtcNow).Date;
 
-        (Guid Key, string Name, int DaysAhead, int Hour, int Capacity, string Coach, string Court, string About)[] examples =
+        (Guid Key, string Name, int DaysAhead, int Hour, int Capacity, Guid Coach, string Court, string About)[] examples =
         [
-            (Nodes.ExampleClass1, "Nybörjartennis", 2, 18, 8, "Anna Lind", "Bana 1",
+            (Nodes.ExampleClass1, "Nybörjartennis", 2, 18, 8, Nodes.ExampleCoach1, "Bana 1",
                 "Grunderna i slag och fotarbete. Racket finns att låna."),
-            (Nodes.ExampleClass2, "Teknikpass", 4, 19, 6, "Johan Berg", "Bana 2",
+            (Nodes.ExampleClass2, "Teknikpass", 4, 19, 6, Nodes.ExampleCoach2, "Bana 2",
                 "Vi filar på forehand och backhand i högre tempo."),
-            (Nodes.ExampleClass3, "Dubbelträning", 6, 17, 4, "Anna Lind", "Bana 1",
+            (Nodes.ExampleClass3, "Dubbelträning", 6, 17, 4, Nodes.ExampleCoach1, "Bana 1",
                 "Positionsspel och kommunikation i dubbel."),
         ];
 
@@ -97,7 +113,11 @@ internal sealed class NdstkMemberPages(
                     page.SetValue("start", todaySwedish.AddDays(example.DaysAhead).AddHours(example.Hour));
                     page.SetValue("durationMinutes", 60);
                     page.SetValue("capacity", example.Capacity);
-                    page.SetValue("instructor", example.Coach);
+                    // A content picker stores a UDI. The coach node is seeded above, so this is
+                    // built from the key rather than looked up.
+                    page.SetValue(
+                        "coach",
+                        Udi.Create(Constants.UdiEntityType.Document, example.Coach).ToString());
                     page.SetValue("location", example.Court);
                 });
         }
