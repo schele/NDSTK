@@ -109,5 +109,21 @@
                 </li>
             }
         </ul>
+
+        @* Stated once under the list rather than on each row, and in the open rather than only in
+           the button's tooltip - a member finding out about the deadline from a greyed-out button
+           has already missed it. Only where cancelling is possible at all: on the payment page the
+           buttons are not rendered, so the rule would be describing something not on offer.
+
+           The hours come from the same setting the button and the repository's WHERE clause use, so
+           the sentence cannot promise a deadline the server would disagree with. *@
+        @if (Model.AllowCancel)
+        {
+            <p class="form-hint">
+                Avbokning stänger @Model.CancellationDeadlineHours timmar före start. Avgiften
+                betalas inte tillbaka, men du får en tillgodoträning att använda till en annan
+                träning.
+            </p>
+        }
     }
 </div>
