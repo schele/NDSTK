@@ -10,9 +10,22 @@ const API_BASE = '/umbraco/management/api/v1/backoffice/ndstk/members';
 // token and every request 401s.
 const SECURITY = [{ scheme: 'bearer', type: 'http' }];
 
-// A class start time, in the reader's own format. localize.dateTime() would be the obvious call, but
-// it formats with timeStyle "medium" - which puts the seconds back on a time nobody needs them for.
-const DATE_TIME = { dateStyle: 'short', timeStyle: 'short' };
+// Dates in this table are data, not prose: they are read down a column and compared, not into a
+// sentence. So they are pinned to ISO rather than localized along with the words around them.
+//
+// "Short" is not one format. The same instant is 8/25/26 in en, 25/08/2026 in en-GB and 2026-08-25
+// in sv-SE, and the first two disagree about which number is the month - next to a membership
+// expiry the API already sends as an ISO string, that is a misreading waiting to happen rather than
+// a matter of taste.
+//
+// sv-SE is chosen for its date pattern, not its language: nothing formatted here is a word. Local
+// time rather than UTC, because an instant late on the 24th in Stockholm is the 25th to the club
+// reading it - which is exactly why an account created at 23:15 showed up a day later.
+const ISO_DATE = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'short' });
+
+// Seconds left off deliberately. localize.dateTime() would be the obvious call for a start time,
+// but it formats with timeStyle "medium" and puts them back.
+const ISO_DATE_TIME = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'short', timeStyle: 'short' });
 
 class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
     static properties = {
@@ -62,7 +75,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
 
     // An em dash rather than an empty cell: a blank could mean "none" or "failed to load".
     #date(iso) {
-        return iso ? this.localize.date(iso) : '—';
+        return iso ? ISO_DATE.format(new Date(iso)) : '—';
     }
 
     // A lapsed membership reads as a word, not as a negative number of days.
@@ -391,7 +404,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                             <uui-table-row>
                                 <uui-table-cell>${b.childName}</uui-table-cell>
                                 <uui-table-cell>${b.className}</uui-table-cell>
-                                <uui-table-cell>${this.localize.date(b.classStartUtc, DATE_TIME)}</uui-table-cell>
+                                <uui-table-cell>${ISO_DATE_TIME.format(new Date(b.classStartUtc))}</uui-table-cell>
                                 <uui-table-cell>${b.status}</uui-table-cell>
                             </uui-table-row>
                         `)}
