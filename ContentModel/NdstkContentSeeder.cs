@@ -106,18 +106,6 @@ internal sealed class NdstkContentSeeder(
         settings.SetValue("menu", NodeList(articles));
         settings.SetValue("loginPage", Node(login));
         settings.SetValue("footerText", $"© {DateTime.UtcNow.Year} NDSTK Tennis Club — Serve. Volley. Repeat.");
-        settings.SetValue("sidebarWidgets", BlockList(
-            Block(ElementTypes.CtaWidget,
-                ("heading", "Bli medlem i NDSTK"),
-                ("text", "Bli medlem och stöd det lokala föreningslivet. Kostnaden är endast 200 sek. De 20 första medlemmarna får en gratis t-shirt."),
-                ("link", Link("Bli medlem", "#members")),
-                ("highlight", 1)),
-            Block(ElementTypes.ContactWidget,
-                ("heading", "Kontakt"),
-                ("email", "info@ndstk.se")),
-            Block(ElementTypes.TagsWidget,
-                ("heading", "Tags"),
-                ("tags", Tags("Tennis", "Training", "Events", "Community", "Competition")))));
 
         contentService.Save(settings, UserId);
         return settings;
@@ -136,6 +124,22 @@ internal sealed class NdstkContentSeeder(
             Block(ElementTypes.NewsList,
                 ("source", Node(articles)),
                 ("maxItems", 3))));
+
+        // The sidebar, on the same node as the column beside it.
+        //
+        // No "Bli medlem i NDSTK" box, though the previous design had one: it repeats the hero
+        // directly to its left, and once a visitor has signed in it is simply wrong - inviting
+        // somebody to join who already has. NdstkMemberContentUpgrade removed it from sites seeded
+        // before that was noticed, so seeding it again here would put it back on every new site.
+        start.SetValue("sidebarWidgets", BlockList(
+            Block(ElementTypes.MemberWidget,
+                ("heading", "Medlem")),
+            Block(ElementTypes.ContactWidget,
+                ("heading", "Kontakt"),
+                ("email", "info@ndstk.se")),
+            Block(ElementTypes.TagsWidget,
+                ("heading", "Tags"),
+                ("tags", Tags("Tennis", "Training", "Events", "Community", "Competition")))));
 
         contentService.Save(start, UserId);
     }

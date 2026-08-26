@@ -8,6 +8,8 @@
         if (block?.ContentKey == null) { continue; }
         var data = block.Content;
 
-        @await Html.PartialAsync("blocklist/Components/" + data.ContentType.Alias, block)
+        @* PascalCased to match the partial filenames - see the comment at the same call in
+           Root.cshtml for why the casing is not optional. *@
+        @await Html.PartialAsync("blocklist/Components/" + data.ContentType.Alias.ToFirstUpperInvariant(), block)
     }
 </div>

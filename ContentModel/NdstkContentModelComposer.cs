@@ -21,6 +21,7 @@ public sealed class NdstkContentModelComposer : IComposer
         builder.Services.AddSingleton<NdstkPageInstaller>();
         builder.Services.AddSingleton<NdstkMemberPages>();
         builder.Services.AddSingleton<NdstkMemberContentUpgrade>();
+        builder.Services.AddSingleton<NdstkSidebarWidgetMove>();
         builder.Services.AddSingleton<NdstkInstructorBackfill>();
         builder.Services.AddSingleton<NdstkMemberAccessInstaller>();
 

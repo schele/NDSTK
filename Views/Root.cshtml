@@ -5,7 +5,6 @@
 
 @inject ILanguageService LanguageService
 @inject IUmbracoContextAccessor UmbracoContextAccessor
-@inject Umbraco.Cms.Core.Security.IMemberManager MemberManager
 
 @{
     var umbracoContext = UmbracoContextAccessor.GetRequiredUmbracoContext();
@@ -27,8 +26,11 @@
     var footerText = settings?.Value<string>("footerText")
         .IfNullOrWhiteSpace($"© {DateTime.UtcNow.Year} NDSTK Tennis Club — Serve. Volley. Repeat.");
     var menu = settings?.Value<IEnumerable<IPublishedContent>>("menu") ?? [];
-    var loginPage = settings?.Value<IPublishedContent>("loginPage");
-    var widgets = settings?.Value<BlockListModel>("sidebarWidgets");
+
+    // Off the root, not off Settings. The sidebar is still site-wide - every page reads the same
+    // root node - but it is content rather than configuration, so an editor arranges it on the
+    // start page, next to the column it sits beside.
+    var widgets = root?.Value<BlockListModel>("sidebarWidgets");
 
     // The package resolves its own policy page internally, but that resolver is package-internal,
     // so the footer link below does its own by-type lookup. DescendantsOfType comes from
@@ -108,46 +110,27 @@
         @* Left column - the page's own content *@
         @RenderBody()
 
-        @* Right column - site-wide widgets, configured on the Settings node *@
+        @* Right column - the widgets arranged on the start page, shown on every page *@
         <aside>
-            @{
-                var isMemberLoggedIn = MemberManager.IsLoggedIn();
-                var portalPage = settings?.Value<IPublishedContent>("memberPortalPage");
-            }
             @* A page may take the sidebar over entirely - the member portal does, to put the
-               member's own membership and bookings there instead of the generic boxes. *@
+               member's own membership and bookings there instead of the generic boxes. That is
+               also why the widgets are the else and not a second block: the portal should not
+               carry a "Bli medlem" call to action aimed at somebody who is already a member. *@
             @if (IsSectionDefined("Sidebar"))
             {
                 @await RenderSectionAsync("Sidebar")
             }
-            else if (isMemberLoggedIn)
-            {
-                <div class="widget widget--highlight">
-                    <h3>Medlem</h3>
-                    @if (portalPage is not null)
-                    {
-                        <p><a href="@portalPage.Url()" class="btn-primary">Mina sidor</a></p>
-                    }
-                    @* No sign-out here on purpose. This box appears on every page of the site, and
-                       signing out is not something a member wants within reach while reading an
-                       article. It lives on Mina sidor, at the bottom, where managing the account is
-                       what you came for. *@
-                </div>
-            }
-            else if (loginPage is not null)
-            {
-                <div class="widget widget--highlight">
-                    <h3>Medlem</h3>
-                    <p><a href="@loginPage.Url()" class="btn-primary">Logga in</a></p>
-                </div>
-            }
-            @* Skipped when a page supplies its own sidebar, so the portal does not carry a
-               "Bli medlem" call to action aimed at somebody who is already a member. *@
-            @if (IsSectionDefined("Sidebar") is false)
+            else
             {
                 foreach (var widget in widgets ?? Enumerable.Empty<BlockListItem>())
                 {
-                    @await Html.PartialAsync($"blocklist/Components/{widget.Content.ContentType.Alias}", widget)
+                    @* ToFirstUpperInvariant, not the bare alias. The partials are named in PascalCase
+                       because that is what Umbraco.Community.BlockPreview looks for - it PascalCases
+                       the alias before searching - and a file can only be named one way. Windows
+                       hides a mismatch here entirely, since NTFS is case-insensitive; the Linux
+                       container this publishes to is not, and there the wrong casing means the
+                       widget silently does not render. *@
+                    @await Html.PartialAsync($"blocklist/Components/{widget.Content.ContentType.Alias.ToFirstUpperInvariant()}", widget)
                 }
             }
         </aside>

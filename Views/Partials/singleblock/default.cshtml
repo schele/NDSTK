@@ -3,7 +3,9 @@
     if (Model.ContentKey == Guid.Empty) { return; }
     var data = Model.Content;
 }
+@* PascalCased to match the partial filenames - see the comment at the same call in Root.cshtml for
+   why the casing is not optional. *@
 @await Html.PartialAsync(
-    Html.SingleBlockPartialWithFallback("singleBlock/Components/" + data.ContentType.Alias,
-        "blocklist/Components/" + data.ContentType.Alias )
+    Html.SingleBlockPartialWithFallback("singleBlock/Components/" + data.ContentType.Alias.ToFirstUpperInvariant(),
+        "blocklist/Components/" + data.ContentType.Alias.ToFirstUpperInvariant() )
     , Model)

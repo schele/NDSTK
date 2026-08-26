@@ -16,6 +16,7 @@ internal sealed class NdstkContentModelInstallHandler(
     NdstkContentSeeder seeder,
     NdstkMemberPages memberPages,
     NdstkMemberContentUpgrade memberContentUpgrade,
+    NdstkSidebarWidgetMove sidebarWidgetMove,
     NdstkInstructorBackfill instructorBackfill,
     NdstkMemberAccessInstaller memberAccess,
     ILogger<NdstkContentModelInstallHandler> logger)
@@ -40,6 +41,11 @@ internal sealed class NdstkContentModelInstallHandler(
 
             // After the pages exist, so the Settings pickers have something to point at.
             memberContentUpgrade.Upgrade();
+
+            // After that upgrade, not before: it deletes the duplicate "Bli medlem" widget from the
+            // sidebar, and this carries whatever the sidebar holds onto the start page. The other
+            // way round would move the widget out from under it and put the duplicate back.
+            await sidebarWidgetMove.RunAsync();
 
             // After the Tränare folder exists, since that is where the coach nodes go.
             await instructorBackfill.RunAsync();

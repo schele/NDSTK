@@ -109,6 +109,7 @@ builder.CreateUmbracoBuilder()
             "ctaWidgetBlock",
             "contactWidgetBlock",
             "tagsWidgetBlock",
+            "memberWidgetBlock",
         ];
 
         // ViewLocations is left alone - the package's default for a block list is already

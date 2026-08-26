@@ -1,0 +1,36 @@
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Core.Models.Blocks.BlockListItem>
+@inject Umbraco.Cms.Core.Security.IMemberManager MemberManager
+@inject NDSTK.Booking.Services.MembershipSettingsService MembershipSettings
+@{
+    var content = Model.Content;
+    var heading = content.Value<string>("heading").IfNullOrWhiteSpace("Medlem");
+
+    @* Where the button goes is not an editor's choice - it is whichever of the two pages Settings
+       already points at, so the sidebar can never offer a login that disagrees with the one the
+       site actually redirects to. Only the wording is picked here.
+
+       In the backoffice preview nobody is signed in as a member, so an editor is shown the
+       visitor's version. That is the version most people who see this box will get. *@
+    var signedIn = MemberManager.IsLoggedIn();
+
+    var target = signedIn
+        ? MembershipSettings.GetMemberPortalPage()
+        : MembershipSettings.GetLoginPage();
+
+    var label = signedIn
+        ? content.Value<string>("memberLinkLabel").IfNullOrWhiteSpace("Mina sidor")
+        : content.Value<string>("guestLinkLabel").IfNullOrWhiteSpace("Logga in");
+}
+
+@* Nothing at all when that page has not been picked. A heading with no button under it is a box
+   that invites somebody to do something and then gives them no way to do it. *@
+@if (target is not null)
+{
+    <div class="widget widget--highlight">
+        <h3>@heading</h3>
+        <p><a href="@target.Url()" class="btn-primary">@label</a></p>
+        @* No sign-out here on purpose. This box appears on every page of the site, and signing out
+           is not something a member wants within reach while reading an article. It lives on Mina
+           sidor, at the bottom, where managing the account is what you came for. *@
+    </div>
+}

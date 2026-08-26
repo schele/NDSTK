@@ -8,6 +8,8 @@
 <div class="content-blocks">
     @foreach (var block in blocks ?? Enumerable.Empty<BlockListItem>())
     {
-        @await Html.PartialAsync($"blocklist/Components/{block.Content.ContentType.Alias}", block)
+        @* PascalCased to match the partial filenames - see the comment at the same call in
+           Root.cshtml for why the casing is not optional. *@
+        @await Html.PartialAsync($"blocklist/Components/{block.Content.ContentType.Alias.ToFirstUpperInvariant()}", block)
     }
 </div>

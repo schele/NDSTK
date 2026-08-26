@@ -61,6 +61,7 @@ internal static class NdstkKeys
         internal static readonly Guid CtaWidget = new("e1e50001-0000-4000-8000-000000000005");
         internal static readonly Guid ContactWidget = new("e1e50001-0000-4000-8000-000000000006");
         internal static readonly Guid TagsWidget = new("e1e50001-0000-4000-8000-000000000007");
+        internal static readonly Guid MemberWidget = new("e1e50001-0000-4000-8000-000000000008");
     }
 
     /// <summary>Data types this site adds on top of the Umbraco defaults.</summary>

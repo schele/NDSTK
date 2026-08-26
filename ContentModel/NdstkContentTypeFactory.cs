@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.PropertyEditors;
@@ -30,6 +31,11 @@ internal sealed class NdstkContentTypeFactory(
     IShortStringHelper shortStringHelper)
 {
     private const int RootParentId = -1;
+
+    /// <summary>The two Block List configuration keys <see cref="EnsureBlocksAsync"/> reads.</summary>
+    private const string BlocksField = "blocks";
+    private const string BlockElementField = "contentElementTypeKey";
+
     private static readonly Guid UserKey = Constants.Security.SuperUserKey;
 
     private readonly Dictionary<Guid, IDataType> _dataTypes = [];
@@ -353,6 +359,140 @@ internal sealed class NdstkContentTypeFactory(
         {
             throw new InvalidOperationException(
                 $"Could not remove '{propertyAlias}' from '{contentType.Alias}': {attempt.Result}.");
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Makes a property group that already exists into a tab, and says where it sits among the
+    /// other tabs.
+    /// </summary>
+    /// <remarks>
+    /// The third thing the upgrade path cannot do for itself. <see cref="EnsureGroupAsync"/> adds
+    /// its properties through <c>AddPropertyType</c>, and a group Umbraco creates that way is a
+    /// <em>group</em> - a fieldset inside whichever tab comes first - not a tab. That is the right
+    /// default for a few fields joining an existing tab, which is what every earlier caller wanted,
+    /// and quietly wrong for a group meant to stand on its own: it turns up as a heading at the
+    /// bottom of another tab instead.
+    ///
+    /// Only the upgrade path needs this. <see cref="AddGroup"/> states both the type and the sort
+    /// order outright, so a fresh install already has them right and this finds nothing to do.
+    /// </remarks>
+    /// <returns>True when the group had to be changed.</returns>
+    public async Task<bool> EnsureTabAsync(Guid contentTypeKey, Guid groupKey, int sortOrder)
+    {
+        IContentType contentType = contentTypeService.Get(contentTypeKey)
+                                   ?? throw new InvalidOperationException($"Content type {contentTypeKey} was not found.");
+
+        // By key, like EnsureGroupAsync, and for the same reason: the alias has drifted between
+        // installs and the key is the part this code owns.
+        PropertyGroup? group = contentType.PropertyGroups.FirstOrDefault(candidate => candidate.Key == groupKey);
+        if (group is null)
+        {
+            return false;
+        }
+
+        if (group.Type == PropertyGroupType.Tab && group.SortOrder == sortOrder)
+        {
+            return false;
+        }
+
+        group.Type = PropertyGroupType.Tab;
+        group.SortOrder = sortOrder;
+
+        var attempt = await contentTypeService.UpdateAsync(contentType, UserKey);
+        if (attempt.Success is false)
+        {
+            throw new InvalidOperationException(
+                $"Could not make '{group.Alias}' a tab on '{contentType.Alias}': {attempt.Result}.");
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Adds blocks to a Block List data type that already exists, so a block declared in code
+    /// reaches a site that is already installed.
+    /// </summary>
+    /// <remarks>
+    /// The second thing <see cref="EnsureDataTypeAsync"/> cannot do, and for the same reason it
+    /// cannot add a field to an existing document type: it returns an existing data type untouched,
+    /// so a new entry in one of those <c>blocks</c> arrays would silently appear on a brand new
+    /// site and nowhere else.
+    ///
+    /// Additive, and matched on <c>contentElementTypeKey</c>: a block already listed is left
+    /// exactly as it is, so an editor's reordering and their own labels survive. The configuration
+    /// is carried through the serializer Umbraco stores it with rather than through
+    /// <c>BlockListConfiguration</c>, so every setting this code knows nothing about - single block
+    /// mode, the validation limit, a settings element type picked in the backoffice - crosses
+    /// untouched.
+    /// </remarks>
+    /// <returns>True when a block was missing and has been added.</returns>
+    public async Task<bool> EnsureBlocksAsync(Guid dataTypeKey, params IDictionary<string, object>[] blocks)
+    {
+        IDataType dataType = await dataTypeService.GetAsync(dataTypeKey)
+                             ?? throw new InvalidOperationException($"Data type {dataTypeKey} was not found.");
+
+        JsonObject configuration =
+            JsonNode.Parse(configurationSerializer.Serialize(dataType.ConfigurationData))?.AsObject()
+            ?? new JsonObject();
+
+        // Copied into a new array rather than appended to in place: a JsonNode belongs to one
+        // parent, so re-attaching the array we just read out of would throw.
+        var merged = new JsonArray();
+        HashSet<Guid> present = [];
+
+        foreach (JsonNode? block in configuration[BlocksField]?.AsArray() ?? [])
+        {
+            merged.Add(block?.DeepClone());
+
+            if (Guid.TryParse(block?[BlockElementField]?.GetValue<string>(), out Guid elementTypeKey))
+            {
+                present.Add(elementTypeKey);
+            }
+        }
+
+        var added = false;
+
+        foreach (IDictionary<string, object> declared in blocks)
+        {
+            if (declared.TryGetValue(BlockElementField, out var value) is false || value is not Guid elementTypeKey)
+            {
+                throw new InvalidOperationException(
+                    $"A block declared for data type {dataTypeKey} has no '{BlockElementField}'.");
+            }
+
+            // Add() answering false is the whole idempotency check, and it dedupes the declaration
+            // against itself as well as against what is stored.
+            if (present.Add(elementTypeKey) is false)
+            {
+                continue;
+            }
+
+            merged.Add(JsonNode.Parse(configurationSerializer.Serialize(declared)));
+            added = true;
+        }
+
+        if (added is false)
+        {
+            return false;
+        }
+
+        configuration[BlocksField] = merged;
+
+        // Assigned through the property, not SetConfigurationData: that one is documented as being
+        // for building entities out of the database and deliberately leaves the entity clean, which
+        // would hand UpdateAsync nothing to save.
+        dataType.ConfigurationData =
+            configurationSerializer.Deserialize<Dictionary<string, object>>(configuration.ToJsonString())
+            ?? throw new InvalidOperationException($"Could not rebuild the configuration of data type {dataTypeKey}.");
+
+        var attempt = await dataTypeService.UpdateAsync(dataType, UserKey);
+        if (attempt.Success is false)
+        {
+            throw new InvalidOperationException(
+                $"Could not add blocks to data type '{dataType.Name}': {attempt.Status}.");
         }
 
         return true;

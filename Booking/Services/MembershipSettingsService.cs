@@ -56,6 +56,10 @@ public sealed class MembershipSettingsService(IPublishedContentQuery contentQuer
     public IPublishedContent? GetRegisterPage()
         => FindSettingsNode()?.Value<IPublishedContent>("registerPage");
 
+    /// <summary>Where an unrecognised visitor is sent to sign in.</summary>
+    public IPublishedContent? GetLoginPage()
+        => FindSettingsNode()?.Value<IPublishedContent>("loginPage");
+
     /// <summary>
     /// Same lookup the layout in Root.cshtml already does: the settings node is a child of the
     /// site root. Done through IPublishedContentQuery rather than UmbracoHelper so this works

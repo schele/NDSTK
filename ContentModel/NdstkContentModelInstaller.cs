@@ -23,6 +23,23 @@ internal sealed class NdstkContentModelInstaller(
         "Platsen på varje träning blir en länk till Google Maps på den här adressen. Lämnas den " +
         "tom visas platsen som vanlig text.";
 
+    /// <summary>Same reason as above: declared once, used by both the fresh install and the upgrade.</summary>
+    private const string SidebarWidgetsHelp = "The boxes shown in the right column, on every page.";
+
+    /// <summary>
+    /// The blocks the sidebar accepts, in the order the "add content" picker offers them. Declared
+    /// once because it is used twice: in the data type a fresh install creates, and in the upgrade
+    /// that reaches a site which already has that data type.
+    /// </summary>
+    private static readonly Dictionary<string, object>[] SidebarBlocks =
+    [
+        Block(ElementTypes.MemberWidget, "Medlem"),
+        Block(ElementTypes.CtaWidget, "Call to action"),
+        Block(ElementTypes.ContactWidget, "Contact"),
+        Block(ElementTypes.TagsWidget, "Tags"),
+        Block(ElementTypes.Text, "Rich text"),
+    ];
+
     public async Task InstallAsync()
     {
         await languages.InstallAsync();
@@ -150,6 +167,34 @@ internal sealed class NdstkContentModelInstaller(
         {
             logger.LogInformation("Updated the fields on the training class document type.");
         }
+
+        // Before the group below, and before NdstkSidebarWidgetMove writes a Medlem block into any
+        // sidebar: a Block List refuses a block whose element type its data type does not list.
+        if (await factory.EnsureBlocksAsync(DataTypes.SidebarWidgetBlocks, SidebarBlocks))
+        {
+            logger.LogInformation("Added the missing blocks to the sidebar widget data type.");
+        }
+
+        // The sidebar moved off Settings and onto the start page. Only the field is added here;
+        // carrying the widgets an editor has already arranged across, and then dropping the old
+        // field, is content work and belongs in NdstkSidebarWidgetMove.
+        if (await factory.EnsureGroupAsync(
+                DocumentTypes.Start,
+                DeriveKey(DocumentTypes.Start, 2),
+                "sidebar",
+                "Sidebar",
+                factory.Property(DataTypes.SidebarWidgetBlocks, "sidebarWidgets", "Sidebar widgets", SidebarWidgetsHelp, 0)))
+        {
+            logger.LogInformation("Added the sidebar widgets to the start document type.");
+        }
+
+        // And a tab, which the call above cannot make it - see the remarks on EnsureTabAsync. Sort
+        // order 1 puts it between Content at 0 and the SEO tab the base composition brings in at
+        // 100, so the tabs read Content, Sidebar, SEO.
+        if (await factory.EnsureTabAsync(DocumentTypes.Start, DeriveKey(DocumentTypes.Start, 2), 1))
+        {
+            logger.LogInformation("The sidebar widgets are a tab of their own on the start document type.");
+        }
     }
 
     // ---------------------------------------------------------------- templates
@@ -244,6 +289,16 @@ internal sealed class NdstkContentModelInstaller(
             "Sidebar box with the tag pills.",
             factory.Property(BuiltInDataTypes.Textstring, "heading", "Heading", sortOrder: 0),
             factory.Property(BuiltInDataTypes.Tags, "tags", "Tags", sortOrder: 1));
+
+        // Only the wording is an editor's to choose. Where the two buttons go is not: the targets
+        // are already picked once on Settings, as Medlemssidan and Login page, and a second pair of
+        // pickers here is how the two drift apart - a login link in the sidebar pointing somewhere
+        // other than the one login redirect the site actually uses.
+        await EnsureElementTypeAsync(ElementTypes.MemberWidget, "memberWidgetBlock", "Widget: Medlem", "icon-user",
+            "Sidebar box with the member's way in: Mina sidor when signed in, Logga in when not.",
+            factory.Property(BuiltInDataTypes.Textstring, "heading", "Rubrik", "Standard: Medlem.", 0),
+            factory.Property(BuiltInDataTypes.Textstring, "memberLinkLabel", "Knapp för inloggad medlem", "Standard: Mina sidor.", 1),
+            factory.Property(BuiltInDataTypes.Textstring, "guestLinkLabel", "Knapp för besökare", "Standard: Logga in.", 2));
     }
 
     private Task<IContentType> EnsureElementTypeAsync(
@@ -287,13 +342,7 @@ internal sealed class NdstkContentModelInstaller(
             "Umb.PropertyEditorUi.BlockList",
             new Dictionary<string, object>
             {
-                ["blocks"] = new object[]
-                {
-                    Block(ElementTypes.CtaWidget, "Call to action"),
-                    Block(ElementTypes.ContactWidget, "Contact"),
-                    Block(ElementTypes.TagsWidget, "Tags"),
-                    Block(ElementTypes.Text, "Rich text"),
-                },
+                ["blocks"] = SidebarBlocks,
             });
 
         await factory.EnsureDataTypeAsync(
@@ -375,17 +424,27 @@ internal sealed class NdstkContentModelInstaller(
                 NdstkContentTypeFactory.UseTemplate(type, templates[Templates.Start]);
                 NdstkContentTypeFactory.AddGroup(type, DeriveKey(DocumentTypes.Start, 1), "content", "Content", 0,
                     factory.Property(DataTypes.StartContentBlocks, "contentBlocks", "Content", "The blocks shown in the left column.", 0));
+
+                // A tab of its own rather than a second property under Content. The sidebar is
+                // site-wide - it is read off this node for every page, not just the start page -
+                // and a block list sitting directly beneath "the blocks shown in the left column"
+                // reads as more of the start page, which is exactly the wrong thing to think while
+                // editing it.
+                NdstkContentTypeFactory.AddGroup(type, DeriveKey(DocumentTypes.Start, 2), "sidebar", "Sidebar", 1,
+                    factory.Property(DataTypes.SidebarWidgetBlocks, "sidebarWidgets", "Sidebar widgets", SidebarWidgetsHelp, 0));
             });
 
         await factory.EnsureContentTypeAsync(
             DocumentTypes.Settings, "settings", "Settings", "icon-settings", type =>
             {
-                type.Description = "Site-wide configuration: header menu, sidebar and footer.";
+                // The sidebar's own boxes are not here: they are content, and they live on the start
+                // page beside the content of the column next to them. What is left of the sidebar
+                // on this node is the two pickers the Medlem box points at.
+                type.Description = "Site-wide configuration: header menu, footer and the member pages.";
                 NdstkContentTypeFactory.AddGroup(type, DeriveKey(DocumentTypes.Settings, 1), "settings", "Settings", 0,
                     factory.Property(BuiltInDataTypes.Textstring, "siteName", "Site name", sortOrder: 0),
                     factory.Property(DataTypes.MenuPicker, "menu", "Header menu", sortOrder: 1),
                     factory.Property(BuiltInDataTypes.ContentPicker, "loginPage", "Login page", "Target of the Logga in button in the sidebar.", 2),
-                    factory.Property(DataTypes.SidebarWidgetBlocks, "sidebarWidgets", "Sidebar widgets", sortOrder: 3),
                     factory.Property(BuiltInDataTypes.Textstring, "footerText", "Footer text", sortOrder: 4),
                     factory.Property(BuiltInDataTypes.Textstring, "venueAddress", "Adress", VenueAddressHelp, 5));
             });
