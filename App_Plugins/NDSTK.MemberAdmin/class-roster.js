@@ -10,23 +10,11 @@ const API_BASE = '/umbraco/management/api/v1/backoffice/ndstk/members';
 // security must be declared explicitly, or umbHttpClient sends no bearer token and the request 401s.
 const SECURITY = [{ scheme: 'bearer', type: 'http' }];
 
-const STATUS_LABELS = {
-    Confirmed: 'Bekräftad',
-    Pending: 'Väntar på betalning',
-};
-
-// Öre to kronor, here at the edge, the same way the dashboard and the portal do it.
-const kr = (ore) => `${(ore / 100).toLocaleString('sv-SE')} kr`;
-
-// What the club actually received for this place. A credit and a payment are not exclusive: a
-// lapsed member spending one pays the annual fee and nothing for the class, so both show.
-const payment = (row) => {
-    const parts = [];
-    if (row.usedCredit) parts.push('Tillgodoträning');
-    if (row.paidOre) parts.push(kr(row.paidOre));
-
-    // Says so rather than leaving a blank cell that could mean either "free" or "not loaded".
-    return parts.length ? parts.join(' + ') : 'Ingen betalning';
+// The statuses the API returns. Kept as a map from the wire value to a term key rather than to a
+// finished string, so a status this build does not know about still renders as itself.
+const STATUS_TERMS = {
+    Confirmed: 'ndstk_statusConfirmed',
+    Pending: 'ndstk_statusPending',
 };
 
 class NdstkClassRoster extends UmbElementMixin(LitElement) {
@@ -65,6 +53,24 @@ class NdstkClassRoster extends UmbElementMixin(LitElement) {
         });
     }
 
+    // Öre to kronor, here at the edge, the same way the dashboard and the portal do it. The grouping
+    // follows the backoffice language; the unit does not, because the club charges in kronor
+    // whichever language an administrator reads.
+    #kr(ore) {
+        return `${this.localize.number(ore / 100)} ${this.localize.term('ndstk_currencySuffix')}`;
+    }
+
+    // What the club actually received for this place. A credit and a payment are not exclusive: a
+    // lapsed member spending one pays the annual fee and nothing for the class, so both show.
+    #payment(row) {
+        const parts = [];
+        if (row.usedCredit) parts.push(this.localize.term('ndstk_credit'));
+        if (row.paidOre) parts.push(this.#kr(row.paidOre));
+
+        // Says so rather than leaving a blank cell that could mean either "free" or "not loaded".
+        return parts.length ? parts.join(' + ') : this.localize.term('ndstk_noPayment');
+    }
+
     async #load(classKey) {
         if (this._classKey === classKey) return;
         this._classKey = classKey;
@@ -78,7 +84,7 @@ class NdstkClassRoster extends UmbElementMixin(LitElement) {
             this._rows = data ?? [];
         } catch (err) {
             this.#notifications?.peek('danger', {
-                data: { message: err.message ?? 'Kunde inte hämta deltagarna.' },
+                data: { message: err.message ?? this.localize.term('ndstk_loadRosterFailed') },
             });
         } finally {
             this._loaded = true;
@@ -86,29 +92,32 @@ class NdstkClassRoster extends UmbElementMixin(LitElement) {
     }
 
     render() {
+        const headline = this.localize.term('ndstk_roster');
+
         if (!this._loaded) {
-            return html`<uui-box headline="Deltagare"><uui-loader></uui-loader></uui-box>`;
+            return html`<uui-box headline=${headline}><uui-loader></uui-loader></uui-box>`;
         }
 
         return html`
-            <uui-box headline="Deltagare">
+            <uui-box headline=${headline}>
                 <p class="count">
-                    ${this._rows.length}
-                    ${this._rows.length === 1 ? 'plats bokad' : 'platser bokade'}
+                    ${this._rows.length === 1
+                        ? this.localize.term('ndstk_placeBooked', this._rows.length)
+                        : this.localize.term('ndstk_placesBooked', this._rows.length)}
                 </p>
 
                 ${this._rows.length === 0
-                    ? html`<p>Ingen har bokat den här träningen än.</p>`
+                    ? html`<p>${this.localize.term('ndstk_rosterEmpty')}</p>`
                     : html`
                         <uui-table>
                             <uui-table-head>
-                                <uui-table-head-cell>Barn</uui-table-head-cell>
-                                <uui-table-head-cell>Ålder</uui-table-head-cell>
-                                <uui-table-head-cell>Målsman</uui-table-head-cell>
-                                <uui-table-head-cell>E-post</uui-table-head-cell>
-                                <uui-table-head-cell>Telefon</uui-table-head-cell>
-                                <uui-table-head-cell>Betalning</uui-table-head-cell>
-                                <uui-table-head-cell>Status</uui-table-head-cell>
+                                <uui-table-head-cell>${this.localize.term('ndstk_colChild')}</uui-table-head-cell>
+                                <uui-table-head-cell>${this.localize.term('ndstk_colAge')}</uui-table-head-cell>
+                                <uui-table-head-cell>${this.localize.term('ndstk_colGuardian')}</uui-table-head-cell>
+                                <uui-table-head-cell>${this.localize.term('ndstk_colEmail')}</uui-table-head-cell>
+                                <uui-table-head-cell>${this.localize.term('ndstk_colPhone')}</uui-table-head-cell>
+                                <uui-table-head-cell>${this.localize.term('ndstk_colPayment')}</uui-table-head-cell>
+                                <uui-table-head-cell>${this.localize.term('ndstk_colStatus')}</uui-table-head-cell>
                             </uui-table-head>
                             ${this._rows.map((row) => html`
                                 <uui-table-row>
@@ -125,20 +134,20 @@ class NdstkClassRoster extends UmbElementMixin(LitElement) {
                                     </uui-table-cell>
                                     <uui-table-cell
                                         class=${!row.usedCredit && !row.paidOre ? 'unpaid' : ''}>
-                                        ${payment(row)}
+                                        ${this.#payment(row)}
                                     </uui-table-cell>
                                     <uui-table-cell
                                         class=${row.status === 'Pending' ? 'pending' : ''}>
-                                        ${STATUS_LABELS[row.status] ?? row.status}
+                                        ${STATUS_TERMS[row.status]
+                                            ? this.localize.term(STATUS_TERMS[row.status])
+                                            : row.status}
                                     </uui-table-cell>
                                 </uui-table-row>
                             `)}
                         </uui-table>
                     `}
 
-                <p class="note">
-                    Platser som väntar på betalning räknas som bokade tills reservationen går ut.
-                </p>
+                <p class="note">${this.localize.term('ndstk_rosterNote')}</p>
             </uui-box>
         `;
     }

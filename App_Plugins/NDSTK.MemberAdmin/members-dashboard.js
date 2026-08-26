@@ -10,19 +10,9 @@ const API_BASE = '/umbraco/management/api/v1/backoffice/ndstk/members';
 // token and every request 401s.
 const SECURITY = [{ scheme: 'bearer', type: 'http' }];
 
-// Money is öre everywhere on the server; the divide by a hundred happens here, once, the same way
-// MembershipSettingsService is the only place kronor become öre on the way in.
-const kr = (ore) => `${(ore / 100).toLocaleString('sv-SE')} kr`;
-
-const date = (iso) => (iso ? new Date(iso).toLocaleDateString('sv-SE') : '—');
-
-// A lapsed membership reads as a word, not as a negative number of days.
-const daysLeft = (row) =>
-    row.daysLeft === null || row.daysLeft === undefined
-        ? '—'
-        : row.daysLeft < 0
-            ? 'Utgången'
-            : `${row.daysLeft} d`;
+// A class start time, in the reader's own format. localize.dateTime() would be the obvious call, but
+// it formats with timeStyle "medium" - which puts the seconds back on a time nobody needs them for.
+const DATE_TIME = { dateStyle: 'short', timeStyle: 'short' };
 
 class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
     static properties = {
@@ -56,6 +46,31 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
         this.#probeReset();
     }
 
+    // Shorthand: this reads better than this.localize.term('ndstk_x') forty times over, and it is
+    // the only thing standing between a template and an unreadable one.
+    #t(key, ...args) {
+        return this.localize.term(`ndstk_${key}`, ...args);
+    }
+
+    // Money is öre everywhere on the server; the divide by a hundred happens here, once, the same
+    // way MembershipSettingsService is the only place kronor become öre on the way in. The grouping
+    // follows the backoffice language; the unit does not, because the club charges in kronor
+    // whichever language an administrator reads.
+    #kr(ore) {
+        return `${this.localize.number(ore / 100)} ${this.#t('currencySuffix')}`;
+    }
+
+    // An em dash rather than an empty cell: a blank could mean "none" or "failed to load".
+    #date(iso) {
+        return iso ? this.localize.date(iso) : '—';
+    }
+
+    // A lapsed membership reads as a word, not as a negative number of days.
+    #daysLeft(row) {
+        if (row.daysLeft === null || row.daysLeft === undefined) return '—';
+        return row.daysLeft < 0 ? this.#t('lapsed') : this.#t('daysShort', row.daysLeft);
+    }
+
     // The reset endpoints answer 404 unless the site is running in development with the setting
     // on, so asking is how the dashboard knows whether to draw the buttons at all. Called without
     // tryExecute and with everything swallowed: a 404 here is the expected answer, not a fault,
@@ -83,7 +98,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
             this._rows = data ?? [];
         } catch (err) {
             this.#notifications?.peek('danger', {
-                data: { message: err.message ?? 'Kunde inte hämta medlemmarna.' },
+                data: { message: err.message ?? this.#t('loadMembersFailed') },
             });
         } finally {
             this._loaded = true;
@@ -111,7 +126,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
             this._detail = data ?? null;
         } catch (err) {
             this.#notifications?.peek('danger', {
-                data: { message: err.message ?? 'Kunde inte hämta medlemmen.' },
+                data: { message: err.message ?? this.#t('loadMemberFailed') },
             });
         }
     }
@@ -123,8 +138,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
     // a modal that failed to open would leave the button silently doing nothing, which is the one
     // outcome a destructive action must not have.
     async #reset(memberKey, label) {
-        if (!confirm(`Nollställ ${label}?\n\nBokningar, betalningar, tillgodoträningar, barn och `
-            + 'medlemskap tas bort. Inloggningen behålls. Detta går inte att ångra.')) {
+        if (!confirm(this.#t('resetConfirm', label))) {
             return;
         }
 
@@ -141,9 +155,10 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
 
             this.#notifications?.peek('positive', {
                 data: {
-                    message: `Nollställt: ${data.bookings} bokningar, ${data.payments} betalningar, `
-                        + `${data.credits} tillgodoträningar, ${data.participants} barn, `
-                        + `${data.members} medlemskap.`,
+                    message: this.#t(
+                        'resetDone',
+                        data.bookings, data.payments, data.credits,
+                        data.participants, data.members),
                 },
             });
 
@@ -153,7 +168,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
             await this.#load();
         } catch (err) {
             this.#notifications?.peek('danger', {
-                data: { message: err.message ?? 'Kunde inte nollställa.' },
+                data: { message: err.message ?? this.#t('resetFailed') },
             });
         } finally {
             this._busy = false;
@@ -161,28 +176,31 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
     }
 
     get #filtered() {
-        const term = this._search.trim().toLocaleLowerCase('sv-SE');
+        const term = this._search.trim().toLocaleLowerCase(this.localize.lang());
         if (!term) return this._rows;
 
         // Child names are searchable too: a coach knows the child's name, not the parent's email.
         return this._rows.filter((row) =>
             [row.name, row.email, ...(row.childNames ?? [])]
                 .filter(Boolean)
-                .some((value) => value.toLocaleLowerCase('sv-SE').includes(term)));
+                .some((value) => value.toLocaleLowerCase(this.localize.lang()).includes(term)));
     }
 
     #exportCsv() {
         const header = [
-            'Namn', 'E-post', 'Telefon', 'Familjekonto', 'Verifierad', 'Medlem sedan',
-            'Går ut', 'Dagar kvar', 'Deltagare', 'Barn', 'Betalt (kr)', 'Senaste betalning',
-            'Bokade', 'Avbokade', 'Krediter',
+            this.#t('colName'), this.#t('colEmail'), this.#t('csvPhone'), this.#t('colFamily'),
+            this.#t('colVerified'), this.#t('colMemberSince'), this.#t('colExpires'),
+            this.#t('csvDaysLeft'), this.#t('csvParticipants'), this.#t('csvChildNames'),
+            this.#t('csvPaid'), this.#t('csvLastPayment'), this.#t('colBooked'),
+            this.#t('colCancelled'), this.#t('colCredits'),
         ];
 
         const rows = this.#filtered.map((row) => [
-            row.name, row.email, row.phone ?? '', row.isFamilyAccount ? 'Ja' : 'Nej',
-            date(row.verifiedUtc), date(row.memberSinceUtc), row.paidUntil ?? '',
+            row.name, row.email, row.phone ?? '',
+            row.isFamilyAccount ? this.#t('yes') : this.#t('no'),
+            this.#date(row.verifiedUtc), this.#date(row.memberSinceUtc), row.paidUntil ?? '',
             row.daysLeft ?? '', row.participantCount, (row.childNames ?? []).join('; '),
-            row.totalPaidOre / 100, date(row.lastPaymentUtc), row.confirmedBookings,
+            row.totalPaidOre / 100, this.#date(row.lastPaymentUtc), row.confirmedBookings,
             row.cancelledBookings, row.unspentCredits,
         ]);
 
@@ -196,27 +214,29 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
 
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'ndstk-medlemmar.csv';
+        link.download = this.#t('csvFileName');
         link.click();
         URL.revokeObjectURL(url);
     }
 
     render() {
         return html`
-            <uui-box headline="Medlemmar">
+            <uui-box headline=${this.#t('members')}>
                 <div class="toolbar">
                     <uui-input
                         type="search"
-                        label="Sök"
-                        placeholder="Sök på namn, e-post eller barn"
+                        label=${this.#t('search')}
+                        placeholder=${this.#t('searchPlaceholder')}
                         .value=${this._search}
                         @input=${(e) => { this._search = e.target.value; }}></uui-input>
 
-                    <span class="count">${this.#filtered.length} av ${this._rows.length}</span>
+                    <span class="count">
+                        ${this.#t('showingOf', this.#filtered.length, this._rows.length)}
+                    </span>
 
                     <uui-button
                         look="secondary"
-                        label="Exportera CSV"
+                        label=${this.#t('exportCsv')}
                         ?disabled=${this._rows.length === 0}
                         @click=${this.#exportCsv}></uui-button>
 
@@ -224,10 +244,10 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                         <uui-button
                             look="outline"
                             color="danger"
-                            label="Nollställ testdata"
-                            title="Tömmer bokningar, betalningar, tillgodoträningar, barn och medlemskap för alla konton"
+                            label=${this.#t('resetAll')}
+                            title=${this.#t('resetAllTitle')}
                             ?disabled=${this._busy}
-                            @click=${() => this.#reset(null, 'alla konton')}></uui-button>
+                            @click=${() => this.#reset(null, this.#t('resetAllLabel'))}></uui-button>
                     ` : ''}
                 </div>
 
@@ -242,24 +262,24 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
 
     #renderTable() {
         if (this._rows.length === 0) {
-            return html`<p>Inga medlemmar än.</p>`;
+            return html`<p>${this.#t('noMembers')}</p>`;
         }
 
         return html`
             <uui-table>
                 <uui-table-head>
-                    <uui-table-head-cell>Namn</uui-table-head-cell>
-                    <uui-table-head-cell>E-post</uui-table-head-cell>
-                    <uui-table-head-cell title="Familjekonto">Fam</uui-table-head-cell>
-                    <uui-table-head-cell>Verifierad</uui-table-head-cell>
-                    <uui-table-head-cell>Medlem sedan</uui-table-head-cell>
-                    <uui-table-head-cell>Går ut</uui-table-head-cell>
-                    <uui-table-head-cell>Kvar</uui-table-head-cell>
-                    <uui-table-head-cell>Barn</uui-table-head-cell>
-                    <uui-table-head-cell>Betalt</uui-table-head-cell>
-                    <uui-table-head-cell>Bokade</uui-table-head-cell>
-                    <uui-table-head-cell title="Avbokade av medlemmen">Avbok.</uui-table-head-cell>
-                    <uui-table-head-cell title="Outnyttjade tillgodoträningar">Kred.</uui-table-head-cell>
+                    <uui-table-head-cell>${this.#t('colName')}</uui-table-head-cell>
+                    <uui-table-head-cell>${this.#t('colEmail')}</uui-table-head-cell>
+                    <uui-table-head-cell title=${this.#t('colFamily')}>${this.#t('colFamilyShort')}</uui-table-head-cell>
+                    <uui-table-head-cell>${this.#t('colVerified')}</uui-table-head-cell>
+                    <uui-table-head-cell>${this.#t('colMemberSince')}</uui-table-head-cell>
+                    <uui-table-head-cell>${this.#t('colExpires')}</uui-table-head-cell>
+                    <uui-table-head-cell>${this.#t('colLeft')}</uui-table-head-cell>
+                    <uui-table-head-cell>${this.#t('colChildren')}</uui-table-head-cell>
+                    <uui-table-head-cell>${this.#t('colPaid')}</uui-table-head-cell>
+                    <uui-table-head-cell>${this.#t('colBooked')}</uui-table-head-cell>
+                    <uui-table-head-cell title=${this.#t('colCancelled')}>${this.#t('colCancelledShort')}</uui-table-head-cell>
+                    <uui-table-head-cell title=${this.#t('colCredits')}>${this.#t('colCreditsShort')}</uui-table-head-cell>
                     ${this._resetAvailable ? html`<uui-table-head-cell></uui-table-head-cell>` : ''}
                 </uui-table-head>
 
@@ -270,16 +290,16 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                         <uui-table-cell><strong>${row.name}</strong></uui-table-cell>
                         <uui-table-cell>${row.email}</uui-table-cell>
                         <uui-table-cell>${row.isFamilyAccount ? '✓' : '–'}</uui-table-cell>
-                        <uui-table-cell>${date(row.verifiedUtc)}</uui-table-cell>
-                        <uui-table-cell>${date(row.memberSinceUtc)}</uui-table-cell>
+                        <uui-table-cell>${this.#date(row.verifiedUtc)}</uui-table-cell>
+                        <uui-table-cell>${this.#date(row.memberSinceUtc)}</uui-table-cell>
                         <uui-table-cell>${row.paidUntil ?? '—'}</uui-table-cell>
                         <uui-table-cell class=${row.daysLeft < 0 ? 'lapsed' : ''}>
-                            ${daysLeft(row)}
+                            ${this.#daysLeft(row)}
                         </uui-table-cell>
                         <uui-table-cell title=${(row.childNames ?? []).join(', ')}>
                             ${row.participantCount}
                         </uui-table-cell>
-                        <uui-table-cell>${kr(row.totalPaidOre)}</uui-table-cell>
+                        <uui-table-cell>${this.#kr(row.totalPaidOre)}</uui-table-cell>
                         <uui-table-cell>${row.confirmedBookings}</uui-table-cell>
                         <uui-table-cell>${row.cancelledBookings}</uui-table-cell>
                         <uui-table-cell>${row.unspentCredits}</uui-table-cell>
@@ -290,8 +310,8 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                                     look="outline"
                                     color="danger"
                                     compact
-                                    label="Nollställ"
-                                    title="Tömmer bara den här medlemmen"
+                                    label=${this.#t('resetOne')}
+                                    title=${this.#t('resetOneTitle')}
                                     ?disabled=${this._busy}
                                     @click=${(e) => {
                                         e.stopPropagation();
@@ -303,17 +323,19 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                 `)}
             </uui-table>
 
+            ${/* The column heading is repeated in bold to introduce the sentence, which is why the
+                  note is two terms and not one - markup does not belong inside a translation. */''}
             <p class="note">
-                <strong>Avbok.</strong> är träningar medlemmen själv avbokat och fått en
-                tillgodoträning för. Frånvaro registreras inte, så en deltagare som var bokad men
-                inte kom syns inte i någon av kolumnerna.
+                <strong>${this.#t('colCancelledShort')}</strong> ${this.#t('noteCancelled')}
+                ${this.#t('noteAttendance')}
             </p>
         `;
     }
 
     #renderDetail() {
         if (!this._detail) {
-            return html`<uui-box headline="Läser in…"><uui-loader></uui-loader></uui-box>`;
+            return html`
+                <uui-box headline=${this.#t('loading')}><uui-loader></uui-loader></uui-box>`;
         }
 
         const { summary, payments, bookings } = this._detail;
@@ -323,52 +345,53 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                 <p class="detail-head">
                     ${summary.email}
                     ${summary.phone ? html` · ${summary.phone}` : ''}
-                    ${summary.isFamilyAccount ? html` · <strong>Familjekonto</strong>` : ''}
+                    ${summary.isFamilyAccount
+                        ? html` · <strong>${this.#t('familyAccount')}</strong>` : ''}
                 </p>
 
-                <h4>Barn</h4>
+                <h4>${this.#t('colChildren')}</h4>
                 ${(summary.childNames ?? []).length === 0
-                    ? html`<p>Inga deltagare.</p>`
+                    ? html`<p>${this.#t('noParticipants')}</p>`
                     : html`<p>${summary.childNames.join(', ')}</p>`}
 
-                <h4>Betalningar</h4>
-                ${payments.length === 0 ? html`<p>Inga betalningar.</p>` : html`
+                <h4>${this.#t('payments')}</h4>
+                ${payments.length === 0 ? html`<p>${this.#t('noPayments')}</p>` : html`
                     <uui-table>
                         <uui-table-head>
-                            <uui-table-head-cell>Datum</uui-table-head-cell>
-                            <uui-table-head-cell>Årsavgift</uui-table-head-cell>
-                            <uui-table-head-cell>Familjetillägg</uui-table-head-cell>
-                            <uui-table-head-cell>Träningsavgift</uui-table-head-cell>
-                            <uui-table-head-cell>Totalt</uui-table-head-cell>
-                            <uui-table-head-cell>Status</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colDate')}</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colMembershipFee')}</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colFamilyFee')}</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colClassFee')}</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colTotal')}</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colStatus')}</uui-table-head-cell>
                         </uui-table-head>
                         ${payments.map((p) => html`
                             <uui-table-row>
-                                <uui-table-cell>${date(p.completedUtc ?? p.createdUtc)}</uui-table-cell>
-                                <uui-table-cell>${p.membershipFeeOre ? kr(p.membershipFeeOre) : '–'}</uui-table-cell>
-                                <uui-table-cell>${p.familyFeeOre ? kr(p.familyFeeOre) : '–'}</uui-table-cell>
-                                <uui-table-cell>${p.classFeeOre ? kr(p.classFeeOre) : '–'}</uui-table-cell>
-                                <uui-table-cell><strong>${kr(p.amountOre)}</strong></uui-table-cell>
+                                <uui-table-cell>${this.#date(p.completedUtc ?? p.createdUtc)}</uui-table-cell>
+                                <uui-table-cell>${p.membershipFeeOre ? this.#kr(p.membershipFeeOre) : '–'}</uui-table-cell>
+                                <uui-table-cell>${p.familyFeeOre ? this.#kr(p.familyFeeOre) : '–'}</uui-table-cell>
+                                <uui-table-cell>${p.classFeeOre ? this.#kr(p.classFeeOre) : '–'}</uui-table-cell>
+                                <uui-table-cell><strong>${this.#kr(p.amountOre)}</strong></uui-table-cell>
                                 <uui-table-cell>${p.status}</uui-table-cell>
                             </uui-table-row>
                         `)}
                     </uui-table>
                 `}
 
-                <h4>Bokningar</h4>
-                ${bookings.length === 0 ? html`<p>Inga bokningar.</p>` : html`
+                <h4>${this.#t('bookings')}</h4>
+                ${bookings.length === 0 ? html`<p>${this.#t('noBookings')}</p>` : html`
                     <uui-table>
                         <uui-table-head>
-                            <uui-table-head-cell>Barn</uui-table-head-cell>
-                            <uui-table-head-cell>Träning</uui-table-head-cell>
-                            <uui-table-head-cell>Tid</uui-table-head-cell>
-                            <uui-table-head-cell>Status</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colChild')}</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colClass')}</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colTime')}</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colStatus')}</uui-table-head-cell>
                         </uui-table-head>
                         ${bookings.map((b) => html`
                             <uui-table-row>
                                 <uui-table-cell>${b.childName}</uui-table-cell>
                                 <uui-table-cell>${b.className}</uui-table-cell>
-                                <uui-table-cell>${new Date(b.classStartUtc).toLocaleString('sv-SE')}</uui-table-cell>
+                                <uui-table-cell>${this.localize.date(b.classStartUtc, DATE_TIME)}</uui-table-cell>
                                 <uui-table-cell>${b.status}</uui-table-cell>
                             </uui-table-row>
                         `)}
