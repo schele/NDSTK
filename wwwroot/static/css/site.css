@@ -22,6 +22,14 @@ a {
         color: var(--primary);
     }
 
+/* .post h2 and .widget h3 both take the brand colour, but nothing covered h4 - so a sub-heading
+   inside a card ("Lägg till ett barn") fell through to the body colour and looked like bold text
+   rather than a heading. Stated once here instead of per component, so the next h4 is right by
+   default. .coach-dialog__name sets its own size and colour and still wins on specificity. */
+h4 {
+    color: var(--primary);
+}
+
 /* Header */
 header {
     background: var(--bg);
