@@ -92,10 +92,27 @@ builder.CreateUmbracoBuilder()
         // ":root, :host" - see the comment at the top of that file.
         options.BlockList.Stylesheets = ["/static/css/site.css"];
 
-        // ContentTypes is deliberately left unset: the package reads "no content types" as "every
-        // element type", which covers both block lists and needs no edit when an eighth block is
-        // added. ViewLocations is left alone too - the package's default for a block list is
-        // /Views/Partials/blocklist/Components/{0}.cshtml, which is where the partials already are.
+        // One entry per partial in Views/Partials/blocklist/Components - and that is the whole rule
+        // for keeping this list right. Left unset the package previews *every* element type, which
+        // is wrong here: cookieDefinition comes from the CookieBanner package and is structured
+        // data, not a block with a view - the policy page renders those declarations grouped, never
+        // one partial per block - so previewing it put a "view could not be found" panel where the
+        // editor used to see a row per cookie. An allowlist also fails the safe way round. Forget
+        // to add a block here and it keeps the plain label it has today; the alternative,
+        // IgnoredContentTypes, would greet the next data-only element type with that same panel.
+        options.BlockList.ContentTypes =
+        [
+            "heroBlock",
+            "newsListBlock",
+            "postBlock",
+            "textBlock",
+            "ctaWidgetBlock",
+            "contactWidgetBlock",
+            "tagsWidgetBlock",
+        ];
+
+        // ViewLocations is left alone - the package's default for a block list is already
+        // /Views/Partials/blocklist/Components/{0}.cshtml, which is where those partials live.
 
         // Neither editor exists on this site, so nothing would render for them anyway. Stated
         // rather than left at the default, because it is the line that has to change on the day a
