@@ -32,6 +32,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
         _detail: { state: true },
         _busy: { state: true },
         _loaded: { state: true },
+        _resetAvailable: { state: true },
     };
 
     #notifications;
@@ -44,6 +45,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
         this._detail = null;
         this._busy = false;
         this._loaded = false;
+        this._resetAvailable = false;
 
         this.consumeContext(UMB_NOTIFICATION_CONTEXT, (ctx) => { this.#notifications = ctx; });
     }
@@ -51,6 +53,23 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
     connectedCallback() {
         super.connectedCallback();
         this.#load();
+        this.#probeReset();
+    }
+
+    // The reset endpoints answer 404 unless the site is running in development with the setting
+    // on, so asking is how the dashboard knows whether to draw the buttons at all. Called without
+    // tryExecute and with everything swallowed: a 404 here is the expected answer, not a fault,
+    // and it must not raise a notification.
+    async #probeReset() {
+        try {
+            const { error } = await umbHttpClient.get({
+                url: `${API_BASE}/reset`,
+                security: SECURITY,
+            });
+            this._resetAvailable = !error;
+        } catch {
+            this._resetAvailable = false;
+        }
     }
 
     async #load() {
@@ -94,6 +113,50 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
             this.#notifications?.peek('danger', {
                 data: { message: err.message ?? 'Kunde inte hämta medlemmen.' },
             });
+        }
+    }
+
+    // Empties one account, or every account when memberKey is null.
+    //
+    // The confirmation is the browser's own rather than the backoffice modal. This is a
+    // development-only control that throws data away, and a native confirm cannot fail to appear -
+    // a modal that failed to open would leave the button silently doing nothing, which is the one
+    // outcome a destructive action must not have.
+    async #reset(memberKey, label) {
+        if (!confirm(`Nollställ ${label}?\n\nBokningar, betalningar, tillgodoträningar, barn och `
+            + 'medlemskap tas bort. Inloggningen behålls. Detta går inte att ångra.')) {
+            return;
+        }
+
+        this._busy = true;
+        try {
+            const { data, error } = await tryExecute(
+                this,
+                umbHttpClient.post({
+                    url: memberKey ? `${API_BASE}/reset/${memberKey}` : `${API_BASE}/reset`,
+                    security: SECURITY,
+                }),
+            );
+            if (error) throw error;
+
+            this.#notifications?.peek('positive', {
+                data: {
+                    message: `Nollställt: ${data.bookings} bokningar, ${data.payments} betalningar, `
+                        + `${data.credits} tillgodoträningar, ${data.participants} barn, `
+                        + `${data.members} medlemskap.`,
+                },
+            });
+
+            // The open panel describes an account that has just been emptied, so it goes with it.
+            this._selected = null;
+            this._detail = null;
+            await this.#load();
+        } catch (err) {
+            this.#notifications?.peek('danger', {
+                data: { message: err.message ?? 'Kunde inte nollställa.' },
+            });
+        } finally {
+            this._busy = false;
         }
     }
 
@@ -156,6 +219,16 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                         label="Exportera CSV"
                         ?disabled=${this._rows.length === 0}
                         @click=${this.#exportCsv}></uui-button>
+
+                    ${this._resetAvailable ? html`
+                        <uui-button
+                            look="outline"
+                            color="danger"
+                            label="Nollställ testdata"
+                            title="Tömmer bokningar, betalningar, tillgodoträningar, barn och medlemskap för alla konton"
+                            ?disabled=${this._busy}
+                            @click=${() => this.#reset(null, 'alla konton')}></uui-button>
+                    ` : ''}
                 </div>
 
                 ${this._busy && !this._loaded
@@ -188,6 +261,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                     <uui-table-head-cell title="Avbokade av medlemmen">Avbok.</uui-table-head-cell>
                     <uui-table-head-cell title="Bokningar där betalningen aldrig slutfördes">Ej bet.</uui-table-head-cell>
                     <uui-table-head-cell title="Outnyttjade tillgodoträningar">Kred.</uui-table-head-cell>
+                    ${this._resetAvailable ? html`<uui-table-head-cell></uui-table-head-cell>` : ''}
                 </uui-table-head>
 
                 ${this.#filtered.map((row) => html`
@@ -211,6 +285,22 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                         <uui-table-cell>${row.cancelledBookings}</uui-table-cell>
                         <uui-table-cell>${row.expiredBookings}</uui-table-cell>
                         <uui-table-cell>${row.unspentCredits}</uui-table-cell>
+                        ${/* The row itself opens the detail panel, so this click stops here. */
+                          this._resetAvailable ? html`
+                            <uui-table-cell>
+                                <uui-button
+                                    look="outline"
+                                    color="danger"
+                                    compact
+                                    label="Nollställ"
+                                    title="Tömmer bara den här medlemmen"
+                                    ?disabled=${this._busy}
+                                    @click=${(e) => {
+                                        e.stopPropagation();
+                                        this.#reset(row.memberKey, row.email);
+                                    }}></uui-button>
+                            </uui-table-cell>
+                        ` : ''}
                     </uui-table-row>
                 `)}
             </uui-table>

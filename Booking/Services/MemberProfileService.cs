@@ -25,6 +25,9 @@ public sealed class MemberProfileService(
     internal const string FamilyAccountAlias = "familjekonto";
     internal const string PhoneAlias = "telefon";
 
+    /// <summary>Superseded by the per-child stamp; cleared on a reset so it cannot mislead.</summary>
+    internal const string RetiredDiscountAlias = "firstClassDiscountUsed";
+
     /// <summary>
     /// The account's pricing-relevant state. A member who cannot be found is treated as brand new
     /// rather than throwing: the caller is about to quote a price, and quoting the full joining
@@ -108,6 +111,36 @@ public sealed class MemberProfileService(
         memberService.Save(member);
 
         logger.LogInformation("Member {MemberKey} is back to a solo account.", memberKey);
+    }
+
+    /// <summary>
+    /// Puts an account back to never having paid: no expiry date and no family account.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in the backoffice code that calls it, so every write to these two
+    /// properties goes through the one class that owns them. The retired welcome-price flag goes
+    /// too: nothing reads it any more, but a stale true on a reset account is a confusing thing to
+    /// find in the backoffice.
+    ///
+    /// There is no path to this from the member portal. It exists for
+    /// <see cref="Admin.TestDataReset"/>, which is development-only.
+    /// </remarks>
+    /// <returns>False when the member no longer exists, so a caller can count what it changed.</returns>
+    public async Task<bool> ClearMembershipAsync(Guid memberKey)
+    {
+        IMember? member = (await memberService.GetByKeysAsync(memberKey)).FirstOrDefault();
+        if (member is null)
+        {
+            return false;
+        }
+
+        member.SetValue(MembershipPaidUntilAlias, null);
+        member.SetValue(FamilyAccountAlias, false);
+        member.SetValue(RetiredDiscountAlias, false);
+        memberService.Save(member);
+
+        logger.LogWarning("Membership for {MemberKey} was cleared.", memberKey);
+        return true;
     }
 
     /// <summary>

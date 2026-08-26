@@ -1,6 +1,7 @@
 
 using System.Threading.RateLimiting;
 using Esatto.Umbraco.Backoffice.CookieBanner;
+using NDSTK.Booking.Admin;
 using NDSTK.Booking.Web;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -82,6 +83,16 @@ WebApplication app = builder.Build();
 
 
 await app.BootUmbracoAsync();
+
+// A live endpoint that empties the member tables should say so out loud. This is the one line that
+// tells whoever is reading the log why a backoffice user can throw every booking away - and, on a
+// site where it was never meant to be on, that it is.
+if (app.Services.GetRequiredService<TestDataResetGate>().IsEnabled)
+{
+    app.Logger.LogWarning(
+        "The test data reset is ENABLED. Backoffice users with access to Members can delete every "
+        + "booking, payment, credit, child and membership. Development only.");
+}
 
 // Maps the endpoint the consent dialog posts decisions to. Must sit after BootUmbracoAsync()
 // and before UseUmbraco(); without it the dialog renders but Accept and Reject do nothing.

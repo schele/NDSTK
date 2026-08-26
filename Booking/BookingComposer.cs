@@ -44,6 +44,12 @@ public sealed class BookingComposer : IComposer
         // Read-only reporting for the backoffice. Deliberately not on IBookingRepository.
         builder.Services.AddScoped<MemberAdminQueries>();
 
+        // Registered unconditionally, and switched off in the gate rather than here: a route that
+        // exists but answers 404 is easier to reason about than one whose absence depends on how the
+        // process was started. The gate is what makes it unreachable outside development.
+        builder.Services.AddScoped<TestDataReset>();
+        builder.Services.AddSingleton<TestDataResetGate>();
+
         // The mock is registered as THE payment provider. Swapping in a real Swish integration is
         // this one line plus a new IPaymentProvider implementation.
         builder.Services.AddSingleton<IPaymentProvider, SwishMockPaymentProvider>();
