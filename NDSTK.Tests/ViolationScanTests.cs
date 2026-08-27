@@ -29,16 +29,6 @@ public class ViolationScanTests
     private static ObservedEntry Observe(string name, ConsentPass pass, string url = "https://ndstk.se/")
         => new(name, StorageKind.Cookie, pass, url, null);
 
-    // Mirrors the reduction NDSTK.CookieScan.Core.ObservedEntries.EarliestPerName will perform
-    // once it exists (see the plan's Task 8) - not yet part of this project, so reproduced
-    // locally here to pin exactly the defect this fix addresses: dedupe-then-classify hides a
-    // violation that a raw scan over every observation catches.
-    private static IReadOnlyList<ObservedEntry> EarliestPerName(IEnumerable<ObservedEntry> observations)
-        => observations
-            .GroupBy(observation => observation.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.OrderBy(observation => observation.FirstSeenPass).First())
-            .ToArray();
-
     // The headline case: a tracker set before any consent was granted.
     [Fact]
     public void A_tracker_set_under_reject_all_is_found()
@@ -69,7 +59,10 @@ public class ViolationScanTests
         // Documents precisely what would otherwise be missed: reducing to the earliest sighting
         // first, then classifying just that one, reports this cookie clean.
         CookieDeclarationCandidate reduced = CategoryInference.Classify(
-            EarliestPerName([grantedSighting, violatingSighting]).Single(), Catalogue, Now, Locale.Sv);
+            ObservedEntries.EarliestPerName([grantedSighting, violatingSighting]).Single(),
+            Catalogue,
+            Now,
+            Locale.Sv);
 
         Assert.Equal(CandidateFlag.None, reduced.Flag);
     }

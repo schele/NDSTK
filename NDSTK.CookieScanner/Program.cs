@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using NDSTK.CookieScan.Core;
 using NDSTK.CookieScanner;
 
 // Replaced in Task 10 with the real orchestration. For now it proves the CLI parses and Chromium
@@ -34,6 +35,40 @@ try
     foreach (Uri url in urls)
     {
         Console.WriteLine($"  {url}");
+    }
+
+    // The endpoint path the site actually uses. The package default; override with --endpoint-path
+    // is deliberately not offered, because a site that has moved it has also moved its own JS.
+    const string ConsentEndpointPath = "/api/cookie-consent";
+
+    var runner = new ConsentPassRunner(browser, options, ConsentEndpointPath);
+    List<ObservedEntry> observed = [];
+    Dictionary<ConsentPass, IReadOnlySet<string>> hostsByPass = [];
+
+    foreach (ConsentPass pass in ConsentPasses.Comparable)
+    {
+        Console.WriteLine($"Pass {(int)pass + 1}/6: {pass}...");
+
+        PassResult result = await runner.RunAsync(pass, urls);
+
+        hostsByPass[pass] = result.Hosts;
+
+        foreach (PassEntry entry in result.Entries)
+        {
+            observed.Add(new ObservedEntry(
+                entry.Name, entry.Storage, pass, entry.FirstUrl.ToString(), entry.Expires));
+        }
+
+        Console.WriteLine($"  {result.Entries.Count} entr(ies), {result.Hosts.Count} third-party host(s)");
+    }
+
+    IReadOnlyList<ObservedEntry> earliest = ObservedEntries.EarliestPerName(observed);
+
+    Console.WriteLine($"\n{earliest.Count} distinct entr(ies) across all passes:");
+
+    foreach (ObservedEntry entry in earliest)
+    {
+        Console.WriteLine($"  {entry.Name} [{entry.Storage}] first seen in {entry.FirstSeenPass}");
     }
 
     return 0;
