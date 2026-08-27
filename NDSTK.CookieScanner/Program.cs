@@ -62,6 +62,24 @@ try
         Console.WriteLine($"  {result.Entries.Count} entr(ies), {result.Hosts.Count} third-party host(s)");
     }
 
+    if (options.MemberScanEnabled)
+    {
+        Console.WriteLine("Member dimension: signing in...");
+
+        PassResult member = await new MemberDimension(browser, options, ConsentEndpointPath).RunAsync();
+
+        hostsByPass[ConsentPass.MemberArea] = member.Hosts;
+
+        foreach (PassEntry entry in member.Entries)
+        {
+            observed.Add(new ObservedEntry(
+                entry.Name, entry.Storage, ConsentPass.MemberArea,
+                entry.FirstUrl.ToString(), entry.Expires));
+        }
+
+        Console.WriteLine($"  {member.Entries.Count} entr(ies) in the member area");
+    }
+
     IReadOnlyList<ObservedEntry> earliest = ObservedEntries.EarliestPerName(observed);
 
     Console.WriteLine($"\n{earliest.Count} distinct entr(ies) across all passes:");
