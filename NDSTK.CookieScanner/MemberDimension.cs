@@ -26,49 +26,70 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
     /// </param>
     public async Task<PassResult> RunAsync(IReadOnlyList<Uri> publicUrls)
     {
-        await using IBrowserContext context = await browser.NewContextAsync(
-            new BrowserNewContextOptions { IgnoreHTTPSErrors = true });
-
         HashSet<string> hosts = new(StringComparer.OrdinalIgnoreCase);
-        IPage page = await context.NewPageAsync();
 
-        PageCapture.RecordHosts(page, hosts, options.Url);
+        // The member dimension is additive, sitting outside the six comparable passes (see the
+        // class remarks). A FillAsync timeout on login markup that changed, or any other Playwright
+        // fault here - even after the six comparable passes already completed cleanly - must not
+        // cost the whole scan its report: ManagementApiClient's remarks promise a failure must not
+        // lose the scan's findings, and Program's single try/catch would otherwise skip
+        // ScanReportWriter.Write entirely. Degrade exactly the way a failed login already does
+        // below: log it and hand back an empty pass instead of throwing.
+        try
+        {
+            // IgnoreHTTPSErrors is loopback-only - see the comment in Program.cs's discovery
+            // context. This context is the one that matters most: it submits the member's email
+            // and password.
+            await using IBrowserContext context = await browser.NewContextAsync(
+                new BrowserNewContextOptions { IgnoreHTTPSErrors = options.Url.IsLoopback });
 
-        // Accept everything, so a cookie found here is attributable to the login rather than to a
-        // consent state this dimension did not mean to test.
-        await ConsentDecision.RecordAsync(context, options.Url, endpointPath, ConsentPass.MemberArea);
+            IPage page = await context.NewPageAsync();
 
-        Uri? portal = await SignInAsync(page, publicUrls);
+            PageCapture.RecordHosts(page, hosts, options.Url);
 
-        if (portal is null)
+            // Accept everything, so a cookie found here is attributable to the login rather than to
+            // a consent state this dimension did not mean to test.
+            await ConsentDecision.RecordAsync(context, options.Url, endpointPath, ConsentPass.MemberArea);
+
+            Uri? portal = await SignInAsync(page, publicUrls);
+
+            if (portal is null)
+            {
+                Console.Error.WriteLine(
+                    "  Member login did not appear to succeed - skipping the member dimension. Check "
+                    + "the credentials, and that the account is activated.");
+
+                return new PassResult(ConsentPass.MemberArea, [], hosts);
+            }
+
+            IReadOnlyList<Uri> memberUrls = await new SiteCrawler(page, options).DiscoverAsync(portal);
+
+            Dictionary<(string Name, StorageKind Storage), PassEntry> found = [];
+
+            foreach (Uri url in memberUrls)
+            {
+                PageObservation observation = await PageCapture.VisitAsync(page, url, hosts);
+
+                foreach (CapturedEntry entry in observation.Entries)
+                {
+                    // Keyed on the lowercased name so this dedup agrees with
+                    // ObservedEntries.EarliestPerName's case-insensitive grouping - the stored entry
+                    // still carries the original casing, only the key is normalised.
+                    found.TryAdd(
+                        (entry.Name.ToLowerInvariant(), entry.Storage),
+                        new PassEntry(entry.Name, entry.Storage, entry.Expires, url));
+                }
+            }
+
+            return new PassResult(ConsentPass.MemberArea, [.. found.Values], hosts);
+        }
+        catch (Exception error)
         {
             Console.Error.WriteLine(
-                "  Member login did not appear to succeed - skipping the member dimension. Check "
-                + "the credentials, and that the account is activated.");
+                $"  Member dimension failed and was skipped: {error.Message}");
 
             return new PassResult(ConsentPass.MemberArea, [], hosts);
         }
-
-        IReadOnlyList<Uri> memberUrls = await new SiteCrawler(page, options).DiscoverAsync(portal);
-
-        Dictionary<(string Name, StorageKind Storage), PassEntry> found = [];
-
-        foreach (Uri url in memberUrls)
-        {
-            PageObservation observation = await PageCapture.VisitAsync(page, url, hosts);
-
-            foreach (CapturedEntry entry in observation.Entries)
-            {
-                // Keyed on the lowercased name so this dedup agrees with
-                // ObservedEntries.EarliestPerName's case-insensitive grouping - the stored entry
-                // still carries the original casing, only the key is normalised.
-                found.TryAdd(
-                    (entry.Name.ToLowerInvariant(), entry.Storage),
-                    new PassEntry(entry.Name, entry.Storage, entry.Expires, url));
-            }
-        }
-
-        return new PassResult(ConsentPass.MemberArea, [.. found.Values], hosts);
     }
 
     /// <summary>

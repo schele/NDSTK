@@ -19,7 +19,16 @@ namespace NDSTK.CookieScan;
 /// </remarks>
 [ApiVersion("1.0")]
 [VersionedApiBackOfficeRoute("cookie-scan")]
-[ApiExplorerSettings(GroupName = "Cookie scan")]
+// No [ApiExplorerSettings(GroupName = ...)] here (there was one, "Cookie scan"): decompiling
+// Umbraco.Cms.Api.Common.OpenApi.BackOfficeOpenApiDocumentBuilder.Build shows the "management"
+// document's ShouldInclude checks only for a MapToApiAttribute matching "management" - which this
+// controller already inherits from ManagementApiControllerBase, the same way every other
+// management controller does - and never looks at ApiExplorerSettings.GroupName at all (that only
+// drives tag grouping within a document, via TagActionsByGroupNameTransformer). So GroupName was
+// not, in fact, the reason this endpoint was missing from every swagger document; the actual cause
+// could not be confirmed from static analysis alone. Removed rather than guess a replacement value,
+// since the default (no explicit group) is more likely correct than an invented one. Re-verify
+// against a running site.
 [Authorize(Policy = AuthorizationPolicies.BackOfficeAccess)]
 public sealed class CookieScanController(CookieScanWriter writer) : ManagementApiControllerBase
 {

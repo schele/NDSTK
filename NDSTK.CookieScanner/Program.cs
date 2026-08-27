@@ -25,8 +25,14 @@ try
 
     // Discovery runs in its own throwaway context so the pages it loads cannot leave cookies in
     // any pass's jar.
+    //
+    // IgnoreHTTPSErrors is scoped to a loopback target, same as ManagementApiClient.CreateClient:
+    // it exists so a local site behind a dev certificate can be scanned without trusting that
+    // certificate first, and is deliberately not extended to a real host. MemberDimension submits
+    // a member's email and password through one of these contexts, so accepting any certificate
+    // when talking to production would be indefensible.
     await using (IBrowserContext discovery = await browser.NewContextAsync(
-        new BrowserNewContextOptions { IgnoreHTTPSErrors = true }))
+        new BrowserNewContextOptions { IgnoreHTTPSErrors = options.Url.IsLoopback }))
     {
         urls = await new SiteCrawler(await discovery.NewPageAsync(), options).DiscoverAsync(options.Url);
     }
@@ -94,7 +100,11 @@ try
 
     MergeOutcome? outcome = null;
 
-    if (options.CanReachApi)
+    // An empty candidate list is a legitimate scan outcome, not a failure - but the endpoint's own
+    // validation rejects a declarations-less request with a 400 ("The request contains no
+    // declarations"), which would otherwise surface to the operator as a write-back failure for a
+    // site that simply set no cookies.
+    if (options.CanReachApi && candidates.Count > 0)
     {
         outcome = await new ManagementApiClient(options).MergeAsync(candidates);
     }

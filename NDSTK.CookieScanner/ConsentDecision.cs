@@ -43,7 +43,9 @@ public static class ConsentDecision
             throw new InvalidOperationException(
                 $"The consent endpoint throttled pass {pass} (HTTP 429). The passes must run "
                 + "sequentially and the site's Esatto:CookieBanner:ThrottleRequestsPerMinute must "
-                + "be at least 7. Raise it, or wait a minute and re-run.");
+                + "be at least 6 - the scan posts at most 6 decisions (5 across the six comparable "
+                + "passes, since Undecided posts nothing, plus 1 for the member dimension). Raise "
+                + "it, or wait a minute and re-run.");
         }
 
         if (response.Ok is false)

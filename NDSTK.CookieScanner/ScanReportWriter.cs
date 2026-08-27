@@ -46,7 +46,7 @@ public static class ScanReportWriter
         markdown.AppendLine($"- Site: {options.Url}");
         markdown.AppendLine($"- Pages per pass: up to {options.MaxPages}");
         markdown.AppendLine($"- Member dimension: {(options.MemberScanEnabled ? "yes" : "no")}");
-        markdown.AppendLine($"- Write-back: {Describe(options, outcome)}");
+        markdown.AppendLine($"- Write-back: {Describe(options, outcome, candidates.Count)}");
         markdown.AppendLine();
 
         // Violations first, deliberately. It is the finding that matters, and burying it under a
@@ -162,15 +162,29 @@ public static class ScanReportWriter
         Console.WriteLine($"Report written to {markdownPath}");
         Console.WriteLine($"                  {jsonPath}");
 
-        // Exit code reflects findings, never configuration. A report-only run that found a
-        // violation still fails, so a missing credential can never mask one.
-        return violations.Count > 0 ? ExitViolations : ExitClean;
+        // Violations outrank everything: they are the finding this tool exists to produce.
+        if (violations.Count > 0)
+        {
+            return ExitViolations;
+        }
+
+        // A missing credential is not an error - report-only is a supported mode. But a write-back
+        // that was configured, had something to write, and then failed IS one, and it must not
+        // exit 0: a CI job gating on this would otherwise stay green while the policy page
+        // silently stopped being updated. The candidates.Count check matters because Program
+        // deliberately skips calling the merge endpoint for an empty candidate list (see its own
+        // comment) - that is a legitimate outcome, not an unattempted or failed write-back, and
+        // must not be reported as one.
+        return outcome is null && options.CanReachApi && candidates.Count > 0 ? ExitError : ExitClean;
     }
 
-    private static string Describe(ScanOptions options, MergeOutcome? outcome)
+    private static string Describe(ScanOptions options, MergeOutcome? outcome, int candidateCount)
         => outcome switch
         {
             null when options.CanReachApi is false => "not configured (report only)",
+            // Program deliberately skips the merge call for an empty candidate list rather than
+            // let the endpoint reject it - that is a legitimate outcome, not an attempt that failed.
+            null when candidateCount == 0 => "not attempted - nothing found to write back",
             null => "attempted but failed - see the console output",
             { Saved: true } => "saved as a draft",
             _ => options.DryRun ? "dry run, nothing written" : "nothing new to write",

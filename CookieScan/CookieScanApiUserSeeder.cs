@@ -50,15 +50,35 @@ public sealed class CookieScanApiUserSeeder(
 
             if (existing is null)
             {
-                Guid? userKey = await CreateUserAsync(settings);
+                // A miss here does not mean no user exists. If a previous boot created the user
+                // below and then failed to attach the client id (the error path a few lines down),
+                // that user is still sitting there under settings.Email, and CreateAsync would fail
+                // forever afterwards with a duplicate-email error - the exact stuck loop this
+                // lookup exists to avoid. GetByEmail is IMembershipMemberService<IUser>'s lookup,
+                // inherited onto IUserService; it returns null rather than throwing when nothing
+                // matches.
+                IUser? existingByEmail = userService.GetByEmail(settings.Email);
 
-                if (userKey is null)
+                Guid userKey;
+
+                if (existingByEmail is null)
                 {
-                    return;
+                    Guid? createdKey = await CreateUserAsync(settings);
+
+                    if (createdKey is null)
+                    {
+                        return;
+                    }
+
+                    userKey = createdKey.Value;
+                }
+                else
+                {
+                    userKey = existingByEmail.Key;
                 }
 
                 UserClientCredentialsOperationStatus clientIdStatus =
-                    await userService.AddClientIdAsync(userKey.Value, settings.ClientId);
+                    await userService.AddClientIdAsync(userKey, settings.ClientId);
 
                 if (clientIdStatus != UserClientCredentialsOperationStatus.Success)
                 {
@@ -125,7 +145,11 @@ public sealed class CookieScanApiUserSeeder(
         {
             Kind = UserKind.Api,
             Name = settings.Name,
-            UserName = settings.ClientId,
+            // Not settings.ClientId: Umbraco validates the username as an email address whenever
+            // Umbraco:CMS:Security:UsernameIsEmail is true, which is the default. The client id is
+            // a separate concept, attached below via AddClientIdAsync - it has nothing to do with
+            // the username.
+            UserName = settings.Email,
             Email = settings.Email,
             UserGroupKeys = groupKeys,
         };

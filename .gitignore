@@ -490,5 +490,5 @@ appsettings.Secrets.json
 cookie-scan-report.md
 cookie-scan-report.json
 
-# Self-contained publish output for the cookie scanner exe (~80MB)
+# Self-contained publish output for the cookie scanner exe (~180MB)
 /dist/
