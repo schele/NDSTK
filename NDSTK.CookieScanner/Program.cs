@@ -66,7 +66,7 @@ try
     {
         Console.WriteLine("Member dimension: signing in...");
 
-        PassResult member = await new MemberDimension(browser, options, ConsentEndpointPath).RunAsync();
+        PassResult member = await new MemberDimension(browser, options, ConsentEndpointPath).RunAsync(urls);
 
         hostsByPass[ConsentPass.MemberArea] = member.Hosts;
 

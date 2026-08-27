@@ -19,7 +19,12 @@ namespace NDSTK.CookieScanner;
 /// </remarks>
 public sealed class MemberDimension(IBrowser browser, ScanOptions options, string endpointPath)
 {
-    public async Task<PassResult> RunAsync()
+    /// <param name="publicUrls">
+    /// The URL list already discovered by <c>Program</c>'s public crawl, reused here to find the
+    /// login page rather than re-crawled: a second full BFS solely to pick one URL out would
+    /// roughly double the page loads this tool puts on a live site for no discovery benefit.
+    /// </param>
+    public async Task<PassResult> RunAsync(IReadOnlyList<Uri> publicUrls)
     {
         await using IBrowserContext context = await browser.NewContextAsync(
             new BrowserNewContextOptions { IgnoreHTTPSErrors = true });
@@ -31,24 +36,9 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
 
         // Accept everything, so a cookie found here is attributable to the login rather than to a
         // consent state this dimension did not mean to test.
-        IAPIResponse decision = await context.APIRequest.PostAsync(
-            new Uri(options.Url, endpointPath).ToString(),
-            new APIRequestContextOptions
-            {
-                DataObject = new
-                {
-                    action = "accept-all",
-                    categories = new[] { "preferences", "statistics", "marketing" },
-                },
-            });
+        await ConsentDecision.RecordAsync(context, options.Url, endpointPath, ConsentPass.MemberArea);
 
-        if (decision.Ok is false)
-        {
-            throw new InvalidOperationException(
-                $"Could not record consent for the member dimension (HTTP {decision.Status}).");
-        }
-
-        Uri? portal = await SignInAsync(page);
+        Uri? portal = await SignInAsync(page, publicUrls);
 
         if (portal is null)
         {
@@ -61,7 +51,7 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
 
         IReadOnlyList<Uri> memberUrls = await new SiteCrawler(page, options).DiscoverAsync(portal);
 
-        Dictionary<(string, StorageKind), PassEntry> found = [];
+        Dictionary<(string Name, StorageKind Storage), PassEntry> found = [];
 
         foreach (Uri url in memberUrls)
         {
@@ -69,8 +59,11 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
 
             foreach (CapturedEntry entry in observation.Entries)
             {
+                // Keyed on the lowercased name so this dedup agrees with
+                // ObservedEntries.EarliestPerName's case-insensitive grouping - the stored entry
+                // still carries the original casing, only the key is normalised.
                 found.TryAdd(
-                    (entry.Name, entry.Storage),
+                    (entry.Name.ToLowerInvariant(), entry.Storage),
                     new PassEntry(entry.Name, entry.Storage, entry.Expires, url));
             }
         }
@@ -87,11 +80,9 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
     /// would read a rejected password as a success and then crawl the public site again, reporting
     /// nothing new and no error.
     /// </remarks>
-    private async Task<Uri?> SignInAsync(IPage page)
+    private async Task<Uri?> SignInAsync(IPage page, IReadOnlyList<Uri> publicUrls)
     {
         // The login page is found rather than assumed: its URL is editor-owned content.
-        IReadOnlyList<Uri> publicUrls = await new SiteCrawler(page, options).DiscoverAsync(options.Url);
-
         Uri? loginUrl = publicUrls.FirstOrDefault(url =>
             url.AbsolutePath.Contains("logga-in", StringComparison.OrdinalIgnoreCase)
             || url.AbsolutePath.Contains("login", StringComparison.OrdinalIgnoreCase));
