@@ -57,7 +57,21 @@ public sealed class CookieScanApiUserSeeder(
                     return;
                 }
 
-                await userService.AddClientIdAsync(userKey.Value, settings.ClientId);
+                UserClientCredentialsOperationStatus clientIdStatus =
+                    await userService.AddClientIdAsync(userKey.Value, settings.ClientId);
+
+                if (clientIdStatus != UserClientCredentialsOperationStatus.Success)
+                {
+                    // Never reach the "ready" log below: the user exists but has no client id
+                    // attached, so a token request for it would fail later with no clue why.
+                    logger.LogError(
+                        "Created the cookie scanner's API user but could not attach client id "
+                        + "{ClientId} to it: {Status}.",
+                        settings.ClientId,
+                        clientIdStatus);
+
+                    return;
+                }
             }
 
             // Registers the client id and secret with the OpenIddict application store. Safe to

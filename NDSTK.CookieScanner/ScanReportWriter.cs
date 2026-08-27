@@ -9,6 +9,7 @@ public sealed record MergeOutcome(
     IReadOnlyList<string> Added,
     IReadOnlyList<string> AlreadyDeclared,
     IReadOnlyList<string> DeclaredButNotFound,
+    Guid PolicyPageKey,
     bool Saved);
 
 /// <summary>
@@ -56,7 +57,10 @@ public static class ScanReportWriter
 
         if (outcome is not null)
         {
-            Section(markdown, "Added to the policy page (draft)", outcome.Added);
+            // In a dry run nothing was actually added - Describe gets that right already, but this
+            // heading used to claim otherwise regardless of DryRun.
+            string addedHeading = options.DryRun ? "Would be added (dry run)" : "Added to the policy page (draft)";
+            Section(markdown, addedHeading, outcome.Added);
             Section(markdown, "Already declared", outcome.AlreadyDeclared);
             Section(
                 markdown,
@@ -142,8 +146,8 @@ public static class ScanReportWriter
             if (outcome.Saved)
             {
                 Console.WriteLine(
-                    "  The policy page was saved as a DRAFT. Review the new blocks in the "
-                    + "backoffice and publish when you are happy with the wording.");
+                    $"  The policy page ({outcome.PolicyPageKey}) was saved as a DRAFT. Review the "
+                    + "new blocks in the backoffice and publish when you are happy with the wording.");
             }
         }
 

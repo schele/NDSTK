@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Esatto.Umbraco.Backoffice.CookieBanner;
 using Microsoft.Extensions.Options;
 using NDSTK.CookieScan.Core;
@@ -131,14 +132,20 @@ public sealed class CookieScanWriter(
     }
 
     /// <summary>
-    /// Finds the policy page the same way the package does: the configured key when set, otherwise
-    /// the first node of the policy document type.
+    /// Finds the policy page: the configured key when set, otherwise the first published node of
+    /// the policy document type.
     /// </summary>
     /// <remarks>
-    /// The package's own resolver is internal, so this repeats the rule rather than calling it.
+    /// The package's own resolver is internal, so this repeats its rule rather than calling it -
+    /// though only for the fallback scan below. For the configured-key case this checks existence
+    /// and the content type alias only, unlike the package's resolver, which reads through the
+    /// published cache and so answers nothing for an unpublished override; an operator who set
+    /// <c>PolicyPageKey</c> explicitly is assumed to mean it regardless of publish state.
+    /// <para>
     /// Note the deliberate absence of <c>contentService.GetById(Guid)</c>: Umbraco 18.1.1 declares
     /// only the int overload on IContentService, so the key is resolved through IEntityService
     /// first - which is identical across 17 and 18.
+    /// </para>
     /// </remarks>
     private IContent ResolvePolicyPage()
     {
@@ -151,16 +158,41 @@ public sealed class CookieScanWriter(
             return byKey is not null && byKey.ContentType.Alias == PolicyAlias
                 ? byKey
                 : throw new RejectedException(
-                    $"Esatto:CookieBanner:PolicyPageKey points at {configured}, which is not a "
-                    + $"published '{PolicyAlias}' node.");
+                    $"Esatto:CookieBanner:PolicyPageKey points at {configured}, which does not "
+                    + $"resolve to a '{PolicyAlias}' node.");
         }
 
         IContentType policyType = contentTypeService.Get(PolicyAlias)
             ?? throw new RejectedException($"No '{PolicyAlias}' document type exists.");
 
-        IContent? found = contentService
-            .GetPagedOfType(policyType.Id, 0, ScanPageSize, out _, null, null)
-            .FirstOrDefault();
+        // IContentService.GetPagedOfType declares `filter` as non-nullable on the interface even
+        // though passing null for "no filter" is the documented, supported usage - an annotation
+        // mismatch in the shipped API, not a real nullability risk here. The CookieBanner
+        // package's own resolver suppresses the identical warning at the identical call.
+#pragma warning disable CS8625
+        List<IContent> candidates =
+            [.. contentService.GetPagedOfType(policyType.Id, 0, ScanPageSize, out _, null, null)];
+#pragma warning restore CS8625
+
+        // Prefer a published node, matching the package's own resolver, which reads through the
+        // published cache and so never returns an unpublished one. A site with more than one
+        // policy page and the wrong one published-first would otherwise have the scan silently
+        // append to a node the banner never links to.
+        IContent? found = candidates.FirstOrDefault(candidate => candidate.Published);
+
+        if (found is null && candidates.Count > 0)
+        {
+            // Not a failure: Merge only ever saves, never publishes, so writing to an unpublished
+            // draft is a legitimate outcome here - it just should not happen without a word about
+            // it, since the banner will not show these declarations until that page is published.
+            found = candidates[0];
+
+            logger.LogWarning(
+                "No published '{Alias}' node was found; appending to the first unpublished one "
+                + "instead ({Key}).",
+                PolicyAlias,
+                found.Key);
+        }
 
         return found ?? throw new RejectedException(
             $"No '{PolicyAlias}' node exists. The CookieBanner package seeds one on first start.");
@@ -181,10 +213,23 @@ public sealed class CookieScanWriter(
             };
         }
 
-        return jsonSerializer.Deserialize<BlockListValue>(raw)
-            ?? throw new RejectedException(
-                "The policy page's 'cookies' value could not be read as a Block List. Refusing to "
-                + "overwrite it - open the page in the backoffice and check it saves cleanly first.");
+        // IJsonSerializer.Deserialize throws JsonException on a corrupt value rather than
+        // returning null - it returns null only for the literal string "null" - so the guard
+        // below is a belt-and-braces check, and this catch is what actually turns a malformed
+        // 'cookies' value into the 400 this message promises instead of an unhandled 500.
+        const string corruptMessage =
+            "The policy page's 'cookies' value could not be read as a Block List. Refusing to "
+            + "overwrite it - open the page in the backoffice and check it saves cleanly first.";
+
+        try
+        {
+            return jsonSerializer.Deserialize<BlockListValue>(raw)
+                ?? throw new RejectedException(corruptMessage);
+        }
+        catch (JsonException)
+        {
+            throw new RejectedException(corruptMessage);
+        }
     }
 
     private static List<string> DeclaredNames(BlockListValue value)

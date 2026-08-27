@@ -74,9 +74,17 @@ public sealed class ManagementApiClient(ScanOptions options)
                 parsed.Added ?? [],
                 parsed.AlreadyDeclared ?? [],
                 parsed.DeclaredButNotFound ?? [],
+                parsed.PolicyPageKey,
                 parsed.Saved);
         }
-        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        // JsonException included: a 2xx response with a non-JSON body - an HTML login or error
+        // page is the realistic case - makes the Deserialize call above throw one, and without
+        // this filter it would escape MergeAsync into the scanner's top-level catch, which exits
+        // the process WITHOUT ever writing the report. That loses the whole scan's findings, not
+        // just the write-back - the one thing this method's own remarks promise cannot happen.
+        // TokenAsync's deserialize is covered by the same filter: it runs inside this same try,
+        // called from the line above.
+        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or InvalidOperationException or JsonException)
         {
             Console.Error.WriteLine($"  Write-back failed: {error.Message}");
 
@@ -139,5 +147,6 @@ public sealed class ManagementApiClient(ScanOptions options)
         IReadOnlyList<string>? Added,
         IReadOnlyList<string>? AlreadyDeclared,
         IReadOnlyList<string>? DeclaredButNotFound,
+        Guid PolicyPageKey,
         bool Saved);
 }

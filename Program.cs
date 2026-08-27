@@ -147,8 +147,11 @@ if (app.Services.GetRequiredService<TestDataResetGate>().IsEnabled)
 
 // Creates the cookie scanner's API user when configured to. After BootUmbracoAsync because it
 // needs the user service, and awaited rather than fire-and-forget so a failure is logged in order
-// rather than interleaved with the first request.
-using (IServiceScope scope = app.Services.CreateScope())
+// rather than interleaved with the first request. An async scope, not a sync one: if anything
+// resolved into it is IAsyncDisposable-only, a sync Dispose() throws AFTER the seeder's own catch
+// has already done its job - taking down boot, the one outcome the never-fatal posture exists to
+// prevent.
+await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
 {
     await scope.ServiceProvider
         .GetRequiredService<NDSTK.CookieScan.CookieScanApiUserSeeder>()
