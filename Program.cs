@@ -123,6 +123,13 @@ builder.CreateUmbracoBuilder()
     })
     .Build();
 
+// The cookie scanner's merge endpoint. Scoped, because it uses IContentService.
+builder.Services.AddScoped<NDSTK.CookieScan.CookieScanWriter>();
+
+builder.Services.Configure<NDSTK.CookieScan.CookieScanApiUserOptions>(
+    builder.Configuration.GetSection(NDSTK.CookieScan.CookieScanApiUserOptions.SectionName));
+builder.Services.AddScoped<NDSTK.CookieScan.CookieScanApiUserSeeder>();
+
 WebApplication app = builder.Build();
 
 
@@ -136,6 +143,16 @@ if (app.Services.GetRequiredService<TestDataResetGate>().IsEnabled)
     app.Logger.LogWarning(
         "The test data reset is ENABLED. Backoffice users with access to Members can delete every "
         + "booking, payment, credit, child and membership. Development only.");
+}
+
+// Creates the cookie scanner's API user when configured to. After BootUmbracoAsync because it
+// needs the user service, and awaited rather than fire-and-forget so a failure is logged in order
+// rather than interleaved with the first request.
+using (IServiceScope scope = app.Services.CreateScope())
+{
+    await scope.ServiceProvider
+        .GetRequiredService<NDSTK.CookieScan.CookieScanApiUserSeeder>()
+        .SeedAsync(CancellationToken.None);
 }
 
 // Maps the endpoint the consent dialog posts decisions to. Must sit after BootUmbracoAsync()
