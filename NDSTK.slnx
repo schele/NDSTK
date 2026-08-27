@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="NDSTK.csproj" />
   <Project Path="NDSTK.CookieScan.Core/NDSTK.CookieScan.Core.csproj" />
+  <Project Path="NDSTK.CookieScanner/NDSTK.CookieScanner.csproj" />
   <Project Path="NDSTK.Domain/NDSTK.Domain.csproj" />
   <Project Path="NDSTK.Tests/NDSTK.Tests.csproj" />
 </Solution>

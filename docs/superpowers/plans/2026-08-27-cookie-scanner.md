@@ -2093,7 +2093,7 @@ Run: `git status --short` — expected: the three files of this task and nothing
   - `static class BrowserBootstrap` with `static void EnsureChromium()`
 - Tasks 7–13 consume `ScanOptions`.
 
-**Playwright API note for the implementer.** Every Playwright member named in Tasks 6–9 was written from knowledge of the .NET binding, **not verified against the assembly** — the package is not in the local NuGet cache, so it could not be checked the way the Umbraco APIs were. After Step 1, run `dotnet build` and fix any member-name mismatch before continuing. The names to watch: `Microsoft.Playwright.Program.Main`, `IBrowserContext.APIRequest`, `BrowserContextCookie.Expires`, `PageGotoOptions.WaitUntil`.
+**Playwright API note for the implementer.** Every Playwright member named in Tasks 6–9 was written from knowledge of the .NET binding, **not verified against the assembly** — the package is not in the local NuGet cache, so it could not be checked the way the Umbraco APIs were. After Step 1, run `dotnet build` and fix any member-name mismatch before continuing. The names to watch: `Microsoft.Playwright.Program.Main`, `IBrowserContext.APIRequest`, `BrowserContextCookiesResult.Expires`, `PageGotoOptions.WaitUntil`.
 
 - [ ] **Step 1: Create the project and add Playwright**
 
@@ -2501,7 +2501,7 @@ public static class PageCapture
 
         // Read from the context, not the page: a cookie set for the whole site by an earlier page
         // in this pass belongs to this pass, and reading per-page would keep re-finding it.
-        foreach (BrowserContextCookie cookie in await page.Context.CookiesAsync())
+        foreach (BrowserContextCookiesResult cookie in await page.Context.CookiesAsync())
         {
             entries.Add(new CapturedEntry(
                 cookie.Name,

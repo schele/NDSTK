@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>NDSTK.CookieScanner</RootNamespace>
+    <AssemblyName>ndstk-cookiescan</AssemblyName>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!--
+      Published self-contained and single-file, which is what makes this a copy-anywhere exe.
+      IncludeNativeLibrariesForSelfExtract is not optional: Playwright ships native libraries that
+      a single-file bundle cannot load from memory, and without it the exe builds and then fails at
+      the first browser launch.
+    -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NDSTK.CookieScan.Core\NDSTK.CookieScan.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
+  </ItemGroup>
+
+</Project>
