@@ -3146,7 +3146,7 @@ Run: `git status --short` — expected: the two files of this task.
 - Consumes: everything from Tasks 2–9.
 - Produces:
   - `sealed record MergeOutcome(IReadOnlyList<string> Added, IReadOnlyList<string> AlreadyDeclared, IReadOnlyList<string> DeclaredButNotFound, bool Saved)`
-  - `static class ScanReportWriter` with `static int Write(ScanOptions options, IReadOnlyList<CookieDeclarationCandidate> candidates, IReadOnlyList<string> expectedButNotObserved, IReadOnlyDictionary<ConsentPass, IReadOnlySet<string>> hostsByPass, MergeOutcome? outcome)` returning the process exit code
+  - `static class ScanReportWriter` with `static int Write(ScanOptions options, IReadOnlyList<CookieDeclarationCandidate> candidates, IReadOnlyList<CookieDeclarationCandidate> violations, IReadOnlyList<string> expectedButNotObserved, IReadOnlyDictionary<ConsentPass, IReadOnlySet<string>> hostsByPass, MergeOutcome? outcome)` returning the process exit code
 - Task 13 consumes `MergeOutcome`; Task 14 reads the report files.
 
 **Refinement to Task 6.** `WriteBackEnabled` folded the dry-run flag into the credential check, which turns out to be wrong: a `--dry-run` run **with** credentials is the most useful mode there is — it plans against the real page and reports exactly what would be added, writing nothing. Split into `CanReachApi` (credentials present) with `DryRun` passed through to the endpoint.
@@ -3194,16 +3194,21 @@ public static class ScanReportWriter
     public const int ExitViolations = 1;
     public const int ExitError = 2;
 
+    /// <remarks>
+    /// <paramref name="violations"/> is passed in rather than filtered out of
+    /// <paramref name="candidates"/>, because a violation is a property of one sighting while a
+    /// candidate is the earliest-per-name reduction. Deriving them from the reduced list would miss
+    /// a cookie whose category WAS granted in the pass that first set it and which was then set
+    /// again in a pass that granted something else - see <c>ViolationScan.Find</c>.
+    /// </remarks>
     public static int Write(
         ScanOptions options,
         IReadOnlyList<CookieDeclarationCandidate> candidates,
+        IReadOnlyList<CookieDeclarationCandidate> violations,
         IReadOnlyList<string> expectedButNotObserved,
         IReadOnlyDictionary<ConsentPass, IReadOnlySet<string>> hostsByPass,
         MergeOutcome? outcome)
     {
-        List<CookieDeclarationCandidate> violations =
-            [.. candidates.Where(candidate => candidate.Flag == CandidateFlag.Violation)];
-
         List<CookieDeclarationCandidate> needsReview =
             [.. candidates.Where(candidate => candidate.Flag == CandidateFlag.NeedsReview)];
 
@@ -3432,7 +3437,10 @@ try
     {
         Console.WriteLine("  member dimension: signing in");
 
-        PassResult member = await new MemberDimension(browser, options, ConsentEndpointPath).RunAsync();
+        // The public list is passed in rather than re-crawled: Program discovered it moments ago,
+        // and a second full BFS would double the page loads this tool inflicts on a live site.
+        PassResult member = await new MemberDimension(browser, options, ConsentEndpointPath)
+            .RunAsync(urls);
 
         hostsByPass[ConsentPass.MemberArea] = member.Hosts;
         observed.AddRange(member.Entries.Select(entry => new ObservedEntry(
@@ -3450,6 +3458,15 @@ try
         .OrderBy(candidate => candidate.Name, StringComparer.Ordinal)
         .ToArray();
 
+    // From the RAW observations, not from candidates. A violation is a property of one sighting,
+    // while a candidate is the earliest-per-name reduction - so deriving violations from the
+    // reduced list would miss a cookie whose category WAS granted in the pass that first set it
+    // and which was then set again in a pass that granted something else. That second sighting is
+    // the signature of a tag respecting consent selectively, which is the thing the passes exist
+    // to catch.
+    IReadOnlyList<CookieDeclarationCandidate> violations =
+        ViolationScan.Find(observed, catalogue, now, options.Locale);
+
     // Computed here rather than taken from the endpoint: it depends on THIS run's catalogue, which
     // may be an override file the site knows nothing about.
     IReadOnlyList<string> expectedButNotObserved =
@@ -3462,7 +3479,8 @@ try
         outcome = await new ManagementApiClient(options).MergeAsync(candidates);
     }
 
-    return ScanReportWriter.Write(options, candidates, expectedButNotObserved, hostsByPass, outcome);
+    return ScanReportWriter.Write(
+        options, candidates, violations, expectedButNotObserved, hostsByPass, outcome);
 }
 catch (ArgumentException error)
 {

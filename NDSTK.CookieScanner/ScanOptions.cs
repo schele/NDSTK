@@ -23,12 +23,11 @@ public sealed record ScanOptions(
     public const string SecretVariable = "NDSTK_COOKIESCAN_CLIENT_SECRET";
 
     /// <summary>
-    /// Whether anything will be written to Umbraco. Report-only is the safe default: a missing
-    /// credential is not an error, it just means the scan reports and stops.
+    /// Whether the endpoint can be called at all. Report-only is the safe default: a missing
+    /// credential is not an error, it just means the scan cannot compare itself against the page.
     /// </summary>
-    public bool WriteBackEnabled
-        => DryRun is false
-            && string.IsNullOrWhiteSpace(ClientId) is false
+    public bool CanReachApi
+        => string.IsNullOrWhiteSpace(ClientId) is false
             && string.IsNullOrWhiteSpace(ClientSecret) is false;
 
     public bool MemberScanEnabled

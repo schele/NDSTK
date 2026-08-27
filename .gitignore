@@ -483,3 +483,12 @@ umbraco-package-schema.json
 
 # Server-only secrets (DB connection string, etc) - never commit
 appsettings.Secrets.json
+
+# Cookie scanner output - reports are a scan artefact, regenerated on every run
+/scan-out/
+/scan-out-en/
+cookie-scan-report.md
+cookie-scan-report.json
+
+# Self-contained publish output for the cookie scanner exe (~80MB)
+/dist/
