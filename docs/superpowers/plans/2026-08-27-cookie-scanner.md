@@ -400,7 +400,7 @@ public static class CookieNameMatcher
 - [ ] **Step 9: Run the tests to verify they pass**
 
 Run: `dotnet test NDSTK.Tests/NDSTK.Tests.csproj --filter CookieNameMatcherTests`
-Expected: PASS, 11 tests (the `[Theory]` contributes 5 cases).
+Expected: every test in the class passes.
 
 - [ ] **Step 10: Verification checkpoint**
 
@@ -1074,7 +1074,7 @@ Replace `NDSTK.CookieScan.Core/Resources/cookie-catalogue.json` entirely. There 
 - [ ] **Step 7: Run the tests to verify they pass**
 
 Run: `dotnet test NDSTK.Tests/NDSTK.Tests.csproj --filter CookieCatalogueTests`
-Expected: PASS, 13 tests.
+Expected: every test in the class passes.
 
 - [ ] **Step 8: Verification checkpoint**
 
@@ -1169,8 +1169,18 @@ public class DurationFormatterTests
         Assert.Equal("1 hour", Format(expires: Now.AddHours(1), locale: Locale.En));
         Assert.Equal("1 dag", Format(durationDays: 1));
         Assert.Equal("1 day", Format(durationDays: 1, locale: Locale.En));
-        Assert.Equal("1 månad", Format(durationDays: 30));
-        Assert.Equal("1 month", Format(durationDays: 30, locale: Locale.En));
+    }
+
+    // No month singular is asserted above because none is reachable, and that is worth pinning
+    // down rather than leaving as a surprise: the smallest value that reaches the months branch is
+    // 60 days, which is 1.97 months and rounds to 2. Anything shorter renders in days by design.
+    // The singular arm of the switch stays as defensive code. Lower MonthsFromDays to 45 if a
+    // "1 månad" output is ever wanted.
+    [Fact]
+    public void The_smallest_month_output_is_two_because_of_the_sixty_day_threshold()
+    {
+        Assert.Equal("59 dagar", Format(durationDays: 59));
+        Assert.Equal("2 månader", Format(durationDays: 60));
     }
 
     // Never "0 timmar". A cookie that expires in forty seconds still exists, and rounding it away
@@ -1369,7 +1379,7 @@ public static class DurationFormatter
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `dotnet test NDSTK.Tests/NDSTK.Tests.csproj --filter DurationFormatterTests`
-Expected: PASS, 13 tests.
+Expected: every test in the class passes.
 
 - [ ] **Step 6: Verification checkpoint**
 
@@ -1705,7 +1715,7 @@ public static class CategoryInference
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `dotnet test NDSTK.Tests/NDSTK.Tests.csproj --filter CategoryInferenceTests`
-Expected: PASS, 22 tests (the two `[Theory]` blocks contribute 6 cases between them).
+Expected: every test in the class passes.
 
 - [ ] **Step 6: Verification checkpoint**
 
@@ -2055,7 +2065,7 @@ public static class MergePlanner
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `dotnet test NDSTK.Tests/NDSTK.Tests.csproj --filter MergePlannerTests`
-Expected: PASS, 16 tests.
+Expected: every test in the class passes.
 
 - [ ] **Step 6: Verification checkpoint**
 
@@ -2733,7 +2743,7 @@ public static class ObservedEntries
 - [ ] **Step 4: Run it to verify it passes**
 
 Run: `dotnet test NDSTK.Tests/NDSTK.Tests.csproj --filter ObservedEntriesTests`
-Expected: PASS, 6 tests.
+Expected: every test in the class passes.
 
 - [ ] **Step 5: Write `ConsentPassRunner`**
 
