@@ -2207,12 +2207,12 @@ public sealed record ScanOptions(
                 "--url is required. Example: ndstk-cookiescan --url https://ndstk.se");
         }
 
-        var root = new Uri(url, UriKind.Absolute);
+        Uri root = Absolute(url, "url");
 
         return new ScanOptions(
             Url: root,
             Target: flags.TryGetValue("target", out string? target) && string.IsNullOrWhiteSpace(target) is false
-                ? new Uri(target, UriKind.Absolute)
+                ? Absolute(target, "target")
                 : root,
             MaxPages: flags.TryGetValue("max-pages", out string? maxPages)
                 && int.TryParse(maxPages, out int parsed) && parsed > 0
@@ -2229,6 +2229,22 @@ public sealed record ScanOptions(
             DryRun: flags.ContainsKey("dry-run"),
             ReportDir: Value(flags, "report-dir") ?? Directory.GetCurrentDirectory(),
             Headed: flags.ContainsKey("headed"));
+
+        // UriFormatException derives from FormatException, not ArgumentException, so an
+        // unvalidated constructor call escapes Program's single catch and greets a mistyped URL
+        // with a stack trace. A URL pasted without its scheme is the likeliest operator error
+        // there is, so it gets a message that names that cause.
+        static Uri Absolute(string value, string flag)
+        {
+            if (Uri.TryCreate(value, UriKind.Absolute, out Uri? parsed))
+            {
+                return parsed;
+            }
+
+            throw new ArgumentException(
+                $"--{flag} is not an absolute URL: '{value}'. It needs a scheme, for example "
+                + $"--{flag} https://ndstk.se");
+        }
 
         static string? Value(Dictionary<string, string?> flags, string key)
             => flags.TryGetValue(key, out string? value) && string.IsNullOrWhiteSpace(value) is false
