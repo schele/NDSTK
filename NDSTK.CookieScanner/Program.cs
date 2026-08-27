@@ -94,12 +94,10 @@ try
 
     MergeOutcome? outcome = null;
 
-    // TASK 13 RESTORES THIS. ManagementApiClient does not exist yet; leaving the call commented
-    // out keeps the scanner runnable and verifiable through Tasks 11 and 12.
-    // if (options.CanReachApi)
-    // {
-    //     outcome = await new ManagementApiClient(options).MergeAsync(candidates);
-    // }
+    if (options.CanReachApi)
+    {
+        outcome = await new ManagementApiClient(options).MergeAsync(candidates);
+    }
 
     return ScanReportWriter.Write(
         options, candidates, violations, expectedButNotObserved, hostsByPass, outcome);
