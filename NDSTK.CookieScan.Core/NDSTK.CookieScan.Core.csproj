@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>NDSTK.CookieScan.Core</RootNamespace>
+    <!--
+      No Umbraco, no Playwright, no HTTP - deliberately, and enforced by having no
+      PackageReference at all. Every rule the scanner and the site's merge endpoint share lives
+      here so both can be tested without a browser or a published content graph. Same reasoning
+      as NDSTK.Domain: a running site holds a file lock on NDSTK.dll, so a test suite that has to
+      build the web project cannot run while you are looking at the site.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\cookie-catalogue.json" />
+  </ItemGroup>
+
+</Project>

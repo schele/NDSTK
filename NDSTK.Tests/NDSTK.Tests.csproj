@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NDSTK.Domain\NDSTK.Domain.csproj" />
+    <ProjectReference Include="..\NDSTK.CookieScan.Core\NDSTK.CookieScan.Core.csproj" />
   </ItemGroup>
 
 </Project>
