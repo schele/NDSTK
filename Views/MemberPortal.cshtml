@@ -191,6 +191,26 @@
             }
             else
             {
+                @* A member with no child on the account gets every class rendered with nothing
+                   under it: booking needs somebody to book, so the buttons below are all skipped
+                   and the list reads as broken rather than as waiting on something.
+
+                   Said once, above the list, rather than in each empty row - it is a fact about the
+                   account and not about any one class, and a term with ten classes would repeat it
+                   ten times. The list itself stays: seeing what is on offer is the reason to add a
+                   child in the first place.
+
+                   "under Mina barn" rather than "ovan": that box is in the sidebar while this is the
+                   main column, so any directional word is wrong at desktop width - and wrong the
+                   other way round once the columns stack. *@
+                @if (portal.Children.Count == 0)
+                {
+                    <p class="form-notice">
+                        Du behöver lägga till ett barn innan du kan boka en träning. Det gör du
+                        under <strong>Mina barn</strong>.
+                    </p>
+                }
+
                 <ul class="class-list">
                     @foreach (var bookable in portal.ClassesToOffer)
                     {
