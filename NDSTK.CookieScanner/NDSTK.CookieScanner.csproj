@@ -13,9 +13,18 @@
       IncludeNativeLibrariesForSelfExtract is not optional: Playwright ships native libraries that
       a single-file bundle cannot load from memory, and without it the exe builds and then fails at
       the first browser launch.
+
+      IncludeNativeLibrariesForSelfExtract is not enough on its own, though: Playwright's browser
+      driver (a whole Node.js runtime plus its own JS files, under .playwright\ beside the build
+      output) is content, not a native library, so it was left behind as loose files next to the
+      exe and a copy-anywhere run failed at "Checking for a Chromium build..." with "Microsoft.
+      Playwright assembly was found, but is missing required assets." IncludeAllContentForSelfExtract
+      bundles that content into the single file too and extracts it next to the exe on first run -
+      confirmed by running the published exe from a directory with nothing else in it.
     -->
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>

@@ -2118,6 +2118,14 @@ Run: `git status --short` — expected: the three files of this task and nothing
     -->
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!--
+      IncludeAllContentForSelfExtract is also required, and this is not obvious: Playwright's
+      driver ships node.exe, which the SDK classifies as CONTENT rather than a native library. With
+      only the native-library switch, the exe builds and runs from its own output directory but
+      fails with "missing required assets" the moment it is copied anywhere else - i.e. exactly
+      when it is being used as the portable tool it exists to be.
+    -->
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
@@ -4482,7 +4490,8 @@ dotnet publish NDSTK.CookieScanner -c Release -r win-x64 --self-contained \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist
 ```
 
-Expected: `dist/ndstk-cookiescan.exe`, roughly 80MB.
+Expected: `dist/ndstk-cookiescan.exe`, roughly 180MB. (The plan originally estimated 80MB; the
+Playwright driver's own payload accounts for the rest.)
 
 Verify it runs standalone from a directory that is not the repository:
 
