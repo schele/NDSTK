@@ -42,8 +42,11 @@ public sealed class ConsentPassRunner(IBrowser browser, ScanOptions options, str
             {
                 // First URL wins - it is the page that actually caused the thing to be set, and
                 // that is what makes a report line actionable.
+                // Keyed on the lowercased name so this dedup agrees with
+                // ObservedEntries.EarliestPerName's case-insensitive grouping - the stored entry
+                // still carries the original casing, only the key is normalised.
                 found.TryAdd(
-                    (entry.Name, entry.Storage),
+                    (entry.Name.ToLowerInvariant(), entry.Storage),
                     new PassEntry(entry.Name, entry.Storage, entry.Expires, url));
             }
         }
@@ -69,11 +72,6 @@ public sealed class ConsentPassRunner(IBrowser browser, ScanOptions options, str
             return;
         }
 
-        // Load the root first so the context has an origin the cookie can be stored against.
-        IPage warmUp = await context.NewPageAsync();
-        await warmUp.GotoAsync(options.Url.ToString(), new PageGotoOptions { Timeout = 30_000 });
-        await warmUp.CloseAsync();
-
         string endpoint = new Uri(options.Url, endpointPath).ToString();
 
         IAPIResponse response = await context.APIRequest.PostAsync(
@@ -93,6 +91,23 @@ public sealed class ConsentPassRunner(IBrowser browser, ScanOptions options, str
                 $"The consent endpoint returned HTTP {response.Status} for pass {pass} at "
                 + $"{endpoint}. Check that app.UseCookieConsent() is mapped and that EndpointPath "
                 + "matches the site's configuration.");
+        }
+
+        // The jar was empty a moment ago - this is a fresh context and nothing has navigated - so
+        // the decision must be sitting in it now. If it is not, every later pass would measure the
+        // undecided state while believing it measured a decided one, and the scan would report a
+        // clean bill of health it never established. That is the one failure this tool must never
+        // produce quietly, so it is fatal rather than logged. Checked by count rather than by name
+        // because the cookie's name is the site's own configuration, not something known here.
+        IReadOnlyList<BrowserContextCookiesResult> jar = await context.CookiesAsync();
+
+        if (jar.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Pass {pass} posted its decision to {endpoint} and got HTTP {response.Status}, but "
+                + "no cookie reached the browser context. Every pass would then measure the "
+                + "undecided state. Check that the endpoint sets the consent cookie on its "
+                + "response.");
         }
     }
 
