@@ -16,7 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="Esatto.Umbraco.Backoffice.ContentTreeDragAndDrop" Version="2.0.0" />
-    <PackageReference Include="Esatto.Umbraco.Backoffice.CookieBanner" Version="1.1.0" />
+    <PackageReference Include="Esatto.Umbraco.Backoffice.CookieBanner" Version="1.1.1" />
     <PackageReference Include="Esatto.Umbraco.Backoffice.DictionaryFilterValues" Version="1.0.3" />
     <PackageReference Include="Esatto.Umbraco.Backoffice.MediaTreeDragAndDrop" Version="1.0.1" />
     <PackageReference Include="Umbraco.Cms" Version="18.1.1" />
