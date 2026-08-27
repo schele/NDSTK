@@ -67,6 +67,8 @@ Three new projects plus a feature folder in the web project. `NDSTK.CookieScan.C
 | `CookieScan/CookieScanController.cs` | The one Management API endpoint |
 | `CookieScan/CookieScanContracts.cs` | Request and response DTOs |
 | `CookieScan/CookieScanWriter.cs` | Umbraco-side Block List merge |
+| `CookieScan/CookieScanApiUser.cs` | Options for the scanner's API user |
+| `CookieScan/CookieScanApiUserSeeder.cs` | Creates that API user, dev-gated |
 | `NDSTK.Tests/CookieNameMatcherTests.cs` | Task 1 |
 | `NDSTK.Tests/CookieCatalogueTests.cs` | Task 2 |
 | `NDSTK.Tests/DurationFormatterTests.cs` | Task 3 |
@@ -3107,7 +3109,7 @@ Run: `git status --short` — expected: the two files of this task.
 - Produces:
   - `sealed record MergeOutcome(IReadOnlyList<string> Added, IReadOnlyList<string> AlreadyDeclared, IReadOnlyList<string> DeclaredButNotFound, bool Saved)`
   - `static class ScanReportWriter` with `static int Write(ScanOptions options, IReadOnlyList<CookieDeclarationCandidate> candidates, IReadOnlyList<string> expectedButNotObserved, IReadOnlyDictionary<ConsentPass, IReadOnlySet<string>> hostsByPass, MergeOutcome? outcome)` returning the process exit code
-- Task 12 consumes `MergeOutcome`; Task 13 reads the report files.
+- Task 13 consumes `MergeOutcome`; Task 14 reads the report files.
 
 **Refinement to Task 6.** `WriteBackEnabled` folded the dry-run flag into the credential check, which turns out to be wrong: a `--dry-run` run **with** credentials is the most useful mode there is — it plans against the real page and reports exactly what would be added, writing nothing. Split into `CanReachApi` (credentials present) with `DryRun` passed through to the endpoint.
 
@@ -3454,14 +3456,14 @@ static CookieCatalogue LoadCatalogue()
 }
 ```
 
-This references `ManagementApiClient`, which arrives in Task 12. **Until then the project will not compile** — that is expected, and Task 11 does not need it to. If you want a green build between the two tasks, comment out the `if (options.CanReachApi)` block and restore it in Task 12.
+This references `ManagementApiClient`, which arrives in Task 13. **Until then the project will not compile** — that is expected, and Tasks 11 and 12 do not need it to. If you want a green build in between, comment out the `if (options.CanReachApi)` block and restore it in Task 13.
 
 - [ ] **Step 4: Verification checkpoint**
 
 Run: `dotnet test NDSTK.Tests/NDSTK.Tests.csproj` — expected: all Core tests pass, unaffected.
 Run: `git status --short` — expected: the three files of this task.
 
-Do not attempt `dotnet build NDSTK.slnx` until Task 12 supplies `ManagementApiClient`.
+Do not attempt `dotnet build NDSTK.slnx` until Task 13 supplies `ManagementApiClient`.
 
 ---
 
@@ -3481,7 +3483,7 @@ Do not attempt `dotnet build NDSTK.slnx` until Task 12 supplies `ManagementApiCl
   - `sealed record CookieScanMergeRequest(IReadOnlyList<CookieScanDeclaration> Declarations, bool DryRun)`
   - `sealed record CookieScanMergeResponse(IReadOnlyList<string> Added, IReadOnlyList<string> AlreadyDeclared, IReadOnlyList<string> DeclaredButNotFound, Guid PolicyPageKey, bool Saved)`
   - `sealed class CookieScanWriter` with `CookieScanMergeResponse Merge(CookieScanMergeRequest request)`
-- Task 12 consumes the two DTO shapes over the wire.
+- Task 13 consumes the two DTO shapes over the wire.
 
 **Verification this task settles (spec risks 1 and 3).** The authorisation policy constant, whether an API-user token satisfies it, and whether `Expose` really is required for block visibility. All three fail at runtime rather than at compile time.
 
@@ -3859,20 +3861,303 @@ Expected: build succeeded. **If `AuthorizationPolicies.BackOfficeAccess` or `Ver
 
 **Ask the user to start the site**, then confirm the route is mapped: open `/umbraco/swagger` and look for the "Cookie scan" group with `POST /umbraco/management/api/v1/cookie-scan/merge`.
 
-- [ ] **Step 7: Create the API user**
+- [ ] **Step 7: Note that the API user comes next**
 
-Ask the user to create one in the backoffice: **Users → API Users → Create**, name it `cookie-scanner`, give it access to the Content section, and copy the **client id** and **client secret** shown once on creation. These are what Task 12 needs.
+No manual backoffice step. Task 12 creates the API user in code, so the client id and secret are values you choose rather than a secret shown once in the UI that has to be copied by hand.
 
 - [ ] **Step 8: Verification checkpoint**
 
 Run: `dotnet test NDSTK.Tests/NDSTK.Tests.csproj` — expected: all Core tests pass.
 Run: `git status --short` — expected: the five files of this task.
 
-The endpoint cannot be exercised end to end until Task 12 supplies a client. Task 13 does that verification, including the `Expose` question.
+The endpoint cannot be exercised end to end until Task 12 supplies an API user and Task 13 supplies a client. Task 14 does that verification, including the `Expose` question.
 
 ---
 
-## Task 12: `ManagementApiClient`
+## Task 12: The API user seeder
+
+**Files:**
+- Create: `CookieScan/CookieScanApiUser.cs`
+- Create: `CookieScan/CookieScanApiUserSeeder.cs`
+- Modify: `Program.cs` (site) — register the seeder as a hosted startup task
+- Modify: `appsettings.Development.json` — enable it
+- Modify: `appsettings.Secrets.json` — the secret (gitignored; the user edits this)
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks.
+- Produces: `sealed class CookieScanApiUserSeeder` with `Task SeedAsync(CancellationToken cancellationToken)`, and `sealed class CookieScanApiUserOptions` bound from `NDSTK:CookieScanApiUser`.
+- Task 13 uses the client id and secret this creates; Task 14 verifies them end to end.
+
+**Why this exists.** The alternative is a manual backoffice step — Users → API Users → Create, then copy a secret shown exactly once. Doing it in code means the credentials are values chosen up front, so the scanner and the site read the same secret from the same place and nothing has to be transcribed.
+
+**Verified API surface**, checked against `Umbraco.Core.xml` and the Management API assembly at 18.1.1 rather than taken from documentation:
+- `IUserService.CreateAsync(Guid performingUserKey, UserCreateModel model, bool approveUser)`
+- `UserCreateModel` with `Email`, `Id`, `Kind`, `Name`, `UserName`, `UserGroupKeys`
+- `UserKind.Api`
+- `IUserService.AddClientIdAsync(Guid userKey, string clientId)` and `FindByClientIdAsync`
+- `IBackOfficeApplicationManager.EnsureBackOfficeClientCredentialsApplicationAsync`
+
+Note that `ClientCredentialsFlowSettings` in configuration is **not** the route: it belongs to `DeliveryApiSettings` and concerns members and the Delivery API, not Management API users.
+
+**Security, stated plainly.** This creates a real credential with content access. It is therefore opt-in — nothing happens unless both the enable flag and a secret are configured — and it must not be switched on in production unless the user actually wants that account to exist there. The seeder logs the client id it created, never the secret.
+
+- [ ] **Step 1: Write the options type**
+
+`CookieScan/CookieScanApiUser.cs`:
+
+```csharp
+namespace NDSTK.CookieScan;
+
+/// <summary>
+/// Configuration for the cookie scanner's API user, bound from <c>NDSTK:CookieScanApiUser</c>.
+/// </summary>
+/// <remarks>
+/// Opt-in by construction: with <see cref="Enabled"/> false or <see cref="ClientSecret"/> blank,
+/// the seeder does nothing at all. This creates a credential with content access, so it must never
+/// appear by default on an environment nobody asked for it on.
+/// </remarks>
+public sealed class CookieScanApiUserOptions
+{
+    public const string SectionName = "NDSTK:CookieScanApiUser";
+
+    public bool Enabled { get; set; }
+
+    public string ClientId { get; set; } = "cookie-scanner";
+
+    /// <summary>Belongs in appsettings.Secrets.json, which is gitignored, or an environment variable.</summary>
+    public string? ClientSecret { get; set; }
+
+    public string Name { get; set; } = "Cookie scanner";
+
+    public string Email { get; set; } = "cookie-scanner@ndstk.local";
+
+    /// <summary>
+    /// The user group aliases the API user joins. Content access is what the merge endpoint's
+    /// authorisation requires; nothing here needs Settings or Users.
+    /// </summary>
+    public string[] UserGroupAliases { get; set; } = ["editor"];
+}
+```
+
+- [ ] **Step 2: Write the seeder**
+
+`CookieScan/CookieScanApiUserSeeder.cs`:
+
+```csharp
+using Microsoft.Extensions.Options;
+using Umbraco.Cms.Api.Management.Security;
+using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Models;
+using Umbraco.Cms.Core.Models.Membership;
+using Umbraco.Cms.Core.Services;
+using Umbraco.Cms.Core.Services.OperationStatus;
+
+namespace NDSTK.CookieScan;
+
+/// <summary>
+/// Creates the cookie scanner's API user and registers its client credentials, if configured to.
+/// </summary>
+/// <remarks>
+/// Idempotent: an existing client id means there is nothing to do. Failures are logged and
+/// swallowed rather than blocking boot - the same posture the CookieBanner package takes about its
+/// own installer, and for the same reason. A missing scanner credential must not take the site down.
+/// </remarks>
+public sealed class CookieScanApiUserSeeder(
+    IUserService userService,
+    IUserGroupService userGroupService,
+    IBackOfficeApplicationManager applicationManager,
+    IOptions<CookieScanApiUserOptions> options,
+    ILogger<CookieScanApiUserSeeder> logger)
+{
+    public async Task SeedAsync(CancellationToken cancellationToken)
+    {
+        CookieScanApiUserOptions settings = options.Value;
+
+        if (settings.Enabled is false)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.ClientSecret))
+        {
+            logger.LogWarning(
+                "{Section}:Enabled is true but no ClientSecret is configured, so the cookie "
+                + "scanner's API user was not created. Put the secret in appsettings.Secrets.json "
+                + "under {Section}:ClientSecret.",
+                CookieScanApiUserOptions.SectionName,
+                CookieScanApiUserOptions.SectionName);
+
+            return;
+        }
+
+        try
+        {
+            IUser? existing = await userService.FindByClientIdAsync(settings.ClientId);
+
+            if (existing is null)
+            {
+                Guid? userKey = await CreateUserAsync(settings);
+
+                if (userKey is null)
+                {
+                    return;
+                }
+
+                await userService.AddClientIdAsync(userKey.Value, settings.ClientId);
+            }
+
+            // Registers the client id and secret with the OpenIddict application store. Safe to
+            // repeat: this is what lets a rotated secret take effect on the next boot.
+            await applicationManager.EnsureBackOfficeClientCredentialsApplicationAsync(
+                settings.ClientId, settings.ClientSecret, cancellationToken);
+
+            logger.LogInformation(
+                "The cookie scanner's API user is ready with client id {ClientId}.",
+                settings.ClientId);
+        }
+        catch (Exception error)
+        {
+            // Never fatal. The site working matters more than the scanner being able to write.
+            logger.LogError(
+                error,
+                "Could not set up the cookie scanner's API user. The scanner will still run in "
+                + "report-only mode.");
+        }
+    }
+
+    private async Task<Guid?> CreateUserAsync(CookieScanApiUserOptions settings)
+    {
+        var groupKeys = new HashSet<Guid>();
+
+        foreach (string alias in settings.UserGroupAliases)
+        {
+            IUserGroup? group = await userGroupService.GetAsync(alias);
+
+            if (group?.Key is Guid key)
+            {
+                groupKeys.Add(key);
+            }
+            else
+            {
+                logger.LogWarning("No user group with alias '{Alias}' exists; skipping it.", alias);
+            }
+        }
+
+        if (groupKeys.Count == 0)
+        {
+            logger.LogError(
+                "None of the configured user groups ({Aliases}) exist, so the API user was not "
+                + "created - a user with no group cannot be authorised for anything.",
+                string.Join(", ", settings.UserGroupAliases));
+
+            return null;
+        }
+
+        var model = new UserCreateModel
+        {
+            Kind = UserKind.Api,
+            Name = settings.Name,
+            UserName = settings.ClientId,
+            Email = settings.Email,
+            UserGroupKeys = groupKeys,
+        };
+
+        Attempt<UserCreationResult, UserOperationStatus> attempt =
+            await userService.CreateAsync(Constants.Security.SuperUserKey, model, approveUser: true);
+
+        if (attempt.Success is false)
+        {
+            logger.LogError(
+                "Could not create the cookie scanner's API user: {Status}.", attempt.Status);
+
+            return null;
+        }
+
+        return attempt.Result.CreatedUser?.Key;
+    }
+}
+```
+
+**Two things to verify while writing this**, both runtime rather than compile failures:
+- `IUserGroupService.GetAsync(string alias)` — confirm the member name and that `editor` is the right alias on this site. If the site has no `editor` group, check what `uSync/v18/` or the backoffice actually calls it and change the default.
+- The exact generic arguments of what `CreateAsync` returns, and the property that carries the new user. Adjust the `Attempt<,>` and `attempt.Result` lines to whatever the assembly declares; the shape above is the expected one but was not compiled.
+
+- [ ] **Step 3: Register it in the site's `Program.cs`**
+
+Beside the `CookieScanWriter` registration from Task 11:
+
+```csharp
+builder.Services.Configure<NDSTK.CookieScan.CookieScanApiUserOptions>(
+    builder.Configuration.GetSection(NDSTK.CookieScan.CookieScanApiUserOptions.SectionName));
+builder.Services.AddScoped<NDSTK.CookieScan.CookieScanApiUserSeeder>();
+```
+
+Then run it once the runtime is up. Immediately after `await app.BootUmbracoAsync();` and before `app.UseCookieConsent();`:
+
+```csharp
+// Creates the cookie scanner's API user when configured to. After BootUmbracoAsync because it
+// needs the user service, and awaited rather than fire-and-forget so a failure is logged in order
+// rather than interleaved with the first request.
+using (IServiceScope scope = app.Services.CreateScope())
+{
+    await scope.ServiceProvider
+        .GetRequiredService<NDSTK.CookieScan.CookieScanApiUserSeeder>()
+        .SeedAsync(CancellationToken.None);
+}
+```
+
+- [ ] **Step 4: Configure it for development only**
+
+In `appsettings.Development.json`, add at the top level:
+
+```json
+  "NDSTK": {
+    "CookieScanApiUser": {
+      "Enabled": true,
+      "ClientId": "cookie-scanner"
+    }
+  }
+```
+
+Deliberately **not** in `appsettings.json`: this creates a credential, and it should exist on a developer machine because someone asked for it there, not everywhere by default.
+
+Then ask the user to put the secret in `appsettings.Secrets.json`, which is already gitignored:
+
+```json
+  "NDSTK": {
+    "CookieScanApiUser": {
+      "ClientSecret": "<a long random string of their choosing>"
+    }
+  }
+```
+
+Tell them the same value goes in `NDSTK_COOKIESCAN_CLIENT_SECRET` when they run the scanner, and that it must be long — this is a credential with content access, not a placeholder.
+
+- [ ] **Step 5: Build, then let the user restart the site**
+
+Run: `dotnet build NDSTK.csproj`
+Expected: build succeeded. Fix any member-name mismatch from the Step 2 note now.
+
+**Stop and ask the user to restart the site**, then to confirm in the log output:
+
+```
+The cookie scanner's API user is ready with client id cookie-scanner.
+```
+
+If instead it logs that no group exists, fix the `UserGroupAliases` default to a group this site has.
+
+- [ ] **Step 6: Confirm the user exists**
+
+Ask the user to check **Users → API Users** in the backoffice and confirm `Cookie scanner` is listed. The secret is not shown there, and does not need to be — it is in their secrets file.
+
+- [ ] **Step 7: Verification checkpoint**
+
+Run: `dotnet test NDSTK.Tests/NDSTK.Tests.csproj` — expected: all Core tests pass.
+Run: `git status --short` — expected: the two new `CookieScan/` files, `Program.cs`, and `appsettings.Development.json`. **`appsettings.Secrets.json` must NOT appear** — it is gitignored, and if git lists it, stop and fix that before anything else.
+
+---
+
+## Task 13: `ManagementApiClient`
 
 **Files:**
 - Create: `NDSTK.CookieScanner/ManagementApiClient.cs`
@@ -4057,7 +4342,7 @@ Run: `git status --short` — expected: the two files of this task.
 
 ---
 
-## Task 13: End-to-end verification and the portable exe
+## Task 14: End-to-end verification and the portable exe
 
 **Files:**
 - Create: `docs/cookie-scanner.md`
@@ -4067,7 +4352,7 @@ Run: `git status --short` — expected: the two files of this task.
 
 - [ ] **Step 1: Dry run against the real site with credentials**
 
-**The site must be running, and the API user from Task 11 Step 7 must exist.** Set the secret in the shell, then run a dry run — nothing is written, but the full comparison happens:
+**The site must be running, and the API user from Task 12 must exist.** Use the same secret you put in `appsettings.Secrets.json`, then run a dry run — nothing is written, but the full comparison happens:
 
 ```bash
 export NDSTK_COOKIESCAN_CLIENT_SECRET='<the secret>'
@@ -4155,7 +4440,7 @@ Add `dist/` to `.gitignore` if it is not already covered — an 80MB binary must
 
 - [ ] **Step 8: Write the usage documentation**
 
-`docs/cookie-scanner.md`, covering: what the tool does and does not do; the six passes and what each one proves; the full flag list from the spec's CLI table; how to create the API user; the environment variable for the secret; the publish command for the exe; how to override the catalogue with a file beside the exe; the exit codes; and the two stated limitations — the TempData cookie and no pixel detection. Record here the actual authorisation policy used, if Step 1 forced a change.
+`docs/cookie-scanner.md`, covering: what the tool does and does not do; the six passes and what each one proves; the full flag list from the spec's CLI table; how the API user is created and how to rotate its secret; the environment variable for the secret; the publish command for the exe; how to override the catalogue with a file beside the exe; the exit codes; and the two stated limitations — the TempData cookie and no pixel detection. Record here the actual authorisation policy used, if Step 1 forced a change, and state plainly that `NDSTK:CookieScanApiUser:Enabled` creates a credential with content access and belongs in development configuration only.
 
 - [ ] **Step 9: Final verification checkpoint**
 
@@ -4182,22 +4467,23 @@ Report to the user: the scan's findings, what was added to the policy page as a 
 | The violation rule, generalised across passes 1–5 | 4 |
 | Catalogue: format, most-specific-wins, `expected`, seed contents | 2 |
 | Duration formatting, both locales, plurals, floor of 1 | 3 |
-| Write-back: token, endpoint contract, server-side merge | 11, 12 |
-| The `Expose` / dropdown-array / Save-not-Publish specifics | 11, verified in 13 Step 4 |
+| Write-back: token, endpoint contract, server-side merge | 11, 13 |
+| The API user the write-back authenticates as | 12 |
+| The `Expose` / dropdown-array / Save-not-Publish specifics | 11, verified in 14 Step 4 |
 | Guardrails including the 50 cap | 5, 11 |
-| Idempotence via bidirectional glob matching | 1, 5, verified in 13 Step 5 |
-| Report: seven sections, exit codes | 10, verified in 13 Steps 1 and 6 |
+| Idempotence via bidirectional glob matching | 1, 5, verified in 14 Step 5 |
+| Report: seven sections, exit codes | 10, verified in 14 Steps 1 and 6 |
 | CLI surface | 6, 10 |
-| The portable exe and Chromium bootstrap | 6, 13 Step 7 |
+| The portable exe and Chromium bootstrap | 6, 14 Step 7 |
 | Testing list | 1–5, 8 |
-| Risks 1 and 2 (auth policy, token encoding) | 12, 13 Step 1 |
-| Risk 3 (`Expose` required) | 13 Step 4 |
+| Risks 1 and 2 (auth policy, token encoding) | 13, 14 Step 1 |
+| Risk 3 (`Expose` required) | 14 Step 4 |
 | Risk 4 (throttle) | 8 Step 7 |
-| Limitations | 2 (catalogue `expected`), 9, 10, documented in 13 Step 8 |
+| Limitations | 2 (catalogue `expected`), 9, 10, documented in 14 Step 8 |
 
-No gaps found.
+No gaps found. Task 12 is additional to the spec rather than covering a section of it: the spec assumed the API user would be created by hand in the backoffice, and doing it in code removes that manual step. `IUserService.CreateAsync`, `UserKind.Api`, `AddClientIdAsync` and `EnsureBackOfficeClientCredentialsApplicationAsync` were all confirmed present at 18.1.1 before the task was written.
 
-**2. Placeholder scan.** No "TBD", no "add appropriate error handling", no "write tests for the above", no "similar to Task N". Every code step carries the actual code. Two places state honestly that something is unverified rather than pretending otherwise — the Playwright member names (Task 6) and the authorisation policy (Tasks 11–12) — and each names the step that settles it and what to do if it resolves badly.
+**2. Placeholder scan.** No "TBD", no "add appropriate error handling", no "write tests for the above", no "similar to Task N". Every code step carries the actual code. Three places state honestly that something is unverified rather than pretending otherwise — the Playwright member names (Task 6), the authorisation policy (Tasks 11 and 13), and the user-group lookup and `Attempt<,>` shapes in the seeder (Task 12) — and each names the step that settles it and what to do if it resolves badly.
 
 **3. Type consistency.** Three inconsistencies were found while reviewing and are fixed above:
 
@@ -4205,4 +4491,4 @@ No gaps found.
 - `MergePlanner.Plan` requires a `CookieCatalogue`, but the server has no business computing `ExpectedButNotObserved` from the scanner's possibly-overridden catalogue. Rather than change Core's signature, Task 11 passes `CookieCatalogue.Default()` and documents that it ignores that one field of the plan.
 - `PassEntry` carries `Uri FirstUrl` while `ObservedEntry` carries `string FirstSeenUrl`. The conversion is `entry.FirstUrl.ToString()` and appears identically in Tasks 8, 9 and 10.
 
-Signatures cross-checked between producer and consumer: `CookieNameMatcher` (1 → 2, 5); `CookieCatalogue`/`ConsentPasses`/`ObservedEntry`/`StorageKinds` (2 → 4, 5, 8, 11); `DurationFormatter`/`Wording` (3 → 4); `CookieDeclarationCandidate`/`CandidateFlag` (4 → 5, 10, 11); `MergePlan`/`MergePlanner` (5 → 10, 11); `ScanOptions` (6 → 7–12); `SiteCrawler`/`PageCapture`/`CapturedEntry` (7 → 8, 9); `PassResult`/`PassEntry` (8 → 9, 10); `MergeOutcome` (10 → 12).
+Signatures cross-checked between producer and consumer: `CookieNameMatcher` (1 → 2, 5); `CookieCatalogue`/`ConsentPasses`/`ObservedEntry`/`StorageKinds` (2 → 4, 5, 8, 11); `DurationFormatter`/`Wording` (3 → 4); `CookieDeclarationCandidate`/`CandidateFlag` (4 → 5, 10, 11); `MergePlan`/`MergePlanner` (5 → 10, 11); `ScanOptions` (6 → 7–13); `SiteCrawler`/`PageCapture`/`CapturedEntry` (7 → 8, 9); `PassResult`/`PassEntry` (8 → 9, 10); `MergeOutcome` (10 → 13); `CookieScanApiUserOptions` (12 → 14, via configuration rather than code).
