@@ -27,7 +27,16 @@ public static class PageCapture
         }
         catch (PlaywrightException error)
         {
-            Console.Error.WriteLine($"  {url} did not settle ({error.Message.Split('\n')[0]})");
+            // Nothing is read on a failed navigation, deliberately. The page is still sitting on
+            // the PREVIOUS url, so a storage read here is same-origin, does not throw, and returns
+            // the previous page's keys labelled as this one's. A cookie would be misattributed the
+            // same way - the caller records the url an entry was first seen at, and that would name
+            // a page which never loaded. Anything genuinely set by the previous page's late
+            // resources is still in the context and gets picked up by the next successful visit.
+            Console.Error.WriteLine(
+                $"  skipped {url} - it did not load ({error.Message.Split('\n')[0]})");
+
+            return new PageObservation([], new HashSet<string>(hosts, StringComparer.OrdinalIgnoreCase));
         }
 
         List<CapturedEntry> entries = [];
@@ -59,10 +68,16 @@ public static class PageCapture
             // Neither store has an expiry; DurationFormatter decides the wording from the kind.
             return keys.Select(key => new CapturedEntry(key, kind, null)).ToArray();
         }
-        catch (PlaywrightException)
+        catch (PlaywrightException error)
         {
-            // Storage access throws on a page served from an opaque origin, and on an error page.
-            // Nothing to report - it is an absence of data, not a fault.
+            // Storage access legitimately throws on an opaque origin and on an error page, so this
+            // is not fatal. It is still logged: the same exception type covers "execution context
+            // was destroyed" and a closed target, and an unlogged catch here would make a real
+            // capture failure look identical to a page that simply stores nothing - which is
+            // under-reporting with no trace, the one outcome this tool must never produce.
+            Console.Error.WriteLine(
+                $"  could not read {store} on {page.Url} ({error.Message.Split('\n')[0]})");
+
             return [];
         }
     }
