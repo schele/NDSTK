@@ -13,6 +13,13 @@ public static class MergePlanner
     /// </summary>
     public const int MaxBlocksPerCall = 50;
 
+    /// <summary>
+    /// Works out what a merge of <paramref name="candidates"/> against <paramref name="declaredNames"/>
+    /// would do. All four lists on the returned <see cref="MergePlan"/> are deterministically
+    /// ordered - alphabetically by name/pattern, except <see cref="MergePlan.ToAdd"/> which is
+    /// also deduplicated one candidate per name, keeping the earliest pass so a violation cannot
+    /// be lost to a later, clean sighting of the same cookie.
+    /// </summary>
     public static MergePlan Plan(
         IEnumerable<CookieDeclarationCandidate> candidates,
         IEnumerable<string> declaredNames,
@@ -28,10 +35,15 @@ public static class MergePlanner
 
         // One candidate per name. Where the same collapsed pattern was seen in more than one
         // pass, the earliest wins: that is the observation carrying a violation, and losing it
-        // would hide the finding the scan exists to make.
+        // would hide the finding the scan exists to make. A second tie-break on URL makes the
+        // choice total when the same name and pass were seen on two different pages, so which
+        // FirstSeenUrl survives does not depend on crawl order.
         List<CookieDeclarationCandidate> unique = candidates
             .GroupBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.OrderBy(candidate => candidate.FirstSeenPass).First())
+            .Select(group => group
+                .OrderBy(candidate => candidate.FirstSeenPass)
+                .ThenBy(candidate => candidate.FirstSeenUrl, StringComparer.Ordinal)
+                .First())
             .OrderBy(candidate => candidate.Name, StringComparer.Ordinal)
             .ToList();
 
@@ -59,6 +71,13 @@ public static class MergePlanner
             .OrderBy(pattern => pattern, StringComparer.Ordinal)
             .ToList();
 
-        return new MergePlan(toAdd, alreadyDeclared, declaredButNotFound, expectedButNotObserved);
+        // Wrapped rather than handed back as the backing List<T>: MergePlan.ExceedsCap and
+        // HasWork read ToAdd.Count, and a caller that downcast and mutated a plain List<T> could
+        // change what those properties report after the plan was already computed.
+        return new MergePlan(
+            toAdd.AsReadOnly(),
+            alreadyDeclared.AsReadOnly(),
+            declaredButNotFound.AsReadOnly(),
+            expectedButNotObserved.AsReadOnly());
     }
 }

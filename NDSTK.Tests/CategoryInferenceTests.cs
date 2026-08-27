@@ -81,6 +81,13 @@ public class CategoryInferenceTests
         Assert.Equal(CandidateFlag.Violation, Classify("_ga_ABC123", ConsentPass.Preferences).Flag);
     }
 
+    // The symmetric twin of the case above: marketing was granted, statistics was not.
+    [Fact]
+    public void A_statistics_cookie_in_the_marketing_pass_is_a_violation()
+    {
+        Assert.Equal(CandidateFlag.Violation, Classify("_ga_ABC123", ConsentPass.Marketing).Flag);
+    }
+
     [Fact]
     public void A_tracker_in_the_pass_that_granted_its_own_category_is_not_a_violation()
     {
@@ -91,7 +98,7 @@ public class CategoryInferenceTests
     [Fact]
     public void A_necessary_cookie_is_never_a_violation_in_any_pass()
     {
-        foreach (ConsentPass pass in ConsentPasses.Comparable)
+        foreach (ConsentPass pass in Enum.GetValues<ConsentPass>())
         {
             Assert.Equal(CandidateFlag.None, Classify("UMB_MEMBER", pass).Flag);
         }

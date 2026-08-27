@@ -8,6 +8,11 @@ public static class CategoryInference
 {
     private const string Necessary = "necessary";
 
+    /// <summary>
+    /// Classifies one observed entry: looks it up in <paramref name="catalogue"/>, decides its
+    /// category and whether it was set without the consent that category needed, and renders its
+    /// duration and wording for <paramref name="locale"/>.
+    /// </summary>
     public static CookieDeclarationCandidate Classify(
         ObservedEntry entry,
         CookieCatalogue catalogue,
