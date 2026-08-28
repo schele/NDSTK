@@ -300,3 +300,31 @@ the consent endpoint live has not been repeated separately from that local verif
   outro untouched, and idempotence on a second run. All of that needs the site running with the API
   user seeded and its secret in the environment, which is exactly the half of Task 14 this document
   does not cover.
+
+## Troubleshooting
+
+**`invalid_client` / "The specified 'client_id' is invalid" from the token endpoint.**
+The OpenIddict application was never registered. The seeder did not run, or it failed —
+check the boot log for `CookieScanApiUserSeeder`. Remember it only runs when both
+`NDSTK:CookieScanApiUser:Enabled` is true and a `ClientSecret` is configured.
+
+**`Authorization failed` / "The user associated with the supplied 'client_id' could not be
+found", with the seeder reporting success.**
+This one is worth knowing about, because nothing in the log points at it. Umbraco's
+back-office token handler prepends `umbraco-back-office-` to the incoming `client_id`
+before resolving it to a user. So the user↔client-id association must be stored with the
+prefix, while the OpenIddict application and the value you pass to `--client-id` stay
+unprefixed. The seeder handles this; if you ever write your own, the raw id will register
+an application fine and then fail at user resolution with exactly this message. Verified
+against Umbraco 18.1.1 by decompiling `BackOfficeUserClientCredentialsManager.FindUserAsync`
+and its `SafeClientId` helper, and against the `umbracoUser2ClientId` table.
+
+**`UserNameIsNotEmail` when the API user is created.**
+Umbraco validates a user's username as an email address, so an API user's username cannot
+be its client id. The seeder uses the configured email; the client id is attached
+separately.
+
+**The endpoint works but does not appear in `/umbraco/swagger`.**
+Known and cosmetic. `POST .../cookie-scan/merge` returns 401 for an unauthenticated caller
+rather than 404, so the route is mapped. Why it is absent from the swagger document is
+unresolved; it serves a CLI, not people browsing swagger.
