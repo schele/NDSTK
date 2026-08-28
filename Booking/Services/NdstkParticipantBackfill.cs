@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NDSTK.Booking.Data;
+using NDSTK.Booking.Domain;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Infrastructure.Scoping;
@@ -16,9 +17,11 @@ namespace NDSTK.Booking.Services;
 /// NdstkMemberContentUpgrade uses.
 ///
 /// The order is load-bearing. The index swap is LAST, after every ParticipantKey is filled in.
-/// Creating a unique index on a column that is null everywhere does not fail in SQLite - nulls are
-/// distinct in a unique index - it produces an index that enforces nothing at all, and the
-/// overbooking guarantee verified with 60 concurrent attempts would be silently gone.
+/// Creating a unique index on a column that is null everywhere fails differently on each engine and
+/// usefully on neither: SQLite treats nulls as distinct, so it produces an index that enforces
+/// nothing at all and the overbooking guarantee verified with 60 concurrent attempts would be
+/// silently gone; SQL Server treats nulls as equal, so it rejects the second row and the swap
+/// throws. SwapIndex refuses to run while any ParticipantKey is null, which covers both.
 ///
 /// Until that last step the old (MemberKey, ClassKey) index is still in place and still enforcing
 /// the old, narrower rule, so at no point is there a window with no index.
@@ -32,8 +35,6 @@ internal sealed class NdstkParticipantBackfill(
     private const string StateKey = "NDSTK/ParticipantBackfill";
     private const string StateValue = "participants-v1";
 
-    private const string OldIndex = "IX_ndstkBooking_OneLivePerMemberClass";
-    private const string NewIndex = "IX_ndstkBooking_OneLivePerParticipantClass";
 
     /// <summary>The retired per-account welcome flag, read once here and never written again.</summary>
     private const string LegacyDiscountAlias = "firstClassDiscountUsed";
@@ -111,14 +112,8 @@ internal sealed class NdstkParticipantBackfill(
     /// so the oldest participant on the account is unambiguously the right one.
     /// </summary>
     private int PointBookingsAtParticipants(IScope scope) => scope.Database.Execute(
-        $"""
-        UPDATE {BookingTables.Booking}
-        SET ParticipantKey = (
-            SELECT p.Key FROM {BookingTables.Participant} p
-            WHERE p.MemberKey = {BookingTables.Booking}.MemberKey
-            ORDER BY p.Id LIMIT 1)
-        WHERE ParticipantKey IS NULL
-        """);
+        BookingSchemaSql.PointBookingsAtParticipants(
+            BookingDialect.Of(scope.Database), BookingTables.Booking, BookingTables.Participant));
 
     /// <summary>
     /// Carries the retired per-account welcome flag onto the participant. The stamp date is the
@@ -164,13 +159,21 @@ internal sealed class NdstkParticipantBackfill(
             return false;
         }
 
-        scope.Database.Execute($"DROP INDEX IF EXISTS {OldIndex}");
-        scope.Database.Execute(
-            $"""
-            CREATE UNIQUE INDEX IF NOT EXISTS {NewIndex}
-            ON {BookingTables.Booking} (ParticipantKey, ClassKey)
-            WHERE Status IN ('{Domain.BookingStatus.Pending}', '{Domain.BookingStatus.Confirmed}')
-            """);
+        SqlDialect dialect = BookingDialect.Of(scope.Database);
+
+        scope.Database.Execute(BookingSchemaSql.DropIndex(
+            dialect, BookingTables.LivePerMemberIndex, BookingTables.Booking));
+
+        // Asked for rather than expressed as IF NOT EXISTS, which SQL Server has no equivalent of
+        // on CREATE INDEX.
+        var alreadyThere = scope.Database.ExecuteScalar<int>(
+            BookingSchemaSql.IndexExistsQuery(dialect), BookingTables.LivePerParticipantIndex) > 0;
+
+        if (!alreadyThere)
+        {
+            scope.Database.Execute(BookingSchemaSql.CreateLiveBookingIndex(
+                BookingTables.LivePerParticipantIndex, BookingTables.Booking, "ParticipantKey"));
+        }
 
         return true;
     }
