@@ -1,4 +1,3 @@
-using NDSTK.CookieScan.Core;
 using NDSTK.CookieScanner;
 
 try
@@ -6,7 +5,7 @@ try
     ScanOptions options = ScanOptions.Parse(args);
     var log = new ConsoleScanLog();
 
-    ScanResult? result = await new ScanRunner(options, () => LoadCatalogue(log), log)
+    ScanResult? result = await new ScanRunner(options, () => CatalogueSource.Load(log), log)
         .RunAsync(CancellationToken.None);
 
     if (result is null)
@@ -35,20 +34,4 @@ catch (Exception error)
     Console.Error.WriteLine($"The scan failed: {error.Message}");
 
     return ScanReportWriter.ExitError;
-}
-
-// An override beside the exe replaces the embedded catalogue wholesale, so legal wording can be
-// changed without a rebuild.
-static CookieCatalogue LoadCatalogue(IScanLog log)
-{
-    string beside = Path.Combine(AppContext.BaseDirectory, "cookie-catalogue.json");
-
-    if (File.Exists(beside))
-    {
-        log.Info($"Using the catalogue override at {beside}.");
-
-        return CookieCatalogue.Parse(File.ReadAllText(beside));
-    }
-
-    return CookieCatalogue.Default();
 }
