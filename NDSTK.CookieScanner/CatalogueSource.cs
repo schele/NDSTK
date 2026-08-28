@@ -22,7 +22,17 @@ public static class CatalogueSource
     {
         // An override beside the exe replaces the embedded catalogue wholesale, so legal wording can be
         // changed without a rebuild.
-        string beside = Path.Combine(AppContext.BaseDirectory, "cookie-catalogue.json");
+        //
+        // Beside the EXE, which is not AppContext.BaseDirectory. Both published exes set
+        // IncludeAllContentForSelfExtract - Playwright's driver ships files the bundler cannot embed as
+        // native libraries - and that switches the app into full-extraction mode, where BaseDirectory is
+        // the extraction directory under %TEMP%\.net rather than the exe's folder. Resolving the override
+        // there meant this feature could never work in a published build, which is how it shipped:
+        // dropping the file beside the published exe and watching the notice fail to appear is what found
+        // it. Environment.ProcessPath is the exe in a single-file build and the apphost in a normal one,
+        // so its directory is the right answer for both.
+        string? besideTheExe = Path.GetDirectoryName(Environment.ProcessPath);
+        string beside = Path.Combine(besideTheExe ?? AppContext.BaseDirectory, "cookie-catalogue.json");
 
         if (File.Exists(beside))
         {
