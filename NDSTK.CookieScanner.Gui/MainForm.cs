@@ -36,6 +36,7 @@ public sealed partial class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
 
         BuildScanTab(scanTab);
+        BuildHistoryTab(historyTab);
 
         tabs.TabPages.Add(scanTab);
         tabs.TabPages.Add(historyTab);

@@ -145,30 +145,12 @@ public sealed partial class MainForm
         log.Font = new Font("Consolas", 9F);
         log.WordWrap = false;
 
-        findings.Dock = DockStyle.Fill;
-        findings.ReadOnly = true;
-        findings.AllowUserToAddRows = false;
-        findings.AllowUserToDeleteRows = false;
-        findings.RowHeadersVisible = false;
-        findings.MultiSelect = false;
-        findings.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        findings.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-
-        // The empty area below the rows, which defaults to a flat grey slab. Now that the grid is
-        // the larger of the two panes, that slab is most of what the window shows before a scan.
-        findings.BackgroundColor = SystemColors.Window;
-
-        int nameColumn = findings.Columns.Add("name", "Name");
-
-        findings.Columns.Add("storage", "Storage");
-        findings.Columns.Add("category", "Category");
-        findings.Columns.Add("firstSeen", "First seen in");
-        findings.Columns.Add("duration", "Duration");
-
-        // Names are the longest values in the grid by a wide margin - the member cookie alone is
-        // thirty characters, which does not fit an even fifth of the width. Addressed by the index
-        // Add returned, because the by-name indexer is nullable and this one is not.
-        findings.Columns[nameColumn].FillWeight = 200F;
+        // Shared with the History tab's detail grid and its diff panel's Appeared/Disappeared
+        // grids - see ConfigureCandidateGrid's remarks in MainForm.History.cs. All three grids
+        // add rows positionally, so one column list living in one place is what keeps a column
+        // added later from silently shifting every grid's data under the wrong headers except
+        // the one it was added to.
+        ConfigureCandidateGrid(findings);
 
         findingsSplit.Dock = DockStyle.Fill;
         findingsSplit.Orientation = Orientation.Horizontal;
@@ -346,6 +328,15 @@ public sealed partial class MainForm
 
             string? writeFailure = TryWrite(options, result);
 
+            if (writeFailure is null)
+            {
+                // TryWrite is what added the new entry - see its own remarks - so only a
+                // successful write has anything new for the History tab to show. Refreshing here,
+                // not only on tab activation, is what makes a run that finishes while the operator
+                // is already looking at that tab show up without switching away and back.
+                RefreshHistoryList();
+            }
+
             foreach (string line in ScanReportWriter.SummaryLines(options, result))
             {
                 scanLog.Info(line);
@@ -499,31 +490,41 @@ public sealed partial class MainForm
         Cursor = running ? Cursors.AppStarting : Cursors.Default;
     }
 
-    private void ShowResult(ScanResult result)
+    private void ShowResult(ScanResult result) => FillFindings(findings, result);
+
+    /// <summary>
+    /// Fills a findings-style grid from one scan's result: the Scan tab's own grid live, and the
+    /// History tab's single-scan detail view once a past scan is reloaded. The one place the
+    /// violation-matching rule and the row-per-candidate projection exist, so the two grids read
+    /// a completed scan identically rather than through two copies that could drift apart.
+    /// </summary>
+    /// <remarks>
+    /// Candidates and Violations are computed from different inputs, on purpose: Candidates is
+    /// the earliest sighting per name, while Violations is scanned over the raw observations,
+    /// because a violation belongs to one sighting rather than to a name. So a cookie first seen
+    /// in a pass that granted it and set again in a pass that did not carries Flag = None here
+    /// while still being in Violations - driving ExitCode 1 and the log's CONSENT VIOLATION(S)
+    /// line. A grid that coloured only by Flag would show that row as ordinary white and
+    /// contradict the exit code CI gates on, which is the divergence ScanRunner exists to
+    /// prevent. Both lists come out of the same Classify call, so the names match; compared
+    /// ordinal-insensitively because cookie names are not the place to be fussy about case.
+    /// </remarks>
+    private static void FillFindings(DataGridView grid, ScanResult result)
     {
-        // Candidates and Violations are computed from different inputs, on purpose: Candidates is
-        // the earliest sighting per name, while Violations is scanned over the raw observations,
-        // because a violation belongs to one sighting rather than to a name. So a cookie first seen
-        // in a pass that granted it and set again in a pass that did not carries Flag = None here
-        // while still being in Violations - driving ExitCode 1 and the log's CONSENT VIOLATION(S)
-        // line. A grid that coloured only by Flag would show that row as ordinary white and
-        // contradict the exit code CI gates on, which is the divergence ScanRunner exists to
-        // prevent. Both lists come out of the same Classify call, so the names match; compared
-        // ordinal-insensitively because cookie names are not the place to be fussy about case.
         HashSet<string> violations = new(
             result.Violations.Select(violation => violation.Name),
             StringComparer.OrdinalIgnoreCase);
 
         foreach (CookieDeclarationCandidate candidate in result.Candidates)
         {
-            int index = findings.Rows.Add(
+            int index = grid.Rows.Add(
                 candidate.Name,
                 candidate.StorageType,
                 candidate.Category,
                 candidate.FirstSeenPass.ToString(),
                 candidate.Duration);
 
-            Colour(findings.Rows[index], candidate.Flag, violations.Contains(candidate.Name));
+            Colour(grid.Rows[index], candidate.Flag, violations.Contains(candidate.Name));
         }
     }
 
