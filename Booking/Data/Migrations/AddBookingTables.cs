@@ -16,15 +16,7 @@ internal sealed class AddBookingTables(IMigrationContext context) : AsyncMigrati
         CreateIfMissing<PaymentRecord>(BookingTables.Payment);
         CreateIfMissing<CreditRecord>(BookingTables.Credit);
 
-        // A member may hold at most one live booking per class. Expressed as a partial unique
-        // index so a cancelled booking does not block rebooking the same class. The expression
-        // builder has no partial-index support, hence raw SQL - SQLite has supported this since
-        // 3.8, and this site runs SQLite.
-        Database.Execute($"""
-            CREATE UNIQUE INDEX IF NOT EXISTS IX_ndstkBooking_OneLivePerMemberClass
-            ON {BookingTables.Booking} (MemberKey, ClassKey)
-            WHERE Status IN ('{BookingStatus.Pending}', '{BookingStatus.Confirmed}')
-            """);
+        CreateLiveBookingIndexIfMissing();
 
         return Task.CompletedTask;
     }
@@ -39,5 +31,36 @@ internal sealed class AddBookingTables(IMigrationContext context) : AsyncMigrati
 
         Create.Table<T>().Do();
         Logger.LogInformation("Created table {TableName}.", tableName);
+    }
+
+    /// <summary>
+    /// A member may hold at most one live booking per class. Expressed as a partial unique index so
+    /// a cancelled booking does not block rebooking the same class; the expression builder has no
+    /// partial-index support, hence raw SQL.
+    /// </summary>
+    /// <remarks>
+    /// Existence is checked here rather than with IF NOT EXISTS, which only SQLite has. Writing it
+    /// the SQLite way made the whole statement fail to parse on SQL Server, and because a migration
+    /// runs in a scope Umbraco only completes on success, the three CREATE TABLEs above rolled back
+    /// with it - which is why production had no booking tables at all rather than a missing index.
+    /// </remarks>
+    private void CreateLiveBookingIndexIfMissing()
+    {
+        SqlDialect dialect = BookingDialect.Of(Database);
+
+        var exists = Database.ExecuteScalar<int>(
+            BookingSchemaSql.IndexExistsQuery(dialect), BookingTables.LivePerMemberIndex) > 0;
+
+        if (exists)
+        {
+            Logger.LogDebug(
+                "Index {IndexName} already exists; skipping.", BookingTables.LivePerMemberIndex);
+            return;
+        }
+
+        Database.Execute(BookingSchemaSql.CreateLiveBookingIndex(
+            BookingTables.LivePerMemberIndex, BookingTables.Booking, "MemberKey"));
+
+        Logger.LogInformation("Created index {IndexName}.", BookingTables.LivePerMemberIndex);
     }
 }
