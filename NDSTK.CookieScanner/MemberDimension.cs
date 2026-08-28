@@ -19,6 +19,15 @@ namespace NDSTK.CookieScanner;
 /// </remarks>
 public sealed class MemberDimension(IBrowser browser, ScanOptions options, string endpointPath)
 {
+    // The member auth cookie, by either name. Umbraco 18 on ASP.NET Core Identity issues
+    // .AspNetCore.Identity.Application; UMB_MEMBER is the older name and is kept so this still
+    // works against a site that issues it. Judged by cookie rather than by the landing url
+    // because the login controller reports failure through ModelState and returns the same
+    // page, so a url check would read a rejected password as success.
+    private static readonly string[] MemberAuthCookies =
+        [".AspNetCore.Identity.Application", "UMB_MEMBER"];
+
+
     /// <param name="publicUrls">
     /// The URL list already discovered by <c>Program</c>'s public crawl, reused here to find the
     /// login page rather than re-crawled: a second full BFS solely to pick one URL out would
@@ -56,8 +65,9 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
             if (portal is null)
             {
                 Console.Error.WriteLine(
-                    "  Member login did not appear to succeed - skipping the member dimension. Check "
-                    + "the credentials, and that the account is activated.");
+                    "  Member login did not appear to succeed - no member auth cookie appeared "
+                    + $"({string.Join(" or ", MemberAuthCookies)}). Check the credentials, and that "
+                    + "the account is approved and its email confirmed.");
 
                 return new PassResult(ConsentPass.MemberArea, [], hosts);
             }
@@ -96,10 +106,10 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
     /// Submits the login form and returns the URL it landed on, or null when it did not sign in.
     /// </summary>
     /// <remarks>
-    /// Success is judged by the UMB_MEMBER cookie existing, not by the landing URL: the site's
-    /// login controller returns the same page on failure with a ModelState error, so a URL check
-    /// would read a rejected password as a success and then crawl the public site again, reporting
-    /// nothing new and no error.
+    /// Success is judged by one of <see cref="MemberAuthCookies"/> existing, not by the landing
+    /// URL: the site's login controller returns the same page on failure with a ModelState error,
+    /// so a URL check would read a rejected password as a success and then crawl the public site
+    /// again, reporting nothing new and no error.
     /// </remarks>
     private async Task<Uri?> SignInAsync(IPage page, IReadOnlyList<Uri> publicUrls)
     {
@@ -124,7 +134,8 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         bool signedIn = (await page.Context.CookiesAsync())
-            .Any(cookie => cookie.Name.Equals("UMB_MEMBER", StringComparison.OrdinalIgnoreCase));
+            .Any(cookie => MemberAuthCookies.Any(name =>
+                cookie.Name.Equals(name, StringComparison.OrdinalIgnoreCase)));
 
         return signedIn ? new Uri(page.Url) : null;
     }

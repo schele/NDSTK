@@ -132,6 +132,32 @@ public class CookieCatalogueTests
         Assert.True(catalogue.Match("_ga_ABC123")!.Tracker);
     }
 
+    // Umbraco 18 on ASP.NET Core Identity issues .AspNetCore.Identity.Application, not
+    // UMB_MEMBER - see MemberDimension. The site's own stack sets this one, so its absence from a
+    // scan must be a finding.
+    [Fact]
+    public void The_embedded_catalogue_expects_the_identity_application_cookie()
+    {
+        CookieCatalogue catalogue = CookieCatalogue.Default();
+
+        Assert.Equal("necessary", catalogue.Match(".AspNetCore.Identity.Application")!.Category);
+        Assert.Contains(
+            catalogue.Expected,
+            entry => entry.Pattern == ".AspNetCore.Identity.Application");
+    }
+
+    // UMB_MEMBER is kept in the catalogue so a cookie by that name is still recognised - a site on
+    // an older Umbraco major, or a future one, might still issue it - but this site demonstrably
+    // does not set it, so it must no longer be asserted expected.
+    [Fact]
+    public void UMB_MEMBER_is_still_recognised_but_no_longer_expected()
+    {
+        CookieCatalogue catalogue = CookieCatalogue.Default();
+
+        Assert.NotNull(catalogue.Match("UMB_MEMBER"));
+        Assert.DoesNotContain(catalogue.Expected, entry => entry.Pattern == "UMB_MEMBER");
+    }
+
     // The shipped catalogue must have no catch-all, or nothing can ever reach needs-review.
     [Fact]
     public void The_embedded_catalogue_has_no_catch_all()

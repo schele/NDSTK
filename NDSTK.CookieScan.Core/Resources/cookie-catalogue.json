@@ -44,14 +44,25 @@
       }
     },
     {
-      "pattern": "UMB_MEMBER",
-      "provider": { "sv": "Umbraco", "en": "Umbraco" },
+      "pattern": ".AspNetCore.Identity.Application",
+      "provider": { "sv": "Denna webbplats", "en": "This website" },
       "category": "necessary",
       "expected": true,
       "durationDays": 0,
       "purpose": {
         "sv": "Håller dig inloggad som medlem.",
         "en": "Keeps a signed-in member logged in."
+      }
+    },
+    {
+      "pattern": "UMB_MEMBER",
+      "provider": { "sv": "Umbraco", "en": "Umbraco" },
+      "category": "necessary",
+      "expected": false,
+      "durationDays": 0,
+      "purpose": {
+        "sv": "Håller dig inloggad som medlem (äldre Umbraco-versioner).",
+        "en": "Keeps a signed-in member logged in (older Umbraco versions)."
       }
     },
     {
