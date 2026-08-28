@@ -15,7 +15,7 @@ try
     }
 
     ScanReportWriter.WriteFiles(options, result);
-    // TASK 5 RESTORES THIS: ScanHistory.Save(result);
+    ScanHistory.Save(result);
 
     foreach (string line in ScanReportWriter.SummaryLines(options, result))
     {

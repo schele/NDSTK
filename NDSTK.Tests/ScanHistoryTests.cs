@@ -1,0 +1,124 @@
+using NDSTK.CookieScan.Core;
+using NDSTK.CookieScanner;
+
+namespace NDSTK.Tests;
+
+public class ScanHistoryTests : IDisposable
+{
+    private readonly string folder =
+        Path.Combine(Path.GetTempPath(), "ndstk-scan-history-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(folder))
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    private static ScanResult Result(DateTimeOffset completedAt, int candidates = 1)
+        => new(
+            Candidates: [.. Enumerable.Range(0, candidates).Select(index =>
+                new CookieDeclarationCandidate($"cookie{index}", "Denna webbplats", "necessary",
+                    "Syfte.", "Session", "Cookie", CandidateFlag.None, ConsentPass.Undecided,
+                    "https://ndstk.se/"))],
+            Violations: [],
+            ExpectedButNotObserved: [],
+            HostsByPass: new Dictionary<ConsentPass, IReadOnlyList<string>>(),
+            Outcome: null,
+            CanReachApi: false,
+            DryRun: false,
+            CompletedAt: completedAt,
+            Site: "https://ndstk.se/");
+
+    [Fact]
+    public void A_saved_scan_can_be_listed_and_loaded_back()
+    {
+        var history = new ScanHistory(folder);
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 28, 10, 0, 0, TimeSpan.Zero), candidates: 3));
+
+        IReadOnlyList<ScanHistoryEntry> entries = history.List();
+
+        Assert.Single(entries);
+        Assert.Equal("https://ndstk.se/", entries[0].Site);
+        Assert.Equal(3, entries[0].EntryCount);
+        Assert.Equal(0, entries[0].ExitCode);
+
+        ScanResult? loaded = history.Load(entries[0]);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(3, loaded.Candidates.Count);
+    }
+
+    // Newest first, because "what did the last scan say" is the question asked most often.
+    [Fact]
+    public void Entries_are_listed_newest_first()
+    {
+        var history = new ScanHistory(folder);
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 26, 10, 0, 0, TimeSpan.Zero)));
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 28, 10, 0, 0, TimeSpan.Zero)));
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 27, 10, 0, 0, TimeSpan.Zero)));
+
+        IReadOnlyList<ScanHistoryEntry> entries = history.List();
+
+        Assert.Equal(3, entries.Count);
+        Assert.Equal(28, entries[0].CompletedAt.Day);
+        Assert.Equal(27, entries[1].CompletedAt.Day);
+        Assert.Equal(26, entries[2].CompletedAt.Day);
+    }
+
+    // The folder must not grow without limit on a machine that scans often.
+    [Fact]
+    public void The_folder_is_pruned_to_the_most_recent_fifty()
+    {
+        var history = new ScanHistory(folder);
+        DateTimeOffset first = new(2026, 1, 1, 10, 0, 0, TimeSpan.Zero);
+
+        // AddDays rather than the raw day-of-month: 55 sequential days runs past January's 31,
+        // which the constructor cannot represent directly.
+        for (int day = 1; day <= 55; day++)
+        {
+            history.SaveResult(Result(first.AddDays(day - 1)));
+        }
+
+        IReadOnlyList<ScanHistoryEntry> entries = history.List();
+
+        Assert.Equal(50, entries.Count);
+        // The five oldest went, not the five newest.
+        Assert.Equal(first.AddDays(54), entries[0].CompletedAt);
+        Assert.Equal(first.AddDays(5), entries[^1].CompletedAt);
+    }
+
+    // The folder holds files this code did not necessarily write. One unreadable file must cost
+    // its own row, not the whole list - a history browser that throws on startup is useless.
+    [Fact]
+    public void An_unparseable_file_is_skipped_rather_than_failing_the_list()
+    {
+        var history = new ScanHistory(folder);
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 28, 10, 0, 0, TimeSpan.Zero)));
+        File.WriteAllText(Path.Combine(folder, "20260101-000000-junk.json"), "not json at all");
+
+        IReadOnlyList<ScanHistoryEntry> entries = history.List();
+
+        Assert.Single(entries);
+    }
+
+    [Fact]
+    public void Listing_an_absent_folder_is_empty_rather_than_an_error()
+    {
+        Assert.Empty(new ScanHistory(Path.Combine(folder, "never-created")).List());
+    }
+
+    // Two scans finishing in the same second must not overwrite each other.
+    [Fact]
+    public void Two_scans_at_the_same_instant_produce_two_entries()
+    {
+        var history = new ScanHistory(folder);
+        DateTimeOffset instant = new(2026, 8, 28, 10, 0, 0, TimeSpan.Zero);
+
+        history.SaveResult(Result(instant));
+        history.SaveResult(Result(instant));
+
+        Assert.Equal(2, history.List().Count);
+    }
+}
