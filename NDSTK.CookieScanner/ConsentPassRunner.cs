@@ -16,7 +16,7 @@ public sealed record PassResult(
 /// Runs one consent pass: a clean browser context, a real decision posted to the site, then the
 /// fixed URL list replayed with everything the browser holds read back after each page.
 /// </summary>
-public sealed class ConsentPassRunner(IBrowser browser, ScanOptions options, string endpointPath)
+public sealed class ConsentPassRunner(IBrowser browser, ScanOptions options, string endpointPath, IScanLog log)
 {
     public async Task<PassResult> RunAsync(ConsentPass pass, IReadOnlyList<Uri> urls)
     {
@@ -38,7 +38,7 @@ public sealed class ConsentPassRunner(IBrowser browser, ScanOptions options, str
 
         foreach (Uri url in urls)
         {
-            PageObservation observation = await PageCapture.VisitAsync(page, url, hosts);
+            PageObservation observation = await PageCapture.VisitAsync(page, url, hosts, log);
 
             foreach (CapturedEntry entry in observation.Entries)
             {

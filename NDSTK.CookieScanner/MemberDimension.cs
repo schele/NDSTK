@@ -17,7 +17,7 @@ namespace NDSTK.CookieScanner;
 /// TempData cookie stays a documented limitation rather than something to chase.
 /// </para>
 /// </remarks>
-public sealed class MemberDimension(IBrowser browser, ScanOptions options, string endpointPath)
+public sealed class MemberDimension(IBrowser browser, ScanOptions options, string endpointPath, IScanLog log)
 {
     // The member auth cookie, by either name. Umbraco 18 on ASP.NET Core Identity issues
     // .AspNetCore.Identity.Application; UMB_MEMBER is the older name and is kept so this still
@@ -64,7 +64,7 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
 
             if (portal is null)
             {
-                Console.Error.WriteLine(
+                log.Warning(
                     "  Member login did not appear to succeed - no member auth cookie appeared "
                     + $"({string.Join(" or ", MemberAuthCookies)}). Check the credentials, and that "
                     + "the account is approved and its email confirmed.");
@@ -72,13 +72,13 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
                 return new PassResult(ConsentPass.MemberArea, [], hosts);
             }
 
-            IReadOnlyList<Uri> memberUrls = await new SiteCrawler(page, options).DiscoverAsync(portal);
+            IReadOnlyList<Uri> memberUrls = await new SiteCrawler(page, options, log).DiscoverAsync(portal);
 
             Dictionary<(string Name, StorageKind Storage), PassEntry> found = [];
 
             foreach (Uri url in memberUrls)
             {
-                PageObservation observation = await PageCapture.VisitAsync(page, url, hosts);
+                PageObservation observation = await PageCapture.VisitAsync(page, url, hosts, log);
 
                 foreach (CapturedEntry entry in observation.Entries)
                 {
@@ -95,7 +95,7 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
         }
         catch (Exception error)
         {
-            Console.Error.WriteLine(
+            log.Warning(
                 $"  Member dimension failed and was skipped: {error.Message}");
 
             return new PassResult(ConsentPass.MemberArea, [], hosts);
@@ -120,7 +120,7 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
 
         if (loginUrl is null)
         {
-            Console.Error.WriteLine("  No login page found in the crawl.");
+            log.Warning("  No login page found in the crawl.");
             return null;
         }
 

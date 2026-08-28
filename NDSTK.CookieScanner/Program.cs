@@ -9,10 +9,11 @@ const string ConsentEndpointPath = "/api/cookie-consent";
 try
 {
     ScanOptions options = ScanOptions.Parse(args);
+    IScanLog log = new ConsoleScanLog();
 
     Console.WriteLine($"Scanning {options.Url} - up to {options.MaxPages} pages per pass, locale {options.Locale}.");
 
-    BrowserBootstrap.EnsureChromium();
+    BrowserBootstrap.EnsureChromium(log);
 
     CookieCatalogue catalogue = LoadCatalogue();
 
@@ -34,7 +35,7 @@ try
     await using (IBrowserContext discovery = await browser.NewContextAsync(
         new BrowserNewContextOptions { IgnoreHTTPSErrors = options.Url.IsLoopback }))
     {
-        urls = await new SiteCrawler(await discovery.NewPageAsync(), options).DiscoverAsync(options.Url);
+        urls = await new SiteCrawler(await discovery.NewPageAsync(), options, log).DiscoverAsync(options.Url);
     }
 
     if (urls.Count == 0)
@@ -47,7 +48,7 @@ try
 
     Console.WriteLine($"Discovered {urls.Count} page(s). Running {ConsentPasses.Comparable.Count} passes.");
 
-    var runner = new ConsentPassRunner(browser, options, ConsentEndpointPath);
+    var runner = new ConsentPassRunner(browser, options, ConsentEndpointPath, log);
     List<ObservedEntry> observed = [];
     Dictionary<ConsentPass, IReadOnlySet<string>> hostsByPass = [];
 
@@ -66,7 +67,7 @@ try
     {
         Console.WriteLine("  member dimension: signing in");
 
-        PassResult member = await new MemberDimension(browser, options, ConsentEndpointPath).RunAsync(urls);
+        PassResult member = await new MemberDimension(browser, options, ConsentEndpointPath, log).RunAsync(urls);
 
         hostsByPass[ConsentPass.MemberArea] = member.Hosts;
         observed.AddRange(member.Entries.Select(entry => new ObservedEntry(
@@ -106,7 +107,7 @@ try
     // site that simply set no cookies.
     if (options.CanReachApi && candidates.Count > 0)
     {
-        outcome = await new ManagementApiClient(options).MergeAsync(candidates);
+        outcome = await new ManagementApiClient(options, log).MergeAsync(candidates);
     }
 
     return ScanReportWriter.Write(
