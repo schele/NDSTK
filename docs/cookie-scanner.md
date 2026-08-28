@@ -256,50 +256,79 @@ instead of "the site has a consent problem". This is what lets a CI job gate on 
   scanner never emits `Pixel` even though the CookieBanner package's dropdown offers it — that
   inference is out of scope by design, not an oversight.
 
-## Verified / Not yet verified
+## What has been verified
 
-**Verified**, this session, without the live site running:
+Everything below was exercised against a real Umbraco 18.1.1 site (`https://localhost:44351`),
+not reasoned about. Where a claim rests on reading rather than running, it says so.
 
-- `ViolationScan.Find` flags a marketing-category cookie (`_fbp`) observed during the `Undecided`
-  pass as a single `CONSENT VIOLATION`, via a throwaway probe against
-  `NDSTK.CookieScan.Core` directly (see the task report for the exact output). This substitutes for
-  the site-dependent "add a script to `Views/Root.cshtml` and restart" step, which was not run.
-- `dotnet publish` with the command above, from a clean `dist/`, produces one ~180MB self-contained
-  exe with no loose `.playwright` folder beside it.
-- The published exe, run from a directory outside the repository (`C:\Users\carl_`, nothing else in
-  it) and pointed at `https://ndstk.se`, gets past Chromium bootstrap cleanly — no missing-assets
-  error — launches the browser, and discovers pages.
-- `dotnet build NDSTK.slnx` and `dotnet test NDSTK.Tests/NDSTK.Tests.csproj` both still succeed
-  (188/188) after the csproj change that fixed the exe's standalone launch.
+**The scan itself**
 
-**Explicitly not verified by this exe run, and worth knowing about before relying on it**: the
-production run above did not complete a full six-pass scan. It reached pass 2 (`RejectAll`) and
-failed there with `HTTP 404` from `https://ndstk.se/api/cookie-consent` — the live production site
-does not currently have this consent endpoint mapped, almost certainly because the CookieBanner
-work on this branch has not been deployed there yet. No report was written for that run (the
-top-level exception handler in `Program.cs` returns before `ScanReportWriter.Write` is ever called),
-and the exit code was `2`. This is a fact about what is currently deployed to `ndstk.se`, not a
-defect in the scanner — the same command against the local site (Tasks 1–13) completed a full
-six-pass scan, produced both report files in both locales, and its violation and idempotence
-behaviour were exercised there. A full run of the portable exe against a target that actually has
-the consent endpoint live has not been repeated separately from that local verification.
+- All six consent passes run, each in a fresh browser context, each posting its decision to the
+  site's own `/api/cookie-consent` endpoint. The passes genuinely differ: the antiforgery cookie
+  appears in `Undecided`, the consent cookie only from `RejectAll` onwards. That difference is what
+  proves the decisions are being recorded rather than the same state being measured six times.
+- Discovery, the page cap, and the `/umbraco` and sign-out exclusions.
+- Both report files, in Swedish and under `--locale en`.
+- The exit codes, including that a configured write-back which fails exits `2` rather than `0`.
+- A failed write-back still writes the report. Proven by pointing the tool at a site whose API user
+  did not yet exist: the token 401'd, the failure was reported with an actionable message, and the
+  report was written anyway.
 
-**Not yet verified at all, by anyone, as of this document**:
+**The member dimension**
 
-- **The member-login path.** No member account was available to test with, so
-  `MemberDimension.SignInAsync` — the login form fill, the `UMB_MEMBER` cookie check, the
-  member-area crawl — has not been exercised against a real account.
-- **The entire HTTP write-back path.** Nothing here has confirmed: whether the token request's
-  form encoding (`grant_type=client_credentials` against
-  `/umbraco/management/api/v1/security/back-office/token`) is what the site's OpenIddict endpoint
-  actually expects; whether a token issued to the `Cookie scanner` API user satisfies the
-  `BackOfficeAccess` policy `CookieScanController` is gated on, or whether that needs relaxing to a
-  policy that admits API users specifically; and whether the merge POST itself
-  (`CookieScanWriter.Merge`) behaves as designed against a real policy page — the `already declared`
-  matching, the `Expose` block becoming visible, the draft save leaving the page's introduction and
-  outro untouched, and idempotence on a second run. All of that needs the site running with the API
-  user seeded and its secret in the environment, which is exactly the half of Task 14 this document
-  does not cover.
+- Login against a real member account, the member-area crawl, and the attribution of what it finds
+  to the `MemberArea` pass. This found `.AspNetCore.Identity.Application` — a cookie the site sets
+  and the policy page did not declare.
+
+**The write-back**
+
+- An API-user client-credentials token against
+  `/umbraco/management/api/v1/security/back-office/token` — form-encoded, HTTP 200.
+- The merge endpoint. `POST .../cookie-scan/merge` returns 401 rather than 404 for an
+  unauthenticated caller, so the route is mapped and the authorisation policy resolves; an
+  authenticated call returns 200 and writes.
+- **The block actually lands correctly.** Read from the database rather than inferred: `layout`,
+  `contentData` and `expose` all grew from 3 entries to 4, the new block's key is present in all
+  three, and `category` and `storageType` are stored as `["necessary"]` and `["Cookie"]` — the
+  serialized array form the flexible dropdown requires. A block missing from `expose` would save
+  and then never render, with no error anywhere, so this was the single most important thing to
+  confirm.
+- **Append-only.** The three pre-existing blocks were byte-identical and unmoved afterwards, and
+  the page's `heading`, `introduction` and `outro` were untouched — the whole-document-replace trap
+  the narrow endpoint exists to avoid.
+- **Save, never publish.** The page came out in state `PublishedPendingChanges`, i.e. a draft.
+- **Idempotence**, twice over: an identical second call added nothing and reported `saved: false`;
+  and a real suffixed antiforgery cookie matched the declared `.AspNetCore.Antiforgery.*` pattern
+  rather than duplicating it. Without that, every run would re-add the same cookie forever.
+
+**The violation rule**
+
+Exercised through `ViolationScan.Find` directly, with a `_fbp` cookie observed during the
+`Undecided` pass: one violation, category `marketing`. Not exercised through a real browser,
+because that would mean adding a tracker to a live site; the browser layer above it is covered by
+the six-pass runs.
+
+**The portable exe**
+
+Published, and run from a directory outside the repository with nothing else in it — Chromium
+bootstrap, crawl, report. The `IncludeAllContentForSelfExtract` property is what makes that work;
+without it the exe runs from its own build folder and fails with a missing-assets error the moment
+it is copied anywhere, which is the only situation a portable exe is for.
+
+## What has not been verified
+
+- **A full scan against production.** `ndstk.se` is currently running a build without the cookie
+  banner: no policy page, no `/api/cookie-consent`, and the package's own `consent.js` returns 404.
+  A scan there reaches pass 2 and stops. That is a fact about what is deployed, not a defect — the
+  same command against a site that has the banner completes. Re-run it once production is updated.
+- **A site with real third-party tags.** This site loads none, so the categorisation of a genuine
+  statistics or marketing cookie, and the violation rule firing on a real tracker in a browser,
+  have not been seen end to end. The logic is unit-tested and the mechanism is proven; the input
+  has never existed here.
+- **`.AspNetCore.Mvc.CookieTempDataProvider` being observed.** It is only set by a request that
+  writes `TempData` — a booking, cancellation, child-management or registration POST — and the
+  crawl issues only GETs. It appears under "expected but not observed" by design; declare it
+  deliberately rather than waiting for a scan to find it.
 
 ## Troubleshooting
 
