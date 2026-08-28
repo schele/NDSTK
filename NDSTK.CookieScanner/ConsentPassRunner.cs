@@ -23,7 +23,7 @@ public sealed class ConsentPassRunner(IBrowser browser, ScanOptions options, str
         // A fresh context per pass is what makes "first seen in this pass" mean anything: the
         // cookie jar starts empty, so nothing carries over from the pass before.
         //
-        // IgnoreHTTPSErrors is loopback-only - see the comment in Program.cs's discovery context.
+        // IgnoreHTTPSErrors is loopback-only - see the comment in ScanRunner.cs's discovery context.
         await using IBrowserContext context = await browser.NewContextAsync(
             new BrowserNewContextOptions { IgnoreHTTPSErrors = options.Url.IsLoopback });
 

@@ -46,7 +46,7 @@ public sealed class MemberDimension(IBrowser browser, ScanOptions options, strin
         // below: log it and hand back an empty pass instead of throwing.
         try
         {
-            // IgnoreHTTPSErrors is loopback-only - see the comment in Program.cs's discovery
+            // IgnoreHTTPSErrors is loopback-only - see the comment in ScanRunner.cs's discovery
             // context. This context is the one that matters most: it submits the member's email
             // and password.
             await using IBrowserContext context = await browser.NewContextAsync(
