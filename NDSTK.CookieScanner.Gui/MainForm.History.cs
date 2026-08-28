@@ -333,15 +333,28 @@ public sealed partial class MainForm
             historyList.EndUpdate();
         }
 
-        // Items.Clear() drops the selection, which raises SelectedIndexChanged on its own and
-        // puts the compare button and the detail pane back to the no-selection state - nothing
-        // further to do here for that.
+        // Items.Clear() drops the selection, but does not reliably raise SelectedIndexChanged for
+        // it - a full clear inside BeginUpdate/EndUpdate is one of the paths where WinForms stays
+        // silent, confirmed live: Compare stayed enabled and the status label stayed blank after a
+        // refresh cleared a two-row selection out from under it. UpdateSelectionState is called
+        // explicitly here rather than trusted to arrive via the event, so a refresh always leaves
+        // Compare, its label and the right pane agreeing with what is actually selected - which,
+        // immediately after a refresh, is nothing.
+        UpdateSelectionState();
     }
 
     private IReadOnlyList<ScanHistoryEntry> SelectedEntries() =>
         [.. historyList.SelectedItems.Cast<ListViewItem>().Select(item => (ScanHistoryEntry)item.Tag!)];
 
-    private void OnHistorySelectionChanged(object? sender, EventArgs e)
+    private void OnHistorySelectionChanged(object? sender, EventArgs e) => UpdateSelectionState();
+
+    /// <summary>
+    /// Puts the Compare button, its status label and the right pane in the state the current
+    /// selection calls for. Called both from <see cref="OnHistorySelectionChanged"/> - the normal,
+    /// user-driven path - and explicitly from <see cref="RefreshHistoryList"/>, which cannot rely
+    /// on that event firing on its own; see the comment there.
+    /// </summary>
+    private void UpdateSelectionState()
     {
         IReadOnlyList<ScanHistoryEntry> selected = SelectedEntries();
 
