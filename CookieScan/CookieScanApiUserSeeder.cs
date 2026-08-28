@@ -46,7 +46,27 @@ public sealed class CookieScanApiUserSeeder(
 
         try
         {
-            IUser? existing = await userService.FindByClientIdAsync(settings.ClientId);
+            // Umbraco.Cms.Core.Security.ClientCredentialsManagerBase.SafeClientId (decompiled from
+            // Umbraco.Infrastructure.dll 18.1.1, used by BackOfficeUserClientCredentialsManager)
+            // silently prepends "umbraco-back-office-" to whatever client id it is given, unless
+            // that prefix is already present. BackOfficeController.Token() - the action behind
+            // POST .../security/back-office/token - resolves a client_credentials grant by calling
+            // IBackOfficeUserClientCredentialsManager.FindUserAsync(request.ClientId), which always
+            // applies that same normalisation before querying the user's client-id association. So
+            // the association row has to be stored under the *prefixed* form, or that lookup can
+            // never find it, no matter what raw string was stored. IUserService.AddClientIdAsync /
+            // FindByClientIdAsync know nothing about this convention themselves - they store and
+            // query exactly the string they are given. Hence BackOfficeAssociationClientId below,
+            // applied only to the association, never to the OpenIddict application registration
+            // further down: that registration is matched byte-for-byte against whatever client_id
+            // the caller puts on the wire (NDSTK.CookieScanner's --client-id, unprefixed), and
+            // EnsureBackOfficeClientCredentialsApplicationAsync stores its argument completely
+            // verbatim with no prefix expectations of its own (confirmed by decompiling
+            // BackOfficeApplicationManager, which registers the developer-only "umbraco-swagger" /
+            // "umbraco-postman" apps the exact same unprefixed way).
+            string associationClientId = BackOfficeAssociationClientId(settings.ClientId);
+
+            IUser? existing = await userService.FindByClientIdAsync(associationClientId);
 
             if (existing is null)
             {
@@ -78,7 +98,7 @@ public sealed class CookieScanApiUserSeeder(
                 }
 
                 UserClientCredentialsOperationStatus clientIdStatus =
-                    await userService.AddClientIdAsync(userKey, settings.ClientId);
+                    await userService.AddClientIdAsync(userKey, associationClientId);
 
                 if (clientIdStatus != UserClientCredentialsOperationStatus.Success)
                 {
@@ -167,4 +187,22 @@ public sealed class CookieScanApiUserSeeder(
 
         return attempt.Result.CreatedUser?.Key;
     }
+
+    /// <summary>
+    /// Reproduces the one normalisation Umbraco's own token-endpoint lookup applies to a client id
+    /// before it queries the user↔client-id association - see the long comment in
+    /// <see cref="SeedAsync"/> for the full citation and reasoning.
+    /// </summary>
+    /// <remarks>
+    /// This mirrors Umbraco.Cms.Core.Security.ClientCredentialsManagerBase.SafeClientId, which is
+    /// not reachable from here: it lives on an internal base class with no public equivalent. If a
+    /// future Umbraco upgrade changes that prefix, this literal needs to change with it - re-verify
+    /// against Umbraco.Infrastructure.dll for the new version.
+    /// </remarks>
+    private const string BackOfficeClientIdPrefix = "umbraco-back-office-";
+
+    private static string BackOfficeAssociationClientId(string clientId) =>
+        clientId.StartsWith(BackOfficeClientIdPrefix, StringComparison.Ordinal)
+            ? clientId
+            : BackOfficeClientIdPrefix + clientId;
 }
