@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using NDSTK.CookieScan.Core;
 
 namespace NDSTK.CookieScanner;
@@ -102,18 +101,7 @@ public static class ScanReportWriter
         (string markdownPath, string jsonPath) = ReportPaths(options);
 
         File.WriteAllText(markdownPath, markdown.ToString());
-        File.WriteAllText(jsonPath, JsonSerializer.Serialize(
-            new
-            {
-                site = options.Url.ToString(),
-                violations = result.Violations,
-                needsReview = result.NeedsReview,
-                expectedButNotObserved = result.ExpectedButNotObserved,
-                candidates = result.Candidates,
-                merge = result.Outcome,
-                hosts = result.HostsByPass.ToDictionary(pass => pass.Key.ToString(), pass => pass.Value.Order()),
-            },
-            new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(jsonPath, ScanJson.Serialize(result));
     }
 
     /// <summary>
