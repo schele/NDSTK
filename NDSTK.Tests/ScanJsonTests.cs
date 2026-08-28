@@ -86,4 +86,36 @@ public class ScanJsonTests
         Assert.Null(ScanJson.Deserialize("this is not json"));
         Assert.Null(ScanJson.Deserialize("[]"));
     }
+
+    // System.Text.Json fills a record's missing constructor parameters with default rather than
+    // failing, so well-formed JSON of the wrong shape used to deserialize into a ScanResult whose
+    // collections were all null - ExitCode then threw a NullReferenceException. An empty object is
+    // the simplest instance of that shape.
+    [Fact]
+    public void An_empty_json_object_returns_null_rather_than_a_result_with_null_collections()
+    {
+        Assert.Null(ScanJson.Deserialize("{}"));
+    }
+
+    // A mistyped or wrong-cased key ("Candidate" for "candidates") is well-formed JSON that still
+    // leaves a constructor parameter unfilled. This is the exact hand-edit mistake the shape check
+    // exists to catch, not just a deliberately empty document.
+    [Fact]
+    public void Json_with_a_mistyped_key_returns_null_rather_than_a_result_with_a_null_collection()
+    {
+        const string json = """
+            {
+              "Candidate": [],
+              "violations": [],
+              "expectedButNotObserved": [],
+              "hostsByPass": {},
+              "canReachApi": false,
+              "dryRun": false,
+              "completedAt": "2026-08-28T09:30:00+00:00",
+              "site": "https://ndstk.se/"
+            }
+            """;
+
+        Assert.Null(ScanJson.Deserialize(json));
+    }
 }

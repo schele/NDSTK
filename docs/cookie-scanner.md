@@ -77,8 +77,13 @@ section is now keyed `outcome` (was `merge`) and the third-party-hosts section i
 `hostsByPass` (was `hosts`); the top-level `needsReview` array is gone — it is
 `ScanResult.NeedsReview`, a `[JsonIgnore]`d property derived from `candidates` by
 `flag == "NeedsReview"`, not a second copy of the same information to keep in step — and
-`canReachApi`, `dryRun` and `completedAt` are new. **Anything that parsed the old shape needs
-updating.** `cookie-scan-report.md` is unchanged.
+`canReachApi`, `dryRun` and `completedAt` are new. The same change reaches inside every
+`CookieDeclarationCandidate` nested in `candidates` and `violations`, too: those objects went
+PascalCase to camelCase along with everything else (`"Name"` → `"name"`), and their `flag` is now
+a name rather than a number (`"Flag": 0` → `"flag": "None"`) — the change most likely to break a
+script that parsed the old report, since it is buried inside every entry rather than sitting at
+the top level. **Anything that parsed the old shape needs updating.** `cookie-scan-report.md` is
+unchanged.
 
 The reason for the change is `ScanHistory`: every completed run, from either front end, writes
 this same JSON to `%LOCALAPPDATA%\NDSTK.CookieScanner\scans\<utc-timestamp>-<suffix>.json`, capped
@@ -371,9 +376,10 @@ tasks; the claim that matters most is that neither front end's behaviour drifted
 happened. Proven by running the pre-refactor and post-refactor console tool against the same live
 site, 75 seconds apart, across four scenarios — public, member, a refused connection, and bad
 credentials — and diffing stdout, stderr and the markdown report for each: byte-identical in all
-four, with matching exit codes. The one deliberate difference: bad credentials now exits `2` rather
-than `0`, the same intended change described under Exit codes, above, not a regression introduced
-here.
+four, with matching exit codes, bad credentials included (`2` on both sides). Bad credentials
+exiting `2` rather than `0` — described under Exit codes, above — was decided during the scanner's
+original development, before this refactor; this comparison is what confirms the refactor itself
+changed nothing further.
 
 **The scan itself**
 

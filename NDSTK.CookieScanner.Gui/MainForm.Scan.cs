@@ -326,13 +326,14 @@ public sealed partial class MainForm
             // that had actually succeeded.
             ShowResult(result);
 
-            string? writeFailure = TryWrite(options, result);
+            (string? reportFailure, string? historyFailure) = TryWrite(options, result);
 
-            if (writeFailure is null)
+            if (historyFailure is null)
             {
                 // TryWrite is what added the new entry - see its own remarks - so only a
-                // successful write has anything new for the History tab to show. Refreshing here,
-                // not only on tab activation, is what makes a run that finishes while the operator
+                // successful history write has anything new for the History tab to show,
+                // independent of whether the report itself was written. Refreshing here, not
+                // only on tab activation, is what makes a run that finishes while the operator
                 // is already looking at that tab show up without switching away and back.
                 RefreshHistoryList();
             }
@@ -345,9 +346,15 @@ public sealed partial class MainForm
             // After the summary, so a red line is the last thing left on screen rather than the
             // summary's "Report written to ..." - which those two lines say either way, because
             // they are the console tool's text and not this window's to reword.
-            if (writeFailure is not null)
+            if (reportFailure is not null)
             {
-                scanLog.Warning($"The scan finished, but its files could not be written: {writeFailure}");
+                scanLog.Warning($"The scan finished, but its report could not be written: {reportFailure}");
+            }
+
+            if (historyFailure is not null)
+            {
+                scanLog.Warning(
+                    $"The scan finished, but its history entry could not be written: {historyFailure}");
             }
         }
         catch (OperationCanceledException)
@@ -446,27 +453,42 @@ public sealed partial class MainForm
         DryRun: dryRun.Checked);
 
     /// <summary>
-    /// Writes the two report files and the history entry. Returns the failure, or null on success.
+    /// Writes the report files and the history entry, each independently. Returns the failure
+    /// message for each, or null where that write succeeded.
     /// </summary>
     /// <remarks>
     /// Failing to write is not the same as failing to scan, and the caller has already put the
-    /// findings on screen by the time this runs. Narrow on purpose, unlike the settings write:
-    /// these files are the point of the exercise, so anything other than the disk refusing them
-    /// should still reach the caller's own handler.
+    /// findings on screen by the time this runs. The two writes are guarded separately and
+    /// neither is allowed to stop the other: history is written "in addition to" the report
+    /// directory, not after it, so a full report disk must not cost the scan its place in
+    /// history, and a locked-down history folder must not cost the report. Narrow on purpose,
+    /// unlike the settings write: these files are the point of the exercise, so anything other
+    /// than the disk refusing them should still reach the caller's own handler.
     /// </remarks>
-    private static string? TryWrite(ScanOptions options, ScanResult result)
+    private static (string? ReportFailure, string? HistoryFailure) TryWrite(ScanOptions options, ScanResult result)
     {
+        string? reportFailure = null;
+        string? historyFailure = null;
+
         try
         {
             ScanReportWriter.WriteFiles(options, result);
-            ScanHistory.Save(result);
-
-            return null;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            return error.Message;
+            reportFailure = error.Message;
         }
+
+        try
+        {
+            ScanHistory.Save(result);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            historyFailure = error.Message;
+        }
+
+        return (reportFailure, historyFailure);
     }
 
     /// <remarks>

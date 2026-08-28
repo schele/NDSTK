@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using NDSTK.CookieScan.Core;
 
 namespace NDSTK.CookieScanner.Gui;
@@ -20,6 +21,17 @@ public sealed record GuiSettings(
     string ClientId = "",
     bool DryRun = true)
 {
+    // Save and Load must share one instance: the same latent bug the team deliberately fixed in
+    // ScanJson otherwise reappears here - Locale would serialise as an integer, and reordering the
+    // enum would silently change a saved setting's meaning. JsonStringEnumConverter reads numbers
+    // back as well as names by default (only allowIntegerValues: false would turn that off, and
+    // this does not set it), so an existing settings file holding "Locale": 0 still loads.
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() },
+    };
+
     private static string Path => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "NDSTK.CookieScanner",
@@ -30,7 +42,7 @@ public sealed record GuiSettings(
         try
         {
             return File.Exists(Path)
-                ? JsonSerializer.Deserialize<GuiSettings>(File.ReadAllText(Path)) ?? new GuiSettings()
+                ? JsonSerializer.Deserialize<GuiSettings>(File.ReadAllText(Path), Options) ?? new GuiSettings()
                 : new GuiSettings();
         }
         catch (Exception)
@@ -48,7 +60,7 @@ public sealed record GuiSettings(
         try
         {
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
-            File.WriteAllText(Path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path, JsonSerializer.Serialize(this, Options));
         }
         catch (Exception)
         {

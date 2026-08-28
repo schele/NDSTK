@@ -103,6 +103,21 @@ public class ScanHistoryTests : IDisposable
         Assert.Single(entries);
     }
 
+    // A file that is well-formed JSON but the wrong shape - the exact hand-edit mistake ScanJson
+    // guards against - must be skipped the same way a syntactically bad file is, not throw and
+    // cost the whole list.
+    [Fact]
+    public void A_well_formed_but_shape_invalid_file_is_skipped_rather_than_failing_the_list()
+    {
+        var history = new ScanHistory(folder);
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 28, 10, 0, 0, TimeSpan.Zero)));
+        File.WriteAllText(Path.Combine(folder, "20260101-000000-empty.json"), "{}");
+
+        IReadOnlyList<ScanHistoryEntry> entries = history.List();
+
+        Assert.Single(entries);
+    }
+
     [Fact]
     public void Listing_an_absent_folder_is_empty_rather_than_an_error()
     {

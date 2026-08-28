@@ -31,11 +31,31 @@ public static class ScanJson
     /// lists a folder of files it did not necessarily write, and one bad file must not cost the
     /// whole list.
     /// </summary>
+    /// <remarks>
+    /// Well-formed JSON of the wrong shape is just as unparseable as bad syntax: System.Text.Json
+    /// fills a record's missing constructor parameters with <c>default</c> rather than failing, so
+    /// <c>{}</c> or a mistyped key (<c>"Candidate"</c> for <c>"candidates"</c>) comes back as a
+    /// <see cref="ScanResult"/> whose collections are null instead of throwing here. Left
+    /// unchecked, that null surfaces later and further away - <see cref="ScanResult.ExitCode"/>
+    /// throwing a <see cref="NullReferenceException"/> - so the shape is validated before the
+    /// result is handed back.
+    /// </remarks>
     public static ScanResult? Deserialize(string json)
     {
         try
         {
-            return JsonSerializer.Deserialize<ScanResult>(json, Options);
+            ScanResult? result = JsonSerializer.Deserialize<ScanResult>(json, Options);
+
+            return result is
+            {
+                Site: not null,
+                Candidates: not null,
+                Violations: not null,
+                ExpectedButNotObserved: not null,
+                HostsByPass: not null,
+            }
+                ? result
+                : null;
         }
         catch (JsonException)
         {
