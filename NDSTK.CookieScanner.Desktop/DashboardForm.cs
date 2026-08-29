@@ -24,6 +24,19 @@ public sealed class DashboardForm : Form
     private readonly bool secretIsSet =
         string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ScanOptions.SecretVariable)) is false;
 
+    /// <summary>The secret's companion: the client id the environment pairs with it.</summary>
+    /// <remarks>
+    /// Dashboard-only, and optional. The id is not a secret - it is the name the site registers the
+    /// API user under - so it could live in a profile, and it still can; this is for the machine that
+    /// has the secret set once and should not need the id typed into every profile as well. Read
+    /// once, like the secret, and for the same reason. Sent to the page as a value, not a flag: the
+    /// page fills the client-id box with it when a profile has none of its own.
+    /// </remarks>
+    private const string ClientIdVariable = "NDSTK_COOKIESCAN_CLIENT_ID";
+
+    private readonly string clientIdDefault =
+        Environment.GetEnvironmentVariable(ClientIdVariable)?.Trim() ?? "";
+
     /// <remarks>
     /// Loaded here rather than on <c>ready</c>: a settings file that cannot be read costs the window
     /// its remembered options, and finding that out while the page waits for its first message is
@@ -233,6 +246,8 @@ public sealed class DashboardForm : Form
                     running = false,
                     secretIsSet,
                     secretVariable = ScanOptions.SecretVariable,
+                    clientIdDefault,
+                    clientIdVariable = ClientIdVariable,
                     sites = settings.Sites,
                     selectedUrl = settings.SelectedUrl,
                     // Load's decrypt failures, carried on the one message that is guaranteed to
