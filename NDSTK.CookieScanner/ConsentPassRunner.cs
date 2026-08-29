@@ -16,14 +16,14 @@ public sealed record PassResult(
 /// Runs one consent pass: a clean browser context, a real decision posted to the site, then the
 /// fixed URL list replayed with everything the browser holds read back after each page.
 /// </summary>
-public sealed class ConsentPassRunner(IBrowser browser, ScanOptions options, string endpointPath)
+public sealed class ConsentPassRunner(IBrowser browser, ScanOptions options, string endpointPath, IScanLog log)
 {
     public async Task<PassResult> RunAsync(ConsentPass pass, IReadOnlyList<Uri> urls)
     {
         // A fresh context per pass is what makes "first seen in this pass" mean anything: the
         // cookie jar starts empty, so nothing carries over from the pass before.
         //
-        // IgnoreHTTPSErrors is loopback-only - see the comment in Program.cs's discovery context.
+        // IgnoreHTTPSErrors is loopback-only - see the comment in ScanRunner.cs's discovery context.
         await using IBrowserContext context = await browser.NewContextAsync(
             new BrowserNewContextOptions { IgnoreHTTPSErrors = options.Url.IsLoopback });
 
@@ -38,7 +38,7 @@ public sealed class ConsentPassRunner(IBrowser browser, ScanOptions options, str
 
         foreach (Uri url in urls)
         {
-            PageObservation observation = await PageCapture.VisitAsync(page, url, hosts);
+            PageObservation observation = await PageCapture.VisitAsync(page, url, hosts, log);
 
             foreach (CapturedEntry entry in observation.Entries)
             {

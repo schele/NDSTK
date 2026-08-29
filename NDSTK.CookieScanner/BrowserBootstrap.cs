@@ -11,12 +11,12 @@ namespace NDSTK.CookieScanner;
 /// </remarks>
 public static class BrowserBootstrap
 {
-    public static void EnsureChromium()
+    public static void EnsureChromium(IScanLog log)
     {
         // Playwright's own installer is idempotent and cheap when the browser is already present,
         // so there is no need to probe for it first - and no need to guess at the cache path,
         // which differs per platform and per Playwright version.
-        Console.WriteLine("Checking for a Chromium build...");
+        log.Info("Checking for a Chromium build...");
 
         int exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
 

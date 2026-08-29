@@ -11,7 +11,7 @@ namespace NDSTK.CookieScanner;
 /// appearing "first in pass 4" might only mean pass 4 was the first to visit the page that sets
 /// it, and every category inference downstream would be wrong.
 /// </remarks>
-public sealed class SiteCrawler(IPage page, ScanOptions options)
+public sealed class SiteCrawler(IPage page, ScanOptions options, IScanLog log)
 {
     public async Task<IReadOnlyList<Uri>> DiscoverAsync(Uri from)
     {
@@ -38,7 +38,7 @@ public sealed class SiteCrawler(IPage page, ScanOptions options)
             {
                 // A page that will not load is worth a line, not an abort: one broken link must
                 // not cost the whole scan.
-                Console.Error.WriteLine($"  skipped {current} ({error.Message.Split('\n')[0]})");
+                log.Warning($"  skipped {current} ({error.Message.Split('\n')[0]})");
                 continue;
             }
 

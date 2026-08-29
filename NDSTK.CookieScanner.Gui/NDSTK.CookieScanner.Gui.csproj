@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>NDSTK.CookieScanner.Gui</RootNamespace>
+    <AssemblyName>ndstk-cookiescan-ui</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!--
+      Same two properties the console tool needs, and for the same reason: Playwright's driver
+      ships node.exe, which the SDK classifies as content rather than a native library. With only
+      the native-library switch the exe runs from its own output directory and then fails with
+      "missing required assets" the moment it is copied anywhere - which is the only situation a
+      portable exe exists for.
+    -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Core is referenced directly as well as through the scanner, because this project names
+      Locale, CookieDeclarationCandidate and CandidateFlag itself - and puts Locale on the public
+      surface of GuiSettings. A dependency compiled against is one that should be declared.
+    -->
+    <ProjectReference Include="..\NDSTK.CookieScan.Core\NDSTK.CookieScan.Core.csproj" />
+    <ProjectReference Include="..\NDSTK.CookieScanner\NDSTK.CookieScanner.csproj" />
+  </ItemGroup>
+
+</Project>

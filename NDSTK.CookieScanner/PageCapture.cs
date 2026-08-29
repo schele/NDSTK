@@ -14,7 +14,7 @@ public sealed record PageObservation(IReadOnlyList<CapturedEntry> Entries, IRead
 /// </summary>
 public static class PageCapture
 {
-    public static async Task<PageObservation> VisitAsync(IPage page, Uri url, ISet<string> hosts)
+    public static async Task<PageObservation> VisitAsync(IPage page, Uri url, ISet<string> hosts, IScanLog log)
     {
         try
         {
@@ -33,7 +33,7 @@ public static class PageCapture
             // same way - the caller records the url an entry was first seen at, and that would name
             // a page which never loaded. Anything genuinely set by the previous page's late
             // resources is still in the context and gets picked up by the next successful visit.
-            Console.Error.WriteLine(
+            log.Warning(
                 $"  skipped {url} - it did not load ({error.Message.Split('\n')[0]})");
 
             return new PageObservation([], new HashSet<string>(hosts, StringComparer.OrdinalIgnoreCase));
@@ -52,14 +52,14 @@ public static class PageCapture
                 cookie.Expires < 0 ? null : DateTimeOffset.FromUnixTimeSeconds((long)cookie.Expires)));
         }
 
-        entries.AddRange(await KeysAsync(page, "localStorage", StorageKind.LocalStorage));
-        entries.AddRange(await KeysAsync(page, "sessionStorage", StorageKind.SessionStorage));
+        entries.AddRange(await KeysAsync(page, "localStorage", StorageKind.LocalStorage, log));
+        entries.AddRange(await KeysAsync(page, "sessionStorage", StorageKind.SessionStorage, log));
 
         return new PageObservation(entries, new HashSet<string>(hosts, StringComparer.OrdinalIgnoreCase));
     }
 
     private static async Task<IReadOnlyList<CapturedEntry>> KeysAsync(
-        IPage page, string store, StorageKind kind)
+        IPage page, string store, StorageKind kind, IScanLog log)
     {
         try
         {
@@ -75,7 +75,7 @@ public static class PageCapture
             // was destroyed" and a closed target, and an unlogged catch here would make a real
             // capture failure look identical to a page that simply stores nothing - which is
             // under-reporting with no trace, the one outcome this tool must never produce.
-            Console.Error.WriteLine(
+            log.Warning(
                 $"  could not read {store} on {page.Url} ({error.Message.Split('\n')[0]})");
 
             return [];

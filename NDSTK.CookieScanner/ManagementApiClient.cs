@@ -14,7 +14,7 @@ namespace NDSTK.CookieScanner;
 /// having even when the write-back cannot happen, and a violation must still fail the run on its
 /// own merits. <see cref="MergeAsync"/> returns null in that case and the report says so.
 /// </remarks>
-public sealed class ManagementApiClient(ScanOptions options)
+public sealed class ManagementApiClient(ScanOptions options, IScanLog log)
 {
     private const string TokenPath = "/umbraco/management/api/v1/security/back-office/token";
     private const string MergePath = "/umbraco/management/api/v1/cookie-scan/merge";
@@ -55,7 +55,7 @@ public sealed class ManagementApiClient(ScanOptions options)
 
             if (response.IsSuccessStatusCode is false)
             {
-                Console.Error.WriteLine(
+                log.Warning(
                     $"  The merge endpoint returned HTTP {(int)response.StatusCode}: {body}");
 
                 return null;
@@ -65,7 +65,7 @@ public sealed class ManagementApiClient(ScanOptions options)
 
             if (parsed is null)
             {
-                Console.Error.WriteLine("  The merge endpoint returned a body that could not be read.");
+                log.Warning("  The merge endpoint returned a body that could not be read.");
 
                 return null;
             }
@@ -86,7 +86,7 @@ public sealed class ManagementApiClient(ScanOptions options)
         // called from the line above.
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException or InvalidOperationException or JsonException)
         {
-            Console.Error.WriteLine($"  Write-back failed: {error.Message}");
+            log.Warning($"  Write-back failed: {error.Message}");
 
             return null;
         }
