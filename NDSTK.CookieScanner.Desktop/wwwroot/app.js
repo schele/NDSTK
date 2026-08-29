@@ -15,6 +15,7 @@
     Keep example import syntax out of these comments, too: the crawl is a regular expression over the
     file's text, and it cannot tell a specifier in a comment from one the module really imports.
 */
+import { DiffView } from '/components/cs-diff-view.js';
 import { FindingsTable } from '/components/cs-findings-table.js';
 import { HistoryList } from '/components/cs-history-list.js';
 import { LogPanel } from '/components/cs-log-panel.js';
@@ -153,6 +154,12 @@ const historyError = document.querySelector('#history-error');
 
 /** @type {FindingsTable} */
 const historyFindingsTable = document.querySelector('#history-findings-table');
+
+const historyDiff = document.querySelector('#history-diff');
+const historyDiffError = document.querySelector('#history-diff-error');
+
+/** @type {DiffView} */
+const historyDiffView = document.querySelector('#history-diff-view');
 
 const lastScanValue = document.querySelector('#last-scan');
 const keptScansValue = document.querySelector('#kept-scans');
@@ -460,24 +467,94 @@ window.addEventListener('keydown', (event) => {
 let selectedHistoryPath = null;
 
 /**
- * Exactly one selected is the only count this task answers: `loadScan` asks the host to read that
- * one file. Zero or several both put the detail pane away rather than leave it showing a scan that
- * is no longer the one thing selected - two is Task 8's to answer, not this one's.
+ * Every path currently checked, as the list last reported it - what a `diff`/`error` answer to
+ * `compare` is measured against.
+ *
+ * A separate variable from the one above rather than a derivation of it, because the two answer
+ * different counts: exactly two is precisely the state in which `selectedHistoryPath` is null, so a
+ * compare answer matched against that single path would be dropped every single time.
+ */
+let selectedHistoryPaths = [];
+
+/**
+ * Whether an answer's echoed pair is the pair still checked, regardless of the order it was asked
+ * in.
+ *
+ * The host echoes `paths` in the order the page sent them - click order - so a comparison against a
+ * selection the operator built the other way round has to ignore order. This is deliberately not the
+ * ordering that decides "appeared": the host does that by completion time, and the two questions
+ * must not be answered with the same list.
+ */
+function isSelectedPair(paths) {
+  if (Array.isArray(paths) === false || paths.length !== 2 || selectedHistoryPaths.length !== 2) {
+    return false;
+  }
+
+  const answered = [...paths].sort();
+  const selected = [...selectedHistoryPaths].sort();
+
+  return answered.every((path, index) => path === selected[index]);
+}
+
+/**
+ * What the two counts this window answers mean: one selected is a scan to look at, two are a pair to
+ * compare. Anything else asks the host for nothing.
+ *
+ * A pane is only ever HIDDEN here, never shown - the answer that arrives is what shows it. Revealing
+ * one on the selection instead would put the previous scan's rows, or the previous pair's diff, on
+ * screen for however long the host takes to read the files.
  */
 historyList?.addEventListener('selection-changed', (event) => {
   const paths = Array.isArray(event.detail?.paths) ? event.detail.paths : [];
 
+  selectedHistoryPaths = paths;
+  selectedHistoryPath = paths.length === 1 ? paths[0] : null;
+
+  historyList.note = describeSelection(paths);
+
   if (paths.length !== 1) {
-    selectedHistoryPath = null;
     historyDetail.hidden = true;
+  }
+
+  // Both panes go away for every count that is not their own, which is what returns the pane to the
+  // detail table when a diff is showing and the operator unchecks one of the two rows.
+  if (paths.length !== 2) {
+    historyDiff.hidden = true;
+  }
+
+  if (paths.length === 1) {
+    post({ type: 'loadScan', path: paths[0] });
 
     return;
   }
 
-  selectedHistoryPath = paths[0];
-
-  post({ type: 'loadScan', path: selectedHistoryPath });
+  if (paths.length === 2) {
+    post({ type: 'compare', pathA: paths[0], pathB: paths[1] });
+  }
 });
+
+/**
+ * What the current selection is about to do, in one line for the list to show.
+ *
+ * The words live here and not in the component, exactly as cs-stat-tile's do: what a count of
+ * checked boxes MEANS is this module's decision, and the list only ever reports what is checked.
+ * Without this the comparison is undiscoverable - two checkboxes look like two checkboxes.
+ */
+function describeSelection(paths) {
+  if (paths.length === 0) {
+    return 'Tick one scan to see what it found, or two to compare them.';
+  }
+
+  if (paths.length === 1) {
+    return 'One selected - its findings are below. Tick a second to compare the two.';
+  }
+
+  if (paths.length === 2) {
+    return 'Two selected - the comparison is below.';
+  }
+
+  return `${paths.length} selected - a comparison is between exactly two, so untick down to two.`;
+}
 
 host?.addEventListener('message', (event) => {
   // Already an object: the host posts with PostWebMessageAsJson, so WebView2 has parsed it by the
@@ -510,6 +587,7 @@ host?.addEventListener('message', (event) => {
       showHistoryFooter();
 
       historyList.entries = history;
+      historyList.note = describeSelection(selectedHistoryPaths);
 
       break;
 
@@ -534,12 +612,50 @@ host?.addEventListener('message', (event) => {
 
       break;
 
-    // loadScan (and later, compare) answering a file that would not read back - deleted or
-    // corrupted since the list was drawn. Shown inline rather than left silent: the operator asked
-    // for one specific scan and is owed a reason it did not appear. Same staleness guard as `scan`,
-    // and for the same reason: a corrupted-since-listed file's error must not reopen the pane for a
-    // selection that has already moved on.
+    // The answer to compare for two files that both read back cleanly. Ordered by completion time
+    // by the host - see PostDiff - so "appeared" means the same thing whichever row was ticked
+    // first, and nothing here re-derives it.
+    //
+    // Guarded the same way `scan` is, against the pair rather than the single path: `compare` has no
+    // correlation id either, and two checked rows is exactly the state in which no single path is
+    // selected. `paths` is echoed in the order it was asked and compared order-insensitively,
+    // because the operator can tick the same two rows in either order and still be looking at the
+    // same comparison.
+    case 'diff':
+      if (isSelectedPair(message.paths) === false) {
+        break;
+      }
+
+      historyDiffError.hidden = true;
+      historyDiffView.diff = message;
+      historyDiff.hidden = false;
+
+      break;
+
+    // loadScan or compare answering a file that would not read back - deleted or corrupted since
+    // the list was drawn. Shown inline rather than left silent: the operator asked for something
+    // specific and is owed a reason it did not appear.
+    //
+    // Which request it answers is read off its SHAPE - one `path` for loadScan, two `paths` for
+    // compare - rather than off a separate field naming the command. The echo is already the
+    // correlation, and a second discriminator saying the same thing is a second thing that can
+    // disagree with it. Each branch then applies its own staleness rule, for the same reason `scan`
+    // and `diff` have theirs: an error for a selection that has already moved on must not force a
+    // pane back open.
     case 'error':
+      if (Array.isArray(message.paths)) {
+        if (isSelectedPair(message.paths) === false) {
+          break;
+        }
+
+        historyDiffView.diff = null;
+        historyDiffError.textContent = message.message;
+        historyDiffError.hidden = false;
+        historyDiff.hidden = false;
+
+        break;
+      }
+
       if (message.path !== selectedHistoryPath) {
         break;
       }
@@ -551,8 +667,9 @@ host?.addEventListener('message', (event) => {
 
       break;
 
-    // Everything else - diff - belongs to a page that does not exist yet. Ignored rather than
-    // logged: an unhandled type is a task not written, not a fault.
+    // Nothing else: every envelope the host posts has an arm above. Ignored rather than logged, the
+    // same as an unrecognised command on the host's side - a type this build has never heard of is a
+    // mismatched pair of halves, not a fault worth a line in the operator's log.
     default:
       break;
   }

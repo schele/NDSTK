@@ -1,6 +1,8 @@
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
+using NDSTK.CookieScan.Core;
+
 namespace NDSTK.CookieScanner.Desktop;
 
 /// <summary>
@@ -191,8 +193,9 @@ public sealed class DashboardForm : Form
     /// <remarks>
     /// A switch rather than a dictionary of handlers: the later pages add message types here, and a
     /// missing arm should be a compiler-visible gap in one method rather than a registration someone
-    /// forgot. The types this build does not answer yet fall through deliberately - the page they
-    /// belong to does not exist, so nothing can send them.
+    /// forgot. Every command <see cref="DashboardCommand.Parse"/> can produce now has an arm; a type
+    /// added later without one falls through silently, which is the reason they are gathered here
+    /// rather than registered in the file that introduces them.
     /// </remarks>
     private void OnCommandReceived(DashboardCommand command)
     {
@@ -220,6 +223,11 @@ public sealed class DashboardForm : Form
 
             case LoadScanCommand load:
                 PostScan(load);
+
+                break;
+
+            case CompareCommand compare:
+                PostDiff(compare);
 
                 break;
 
@@ -251,33 +259,51 @@ public sealed class DashboardForm : Form
     /// </para>
     /// </remarks>
     private void PostHistory()
-    {
-        IReadOnlyList<ScanHistoryEntry> entries;
+        => bridge?.Post(new { type = "history", entries = ListScans(ScanHistory.Default()) });
 
+    /// <summary>Every kept scan, newest first, or nothing at all for a folder that will not open.</summary>
+    /// <remarks>
+    /// Shared by all three answers that touch the folder, so the folder-wide failure is handled in
+    /// one place. See <see cref="PostHistory"/> for why it is an empty list rather than a throw.
+    /// </remarks>
+    private static IReadOnlyList<ScanHistoryEntry> ListScans(ScanHistory history)
+    {
         try
         {
-            entries = ScanHistory.Default().List();
+            return history.List();
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            entries = [];
+            return [];
         }
+    }
 
-        bridge?.Post(new { type = "history", entries });
+    /// <summary>The scan a path names, read through the list rather than opened directly.</summary>
+    /// <remarks>
+    /// <see cref="ScanHistory.Load"/> takes the <see cref="ScanHistoryEntry"/> it listed, not a bare
+    /// path - so the path the page sent is matched back against a fresh listing rather than opened.
+    /// That is not a workaround for the missing overload: it also means the window only ever opens a
+    /// file it just told the page about, never whatever path a message happens to name.
+    /// <para>
+    /// Null for a path with no match in <paramref name="entries"/> - deleted or renamed since the
+    /// page's last <c>listHistory</c> - and null again for a match <see cref="ScanHistory.Load"/>
+    /// itself cannot parse. The two are indistinguishable to the caller on purpose: both mean the
+    /// page asked about a file that is not there to be read.
+    /// </para>
+    /// </remarks>
+    private static ScanResult? LoadResult(
+        ScanHistory history, IReadOnlyList<ScanHistoryEntry> entries, string path)
+    {
+        ScanHistoryEntry? entry = entries.FirstOrDefault(candidate => candidate.Path == path);
+
+        return entry is null ? null : history.Load(entry);
     }
 
     /// <summary>Answers <c>loadScan</c> with the parsed scan the page asked for, by path.</summary>
     /// <remarks>
-    /// <see cref="ScanHistory.Load"/> takes the <see cref="ScanHistoryEntry"/> it listed, not a bare
-    /// path - so the path the page sent is matched back against a fresh <see cref="ScanHistory.List"/>
-    /// rather than opened directly. That is not a workaround for the missing overload: it also means
-    /// the window only ever opens a file it just told the page about, never whatever path a message
-    /// happens to name.
-    /// <para>
-    /// A path with no match in that list - deleted or renamed since the page's last <c>listHistory</c>
-    /// - and a match <see cref="ScanHistory.Load"/> itself cannot parse - deleted or corrupted in the
-    /// meantime - answer the same way: an inline <c>error</c>, never a silent nothing.
-    /// </para>
+    /// Both of the ways <see cref="LoadResult"/> can come back empty - a path the list no longer holds, and
+    /// a file that will not parse - answer the same way: an inline <c>error</c>, never a silent
+    /// nothing.
     /// <para>
     /// Both envelopes echo <c>command.Path</c> back. This runs on the message loop and the page can
     /// have moved its selection on before the answer arrives - unchecked the scan it asked about,
@@ -290,20 +316,7 @@ public sealed class DashboardForm : Form
     {
         ScanHistory history = ScanHistory.Default();
 
-        IReadOnlyList<ScanHistoryEntry> entries;
-
-        try
-        {
-            entries = history.List();
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        {
-            entries = [];
-        }
-
-        ScanHistoryEntry? entry = entries.FirstOrDefault(candidate => candidate.Path == command.Path);
-
-        ScanResult? result = entry is null ? null : history.Load(entry);
+        ScanResult? result = LoadResult(history, ListScans(history), command.Path);
 
         if (result is null)
         {
@@ -318,6 +331,88 @@ public sealed class DashboardForm : Form
         }
 
         bridge?.Post(new { type = "scan", path = command.Path, result });
+    }
+
+    /// <summary>Answers <c>compare</c> with what changed between two kept scans.</summary>
+    /// <remarks>
+    /// The pair is ordered by <see cref="ScanResult.CompletedAt"/> and never by the order the page
+    /// asked in, because "appeared" has to mean one thing: present in the newer scan and not in the
+    /// older. Checking the two rows bottom-up would otherwise invert every group.
+    /// <para>
+    /// Both envelopes echo <c>paths</c> - the two the page asked about, in the order it asked, which
+    /// is a different question from the ordering above. It is the same staleness guard
+    /// <see cref="PostScan"/> needs, in the shape this answer can carry: two rows checked is exactly
+    /// the state in which no single path is selected, so a bare <c>message</c> would arrive with
+    /// nothing for the page to match it against and would be dropped by the guard it already has.
+    /// </para>
+    /// <para>
+    /// The options summaries ride along on each side rather than being reduced here to a sentence.
+    /// What differed is a fact about the two files; how to say it out loud is the page's, alongside
+    /// every other piece of wording in this window.
+    /// </para>
+    /// </remarks>
+    private void PostDiff(CompareCommand command)
+    {
+        ScanHistory history = ScanHistory.Default();
+
+        IReadOnlyList<ScanHistoryEntry> entries = ListScans(history);
+
+        string[] paths = [command.PathA, command.PathB];
+
+        ScanResult? a = LoadResult(history, entries, command.PathA);
+        ScanResult? b = LoadResult(history, entries, command.PathB);
+
+        if (a is null || b is null)
+        {
+            bridge?.Post(new
+            {
+                type = "error",
+                paths,
+                message = "One of those scans could not be read.",
+            });
+
+            return;
+        }
+
+        (ScanResult older, ScanResult newer) = a.CompletedAt <= b.CompletedAt ? (a, b) : (b, a);
+
+        ScanDiff diff = ScanDiff.Between(older.Candidates, newer.Candidates);
+
+        // Both, not either: a pair is only known to have run the same way when both files say how
+        // they ran. One recorded summary beside a null is "not recorded", which is the honest answer
+        // for a history file written before the summary existed.
+        bool optionsKnown = older.Options is not null && newer.Options is not null;
+
+        bridge?.Post(new
+        {
+            type = "diff",
+            paths,
+            older = Side(older),
+            newer = Side(newer),
+            appeared = diff.Appeared,
+            disappeared = diff.Disappeared,
+            recategorised = diff.Recategorised,
+            optionsKnown,
+            // Record equality, so a field added to ScanOptionsSummary later is compared without
+            // anything here having to be told about it.
+            optionsDiffer = optionsKnown && older.Options != newer.Options,
+            siteDiffers = SiteKey(older.Site) != SiteKey(newer.Site),
+        });
+
+        static object Side(ScanResult result) => new
+        {
+            result.CompletedAt,
+            result.Site,
+            entryCount = result.Candidates.Count,
+            result.Options,
+        };
+
+        // The site is recorded as the scanned Uri's own text, so two runs of one site agree
+        // exactly - but a hand-written history file, or a future front end that records what was
+        // typed, would not. Trailing slash and case are the two ways one site spells itself
+        // differently; anything past that really is a different site.
+        static string SiteKey(string? site)
+            => (site ?? string.Empty).TrimEnd('/').ToLowerInvariant();
     }
 
     private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)

@@ -916,6 +916,120 @@ cs-history-list {
   background: var(--blue-50);
 }
 
+.history-note {
+  margin-bottom: var(--s-3);
+}
+
+/* ---------------------------------------------------------------- diff
+
+    <cs-diff-view> reuses .data-table, .pill and .muted for the same reason the two tables above do.
+    Its own rules are the header, the two banners and the three groups.
+
+    The three group tints are the four tile tints' own pairings - the ink and the background that
+    .tile--teal, .tile--red and .tile--blue already put together - reused rather than reinvented, so
+    a group and a tile of the same colour are the same colour. Every one of them measures over AA
+    for the 11px pill it carries: teal-800 on teal-50 6.34:1, red-600 on red-50 4.76:1, blue-800 on
+    blue-50 8.58:1. The tint carries nothing on its own: each group's heading is a word and a count.
+*/
+
+cs-diff-view {
+  display: block;
+}
+
+.diff-head {
+  margin-bottom: var(--s-4);
+}
+
+.diff-sides {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-8);
+  margin-bottom: var(--s-2);
+}
+
+.diff-side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.diff-side-value {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/*
+    The whole reason the scan record carries an options summary. Amber for the two that say a
+    difference below may not be the site's; red for the one that says the two scans are not even of
+    the same site. Neither colour is the message - both paragraphs say it in words.
+*/
+.diff-banner {
+  margin-bottom: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid;
+  border-radius: var(--r-md);
+  font-size: 13px;
+}
+
+.diff-banner--amber { background: var(--amber-50); border-color: var(--amber-700); color: var(--amber-700) }
+.diff-banner--red   { background: var(--red-50);   border-color: var(--red-600);   color: var(--red-600) }
+
+/*
+    The answer to "what changed" when the answer is "nothing". Full-strength ink rather than .muted:
+    it is the finding, not an absence of one, and it must not be mistaken for a pane that failed to
+    fill. No max-width and no overflow - the sentence wraps rather than being clipped.
+*/
+.diff-unchanged {
+  padding: var(--s-6) var(--s-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  color: var(--ink-900);
+  text-align: center;
+  font-weight: 600;
+}
+
+.diff-groups {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.diff-group {
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--diff-edge);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.diff-group--teal { --diff-bg: var(--teal-50); --diff-ink: var(--teal-800); --diff-edge: var(--teal-600) }
+.diff-group--red  { --diff-bg: var(--red-50);  --diff-ink: var(--red-600);  --diff-edge: var(--red-600) }
+.diff-group--blue { --diff-bg: var(--blue-50); --diff-ink: var(--blue-800); --diff-edge: var(--blue-600) }
+
+.diff-group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* A .pill tinted by whichever group it sits in, rather than a fourth set of pill classes. */
+.diff-count {
+  background: var(--diff-bg);
+  color: var(--diff-ink);
+  border-color: var(--diff-edge);
+}
+
+/*
+    The table scrolls, not the group - same reasoning as cs-findings-table, and kept off the element
+    itself so that the nothing-changed sentence is never inside a scroll container.
+*/
+.diff-scroll {
+  margin-top: var(--s-2);
+  overflow-x: auto;
+}
+
 /* ---------------------------------------------------------------- log */
 
 .log {

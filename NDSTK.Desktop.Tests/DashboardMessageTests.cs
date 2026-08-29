@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using NDSTK.CookieScan.Core;
 using NDSTK.CookieScanner;
 using NDSTK.CookieScanner.Desktop;
 
@@ -45,9 +46,61 @@ public class DashboardMessageTests
     }
 
     [Fact]
+    public void A_compare_command_parses_with_both_paths()
+    {
+        const string json = """{"type":"compare","pathA":"C:\\scans\\one.json","pathB":"C:\\scans\\two.json"}""";
+
+        DashboardCommand? command = DashboardCommand.Parse(json);
+
+        CompareCommand compare = Assert.IsType<CompareCommand>(command);
+
+        Assert.Equal(@"C:\scans\one.json", compare.PathA);
+        Assert.Equal(@"C:\scans\two.json", compare.PathB);
+    }
+
+    [Fact]
     public void A_list_history_command_parses()
     {
         Assert.IsType<ListHistoryCommand>(DashboardCommand.Parse("""{"type":"listHistory"}"""));
+    }
+
+    /// <summary>
+    /// The names the diff view reads a comparison by.
+    /// </summary>
+    /// <remarks>
+    /// Same reasoning as the history entry's test below, and the same blind spot it covers: the view
+    /// is JavaScript inside an embedded resource, so a member renamed on either of these two records
+    /// would compile cleanly and leave the page reading undefined - a recategorisation row with three
+    /// empty cells, or an options banner announcing a difference it cannot name. Both records live
+    /// outside this project, which is exactly why the page's dependency on their spelling is pinned
+    /// from here.
+    /// </remarks>
+    [Fact]
+    public void A_diff_payload_serialises_under_the_names_the_page_reads()
+    {
+        string json = JsonSerializer.Serialize(
+            new
+            {
+                recategorised = new[] { new CategoryChange("ndstk-consent", "marketing", "necessary") },
+                options = new ScanOptionsSummary(7, Locale.En, MemberScanEnabled: true, DryRun: false),
+            },
+            ScanJson.Options);
+
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        JsonElement change = document.RootElement.GetProperty("recategorised")[0];
+
+        Assert.Equal("ndstk-consent", change.GetProperty("name").GetString());
+        Assert.Equal("marketing", change.GetProperty("from").GetString());
+        Assert.Equal("necessary", change.GetProperty("to").GetString());
+
+        JsonElement options = document.RootElement.GetProperty("options");
+
+        Assert.Equal(7, options.GetProperty("maxPages").GetInt32());
+        // A name, not the enum's number: the banner prints this value straight into its sentence.
+        Assert.Equal("En", options.GetProperty("locale").GetString());
+        Assert.True(options.GetProperty("memberScanEnabled").GetBoolean());
+        Assert.False(options.GetProperty("dryRun").GetBoolean());
     }
 
     /// <summary>

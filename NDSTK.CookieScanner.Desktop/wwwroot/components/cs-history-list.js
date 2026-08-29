@@ -1,4 +1,4 @@
-import { LitElement, html } from '/vendor/lit.js';
+import { LitElement, html, nothing } from '/vendor/lit.js';
 
 /*
     Every kept scan, newest first, with a checkbox per row.
@@ -7,9 +7,14 @@ import { LitElement, html } from '/vendor/lit.js';
     whether it means "look at this one" or "add this one to what is already picked", and a shift- or
     ctrl-click is a convention nobody can see by looking at the row. The checkbox is the whole state -
     there is nothing this component decides about what a selection MEANS. That is the host's call:
-    one path means "show it", two mean "diff them" once Task 8 exists, and neither is this file's
-    business. It only ever reports what is checked, in a `selection-changed` event, and lets whoever
-    is listening decide what to do about it.
+    one path means "show it", two mean "compare them", and neither is this file's business. It only
+    ever reports what is checked, in a `selection-changed` event, and lets whoever is listening
+    decide what to do about it.
+
+    That includes the `note` - the line that tells the operator that two ticks are a comparison, which
+    is otherwise undiscoverable, because two checkboxes look exactly like two checkboxes. The words
+    are handed in by whoever owns the meaning, the same way cs-stat-tile is handed every word it
+    shows; this element only finds it somewhere to live.
 */
 export class HistoryList extends LitElement {
   static properties = {
@@ -21,6 +26,12 @@ export class HistoryList extends LitElement {
      */
     entries: { attribute: false },
 
+    /**
+     * One line above the table saying what the current selection does. Optional - an empty note
+     * renders nothing rather than an empty line, the same as cs-stat-tile's hint.
+     */
+    note: {},
+
     /** The set of paths currently checked. Internal state, not something a caller hands in. */
     selected: { state: true },
   };
@@ -29,6 +40,7 @@ export class HistoryList extends LitElement {
     super();
 
     this.entries = [];
+    this.note = '';
     this.selected = new Set();
   }
 
@@ -93,6 +105,12 @@ export class HistoryList extends LitElement {
     }
 
     return html`
+      ${this.note
+        // Polite rather than assertive, and a live region rather than a plain line: the note changes
+        // on every tick, and a reader who cannot see the boxes otherwise has no way of knowing that
+        // checking a second one just changed what the pane below is about.
+        ? html`<p class="muted history-note" aria-live="polite">${this.note}</p>`
+        : nothing}
       <table class="data-table">
         <caption class="sr-only">Every kept scan - ${entries.length} in total.</caption>
         <thead>

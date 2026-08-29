@@ -279,6 +279,20 @@
         <p id="history-error" role="alert" hidden></p>
         <cs-findings-table id="history-findings-table"></cs-findings-table>
       </div>
+
+      <!--
+        The other thing a selection can be: two checked rows are a comparison rather than a detail,
+        so the diff gets a card of its own and the two are never on screen together. Same pattern as
+        the card above - present and hidden from the start, with its own alert paragraph, so an
+        answer fills elements that already exist.
+      -->
+      <div class="card" id="history-diff" hidden>
+        <div class="card-head">
+          <h2 class="card-title">Comparison</h2>
+        </div>
+        <p id="history-diff-error" role="alert" hidden></p>
+        <cs-diff-view id="history-diff-view"></cs-diff-view>
+      </div>
     </section>
 
   </main>
