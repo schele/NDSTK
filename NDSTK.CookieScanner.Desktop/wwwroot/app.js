@@ -316,7 +316,7 @@ function showResult(message) {
   tiles.violations.value = scan.violations.length;
   // The exit code is not recomputed here: 1 is what a violation means, and the tile says so in the
   // same breath as the number, because the number alone does not tell the operator the run failed.
-  tiles.violations.hint = scan.violations.length > 0 ? 'fails the run Â· exit 1' : 'none';
+  tiles.violations.hint = scan.violations.length > 0 ? 'fails the run · exit 1' : 'none';
 
   tiles.review.value = scan.candidates.filter((candidate) => candidate.flag === 'NeedsReview').length;
   tiles.expected.value = scan.expectedButNotObserved.length;
