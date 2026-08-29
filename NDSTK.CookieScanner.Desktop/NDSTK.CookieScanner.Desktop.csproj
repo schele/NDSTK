@@ -15,6 +15,12 @@
     <AssemblyName>ndstk-cookiescan-ui</AssemblyName>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <!--
+      The exe's icon in Explorer and the taskbar. Generated from the sidebar's brand mark by
+      Assets\make-icon.ps1; regenerate rather than edit. The same file is embedded below so the
+      window can wear it too - ApplicationIcon only decorates the file, not the Form.
+    -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!--
       The same three the console tool needs, for the same reason: Playwright's driver ships node.exe,
       which the SDK classifies as content rather than a native library. WebView2Loader.dll rides
       along on the native switch - the bundler classifies by content, not by item type.
@@ -61,6 +67,7 @@
     a URL straight onto a resource name without a lookup table that would drift.
   -->
   <ItemGroup>
+    <EmbeddedResource Include="Assets\app.ico" LogicalName="app.ico" />
     <EmbeddedResource Include="wwwroot\**\*">
       <LogicalName>wwwroot/$([System.String]::Copy('%(RecursiveDir)%(Filename)%(Extension)').Replace('\','/'))</LogicalName>
     </EmbeddedResource>
