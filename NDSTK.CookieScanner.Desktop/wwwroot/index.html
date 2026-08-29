@@ -118,6 +118,25 @@
           -->
           <form class="scan-form" id="scan-form" autocomplete="off" novalidate>
 
+            <!--
+              Above the URL rather than beside it: picking a site REPLACES every field below,
+              including the URL, so it reads top to bottom as "which site, then what to do with it".
+
+              A real select with a real label, not a listbox built out of divs - it is a one-of-many
+              choice, and the browser's own control already answers to the keyboard, to a screen
+              reader and to type-ahead.
+
+              The first option is markup rather than something app.js builds, because it is not a
+              profile: it is the absence of one. That also keeps the ellipsis in the HTML, as an
+              entity, where no encoding round-trip over app.js can reach it.
+            -->
+            <div class="field">
+              <label class="label" for="scan-site">Site</label>
+              <select class="input" id="scan-site">
+                <option value="">New site&hellip;</option>
+              </select>
+            </div>
+
             <div class="field">
               <label class="label" for="scan-url">Site URL</label>
               <input class="input" id="scan-url" type="text" spellcheck="false" placeholder="https://ndstk.se">
@@ -139,9 +158,14 @@
 
                 <div class="field">
                   <label class="label" for="scan-locale">Locale</label>
+                  <!--
+                    The label is the locale as a locale is written - SV, EN - while the value stays
+                    the enum member's own spelling, which is what the host parses. The two differ on
+                    purpose: capitalising the value would make the page and Locale disagree.
+                  -->
                   <select class="input" id="scan-locale">
-                    <option value="Sv">Sv</option>
-                    <option value="En">En</option>
+                    <option value="Sv">SV</option>
+                    <option value="En">EN</option>
                   </select>
                 </div>
 
@@ -151,17 +175,24 @@
                 </div>
 
                 <!--
-                  Never persisted, and there is no settings field that could hold it: it is typed per
-                  run and lives only as long as the run does.
+                  Saved with the profile, encrypted at rest under this Windows user - see
+                  DashboardSettings. Masked because it is over the operator's shoulder that it is
+                  most likely to be read, not in the file.
                 -->
                 <div class="field">
                   <label class="label" for="scan-member-password">Member password</label>
                   <input class="input" id="scan-member-password" type="password" autocomplete="off">
                 </div>
 
+                <!--
+                  Masked for the same reason as the password beside it, and stored the same way. It
+                  is half of a credential pair - an id with the secret in the environment is a login
+                  - so leaving it in the clear on screen while masking its other half would be
+                  drawing the line in the wrong place.
+                -->
                 <div class="field">
                   <label class="label" for="scan-client-id">API client id</label>
-                  <input class="input" id="scan-client-id" type="text" spellcheck="false">
+                  <input class="input" id="scan-client-id" type="password" autocomplete="off">
                   <!--
                     Beside the client id, because it is the other half of the same answer: an id with
                     no secret cannot reach the endpoint. Filled from the host on ready - the variable
@@ -179,9 +210,25 @@
               Dry run (write nothing)
             </label>
 
+            <!--
+              type="button" on both of the new ones: they are inside a form whose submit runs a
+              scan, and a button without it would run one.
+
+              Save and Delete sit beside Run rather than up beside the dropdown, because all three
+              act on the form below them - the dropdown only chooses what fills it.
+            -->
             <div class="actions">
               <button class="button button--primary" id="scan-run" type="submit">Run</button>
               <button class="button" id="scan-cancel" type="button" hidden>Cancel</button>
+              <button class="button" id="scan-save-site" type="button">Save site</button>
+              <!--
+                aria-label, because "Delete" alone is what a screen reader announces out of context -
+                in a list of this page's controls, say - and it does not say what is deleted. The
+                visible word stays "Delete": beside a site dropdown it is unambiguous to anyone who
+                can see the row it is in, and the longer label would crowd it.
+              -->
+              <button class="button button--quiet" id="scan-delete-site" type="button"
+                      aria-label="Delete saved site">Delete</button>
             </div>
 
           </form>

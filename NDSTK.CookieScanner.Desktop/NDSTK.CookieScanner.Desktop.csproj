@@ -28,6 +28,18 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
   </ItemGroup>
 
+  <!--
+    ProtectedText encrypts the settings file's credentials with DPAPI, which lives in
+    System.Security.Cryptography.ProtectedData. There is deliberately no PackageReference for it.
+
+    The assembly is NOT in Microsoft.NETCore.App - it is in Microsoft.WindowsDesktop.App, the shared
+    framework this project already resolves because UseWindowsForms is on. That is the whole reason
+    it needs no reference here, and it is worth being exact about: a plain net10.0 project, or one
+    without UseWindowsForms, would have to add the package (latest stable on nuget.org is 10.0.11).
+    Adding it here anyway raises NU1510 ("will not be pruned ... does not need to be referenced
+    explicitly"), which this build treats as the warning it is.
+  -->
+
   <ItemGroup>
     <ProjectReference Include="..\NDSTK.CookieScan.Core\NDSTK.CookieScan.Core.csproj" />
     <ProjectReference Include="..\NDSTK.CookieScanner\NDSTK.CookieScanner.csproj" />

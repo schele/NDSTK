@@ -372,11 +372,13 @@ svg {
   grid-template-columns: minmax(0, 1fr) minmax(0, 330px);
   gap: var(--s-6);
   /*
-      start rather than stretch: opening the Options disclosure makes the run card half again as
-      tall, and a chart that grew with it would be changing size for a reason that has nothing to do
-      with what it is measuring.
+      stretch, so the two cards are one band rather than a tall card with a short one floating
+      beside it. This used to be `start`, to stop the chart growing when the Options disclosure
+      opens - but what actually grew was the CARD, and the answer to that is below: the trend card
+      is a flex column whose chart region takes the slack, so the card matches its neighbour's
+      height while the 88px chart inside it stays the size it was.
   */
-  align-items: start;
+  align-items: stretch;
 }
 
 /*
@@ -397,12 +399,27 @@ svg {
     from the tiles this card sits over.
 */
 
+/*
+    The card and its chart are both flex columns so the height the hero's `stretch` hands this card
+    lands somewhere deliberate. Without them the extra height would pile up under the legend as dead
+    space; with them it goes to .trend, which centres the figure and the chart in whatever it is
+    given. The chart's own 88px is untouched - the slack is around it, not in it.
+*/
+.trend-card {
+  display: flex;
+  flex-direction: column;
+}
+
 cs-trend-chart {
-  display: block;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .trend {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: var(--s-3);
 }
@@ -486,9 +503,14 @@ cs-trend-chart {
   stop-opacity: 0;
 }
 
-/* The same height the chart would have taken, so the card does not resize when the first scan lands. */
+/*
+    The same height the chart would have taken, so the card does not resize when the first scan
+    lands - and flex: 1 for the same reason .trend has it, so "No scans yet" sits in the middle of
+    the card rather than at the top of a card stretched to match the run card.
+*/
 .trend-empty {
   display: grid;
+  flex: 1;
   place-items: center;
   min-height: 88px;
   color: var(--ink-600);
@@ -686,6 +708,24 @@ cs-stat-tile {
   border-color: var(--blue-800);
 }
 
+/*
+    Delete, and the quietest thing in the actions row on purpose. NOT red: what it removes is one
+    saved profile - no scan, no report and no history entry goes with it, and the site itself is one
+    paste away from being back - so a destructive colour would be claiming a consequence this button
+    does not have. It borrows the same ink the labels use and finds its border on hover, so it is
+    still plainly a button when reached for.
+*/
+.button--quiet {
+  /* --border, not transparent: borderless it read as a link sitting between two real buttons. */
+  border-color: var(--border);
+  color: var(--ink-600);
+}
+
+.button--quiet:hover {
+  border-color: var(--border-strong);
+  color: var(--ink-900);
+}
+
 .button:disabled {
   opacity: .5;
   cursor: default;
@@ -701,6 +741,14 @@ cs-stat-tile {
 
 .field {
   display: grid;
+  /*
+      start, not the default stretch: fields sit in a grid row that is as tall as its tallest member,
+      and the client-id field is taller than its neighbours because of the secret note under it.
+      Stretched, the shorter field's own auto rows absorb that difference and its input drifts a
+      label's height down the card - the member password and the client id were visibly out of line
+      with each other. Pinning the rows to the top of the box lines every input in a row up again.
+  */
+  align-content: start;
   gap: var(--s-2);
   min-width: 0;
 }

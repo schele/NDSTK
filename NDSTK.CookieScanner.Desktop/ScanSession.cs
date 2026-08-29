@@ -8,8 +8,15 @@ namespace NDSTK.CookieScanner.Desktop;
 /// <remarks>
 /// Owns a run and nothing else. It knows the page only through <see cref="DashboardBridge"/>, so the
 /// same session drives the log, the result and the running state without ever touching a control.
+/// <para>
+/// The one thing it owns beyond the run is a share of <paramref name="settings"/> - the same
+/// instance <see cref="DashboardForm"/> holds, not a copy. A run saves the profile it ran with, and
+/// two instances would be two lists overwriting each other's file. Everything this class does to it
+/// happens on the UI thread, before the scan reaches <c>Task.Run</c>; see the remark on
+/// <see cref="DashboardSettings"/> for what that buys and what would break it.
+/// </para>
 /// </remarks>
-public sealed class ScanSession(DashboardBridge bridge)
+public sealed class ScanSession(DashboardBridge bridge, DashboardSettings settings)
 {
     private readonly WebViewScanLog log = new(bridge);
 
@@ -64,10 +71,21 @@ public sealed class ScanSession(DashboardBridge bridge)
         // scan that fails is exactly when the operator has typed something worth not losing - a URL
         // that turned out to resolve to nothing, a client id being tried for the first time - and
         // that was the run that used to discard it. Not before the check above, though: a URL this
-        // window has just refused is not one to hand back at every later launch. The client secret
-        // and the member password have no member to be captured into, deliberately - see
-        // DashboardSettings.
-        Remembered(command).Save();
+        // window has just refused is not one to hand back at every later launch, and is certainly
+        // not one to add to the dropdown.
+        //
+        // This is the same upsert the Save site button performs, from the same values, so running a
+        // scan against a URL with no profile yet creates one: "remember what was typed" and "save
+        // this site" were always the same act, and now they are the same code. The client secret is
+        // still not among the values - see DashboardSettings.
+        settings.Upsert(Remembered(command));
+        settings.SelectedUrl = command.Url.Trim();
+        settings.Save();
+
+        // Answered as well as written, so the dropdown is never a relaunch behind the file. Without
+        // this, a scan of a new URL would save a profile the operator cannot see, select, or delete
+        // until the window is restarted.
+        bridge.Post(DashboardAnswer.Sites(settings));
 
         bridge.Post(new { type = "state", running = true });
 
@@ -221,17 +239,37 @@ public sealed class ScanSession(DashboardBridge bridge)
     /// reaches the host as zero by design; remembering that zero rather than the 25 that actually
     /// ran would put a 0 in the spinner at every later launch - a value the form's own min="1"
     /// cannot correct, since the settings are assigned rather than typed.
+    /// <para>
+    /// Public for the third caller: Save site writes a profile without running anything, from the
+    /// same form and so with the same zero. Reached across from <see cref="DashboardForm"/> rather
+    /// than copied there, because a second 25 would be a second rule the moment either moved.
+    /// </para>
     /// </remarks>
-    private static int Pages(int requested) => requested > 0 ? requested : 25;
+    public static int Pages(int requested) => requested > 0 ? requested : 25;
 
-    /// <summary>The six things worth keeping until next time.</summary>
-    private static DashboardSettings Remembered(RunCommand command) => new(
-        Url: command.Url.Trim(),
+    /// <summary>The run, as the profile for the site it ran against.</summary>
+    /// <remarks>
+    /// The page count is put through <see cref="Pages"/> here, so the profile holds what actually
+    /// ran rather than what was typed: a blank max-pages field reaches the host as zero and the scan
+    /// runs 25, and a profile that stored the zero would put it back in the spinner at every later
+    /// launch, which <see cref="Pages"/>'s own remark is about.
+    /// <para>
+    /// The URL and the three credentials are handed over untrimmed, because
+    /// <see cref="DashboardSettings.Upsert"/> trims every stored string itself. That is deliberate
+    /// and not an omission: trimming on this path and not on the Save site button's was how the same
+    /// form came to produce two different files depending on which one was pressed.
+    /// <see cref="BuildOptions"/> trims what it signs in with independently, so what is stored is
+    /// still exactly what the scan used.
+    /// </para>
+    /// </remarks>
+    private static SiteProfile Remembered(RunCommand command) => new(
+        Url: command.Url,
         MaxPages: Pages(command.MaxPages),
         Locale: ParseLocale(command.Locale),
-        MemberEmail: command.MemberEmail?.Trim() ?? "",
-        ClientId: command.ClientId?.Trim() ?? "",
-        DryRun: command.DryRun);
+        DryRun: command.DryRun,
+        MemberEmail: command.MemberEmail ?? "",
+        MemberPassword: command.MemberPassword ?? "",
+        ClientId: command.ClientId ?? "");
 
     /// <remarks>
     /// Swedish for anything unrecognised, which is the rule the console tool applies to --locale.

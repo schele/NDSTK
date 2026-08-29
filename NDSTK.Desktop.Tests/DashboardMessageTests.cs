@@ -65,6 +65,66 @@ public class DashboardMessageTests
     }
 
     /// <summary>
+    /// The whole profile, exactly as the run card sends it.
+    /// </summary>
+    /// <remarks>
+    /// The locale is the enum's NAME here and the enum's type on the record, unlike
+    /// <see cref="RunCommand"/> where it stays a string: a profile is what gets written to disk, so a
+    /// spelling this build cannot read is worth finding out about at the parse rather than storing
+    /// and quietly defaulting later. <see cref="ScanJson.Options"/> is what makes both halves of that
+    /// work - camelCase off the page, enums as names.
+    /// </remarks>
+    [Fact]
+    public void A_save_site_command_parses_with_its_whole_profile()
+    {
+        const string json = """
+            {"type":"saveSite","profile":{"url":"https://localhost:44351","maxPages":7,"locale":"En",
+             "dryRun":false,"memberEmail":"a@b.c","memberPassword":"secret","clientId":"cookie-scanner"}}
+            """;
+
+        DashboardCommand? command = DashboardCommand.Parse(json);
+
+        SaveSiteCommand save = Assert.IsType<SaveSiteCommand>(command);
+
+        Assert.Equal("https://localhost:44351", save.Profile.Url);
+        Assert.Equal(7, save.Profile.MaxPages);
+        Assert.Equal(Locale.En, save.Profile.Locale);
+        Assert.False(save.Profile.DryRun);
+        Assert.Equal("a@b.c", save.Profile.MemberEmail);
+        Assert.Equal("secret", save.Profile.MemberPassword);
+        Assert.Equal("cookie-scanner", save.Profile.ClientId);
+    }
+
+    [Fact]
+    public void A_delete_site_command_parses_with_its_url()
+    {
+        DashboardCommand? command = DashboardCommand.Parse(
+            """{"type":"deleteSite","url":"https://localhost:44351"}""");
+
+        DeleteSiteCommand delete = Assert.IsType<DeleteSiteCommand>(command);
+
+        Assert.Equal("https://localhost:44351", delete.Url);
+    }
+
+    /// <summary>
+    /// The two commands that end in a write are the two whose payload is checked at the parse.
+    /// </summary>
+    /// <remarks>
+    /// System.Text.Json fills a constructor parameter the message does not carry with default, so
+    /// both of these deserialise into a command holding a null the record's own type says cannot be
+    /// there. A dropped message is the right answer: a saveSite with no profile would fault the
+    /// settings write, and a deleteSite with no URL would match nothing, remove nothing, drop the
+    /// selection and rewrite the file to say so - a silent edit nobody asked for.
+    /// </remarks>
+    [Theory]
+    [InlineData("""{"type":"saveSite"}""")]
+    [InlineData("""{"type":"deleteSite"}""")]
+    public void A_site_command_missing_its_payload_is_dropped(string json)
+    {
+        Assert.Null(DashboardCommand.Parse(json));
+    }
+
+    /// <summary>
     /// The names the diff view reads a comparison by.
     /// </summary>
     /// <remarks>
