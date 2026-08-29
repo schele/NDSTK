@@ -27,6 +27,12 @@ export class HistoryList extends LitElement {
   /** How many rows may be ticked at once - a comparison is between exactly two. */
   static limit = 2;
 
+  /**
+   * Rows per page. Fifty kept scans is five pages; ten is enough to see a working day at a glance
+   * and few enough that the pager, not the window, is what scrolls.
+   */
+  static pageSize = 10;
+
   static properties = {
     /**
      * Every kept scan, newest first - the `history` message's `entries`, unmodified.
@@ -44,6 +50,9 @@ export class HistoryList extends LitElement {
 
     /** The set of paths currently checked. Internal state, not something a caller hands in. */
     selected: { state: true },
+
+    /** The page on screen, zero-based. Internal state; paging never touches the selection. */
+    page: { state: true },
   };
 
   constructor() {
@@ -52,6 +61,7 @@ export class HistoryList extends LitElement {
     this.entries = [];
     this.note = '';
     this.selected = new Set();
+    this.page = 0;
   }
 
   /**
@@ -74,7 +84,8 @@ export class HistoryList extends LitElement {
       return;
     }
 
-    const known = new Set((Array.isArray(this.entries) ? this.entries : []).map((entry) => entry.path));
+    const entries = Array.isArray(this.entries) ? this.entries : [];
+    const known = new Set(entries.map((entry) => entry.path));
     const kept = new Set([...this.selected].filter((path) => known.has(path)));
 
     if (kept.size !== this.selected.size) {
@@ -82,6 +93,10 @@ export class HistoryList extends LitElement {
 
       this.announce();
     }
+
+    // A shorter list can leave the current page past the end - a delete on the last page, or the
+    // fifty-scan prune - and an empty page with a Previous button is a puzzle, not a state.
+    this.page = Math.min(this.page, pageCount(entries.length) - 1);
   }
 
   toggle(path, checked) {
@@ -117,6 +132,13 @@ export class HistoryList extends LitElement {
     this.toggle(path, !checked);
   }
 
+  /** Previous or Next. Paging is a view of the same list: the selection is not consulted or changed. */
+  turnPage(delta) {
+    const entries = Array.isArray(this.entries) ? this.entries : [];
+
+    this.page = Math.max(0, Math.min(this.page + delta, pageCount(entries.length) - 1));
+  }
+
   /** Composed and bubbling, same as `page-shown`: whoever hosts this element listens on itself. */
   announce() {
     this.dispatchEvent(new CustomEvent('selection-changed', {
@@ -132,6 +154,10 @@ export class HistoryList extends LitElement {
     if (entries.length === 0) {
       return html`<p class="muted">No scans yet.</p>`;
     }
+
+    const pages = pageCount(entries.length);
+    const start = this.page * HistoryList.pageSize;
+    const shown = entries.slice(start, start + HistoryList.pageSize);
 
     return html`
       ${this.note
@@ -152,11 +178,31 @@ export class HistoryList extends LitElement {
           </tr>
         </thead>
         <tbody>
-          ${entries.map((entry) => row(entry, this.selected.has(entry.path), this))}
+          ${shown.map((entry) => row(entry, this.selected.has(entry.path), this))}
         </tbody>
       </table>
+      ${pages > 1
+        // Only when there is a second page: a short list must not grow a control it cannot use. The
+        // count is a live region so a reader hears the page turn; the buttons disable at the ends
+        // rather than wrapping, because a list of scans has a first and a last.
+        ? html`
+          <nav class="pager" aria-label="Pages of scans">
+            <p class="muted" aria-live="polite">${start + 1}&ndash;${start + shown.length} of ${entries.length}</p>
+            <div class="pager-buttons">
+              <button class="button" type="button" ?disabled=${this.page === 0}
+                      @click=${() => this.turnPage(-1)}>Previous</button>
+              <button class="button" type="button" ?disabled=${this.page >= pages - 1}
+                      @click=${() => this.turnPage(1)}>Next</button>
+            </div>
+          </nav>`
+        : nothing}
     `;
   }
+}
+
+/** How many pages a list of this length fills - never fewer than one, so an empty list is page 1. */
+function pageCount(length) {
+  return Math.max(1, Math.ceil(length / HistoryList.pageSize));
 }
 
 /**

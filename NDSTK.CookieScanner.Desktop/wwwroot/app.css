@@ -1016,6 +1016,29 @@ cs-history-list {
   cursor: pointer;
 }
 
+/*
+    The pager under the history table: the count on the left, the two buttons on the right. It is
+    only rendered when there is a second page, so a short list never grows a control it cannot use.
+*/
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.pager-buttons {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.pager .button {
+  height: 30px;
+  padding: 0 var(--s-3);
+  font-size: 13px;
+}
+
 .history-note {
   margin-bottom: var(--s-3);
 }
