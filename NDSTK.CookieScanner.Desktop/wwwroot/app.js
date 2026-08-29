@@ -130,6 +130,42 @@ const deleteSiteButton = document.querySelector('#scan-delete-site');
 const optionsDetails = document.querySelector('#scan-options');
 const secretStatus = document.querySelector('#secret-status');
 
+/**
+ * What the host said about the client secret on ready - whether the variable is set, and its name -
+ * kept so the line under the client id can be recomputed whenever the box changes.
+ * @type {{ isSet: boolean, variable: string } | null}
+ */
+let secret = null;
+
+/**
+ * The line under the API client id. Three states, the quietest first: an id typed and the secret
+ * present says nothing at all - the dots in the box are the signal that the pair is complete, and a
+ * line repeating it was noise. An empty box with the secret present says the secret is waiting for an
+ * id. The secret missing is said regardless of the box, because that is the one case where dots
+ * would mislead: an id with no secret cannot reach the endpoint, and the scan runs report-only.
+ */
+function showSecretStatus() {
+  if (secret === null) {
+    secretStatus.hidden = true;
+
+    return;
+  }
+
+  const idGiven = clientIdInput.value.trim().length > 0;
+
+  if (secret.isSet && idGiven) {
+    secretStatus.hidden = true;
+    secretStatus.textContent = '';
+
+    return;
+  }
+
+  secretStatus.hidden = false;
+  secretStatus.textContent = secret.isSet
+    ? `${secret.variable} is set`
+    : `${secret.variable} is not set - write-back will be skipped`;
+}
+
 /** @type {LogPanel} */
 const logPanel = document.querySelector('#scan-log');
 const logThemeSelect = document.querySelector('#scan-log-theme');
@@ -403,6 +439,9 @@ function fillForm(profile) {
   clientIdInput.value = profile.clientId ?? '';
   dryRunInput.checked = profile.dryRun ?? true;
 
+  // Setting .value fires no input event, so the line under the client id is recomputed by hand.
+  showSecretStatus();
+
   if (Array.from(localeInput.options).some((option) => option.value === profile.locale)) {
     localeInput.value = profile.locale;
   }
@@ -493,9 +532,9 @@ function applyState(message) {
     // The variable's name comes from the host so it is spelled in one place - the same constant the
     // engine reads it with. Left in the ordinary muted colour deliberately: report-only is a
     // supported mode, not a fault.
-    secretStatus.textContent = message.secretIsSet
-      ? `${message.secretVariable} is set`
-      : `${message.secretVariable} is not set - write-back will be skipped`;
+    secret = { isSet: message.secretIsSet === true, variable: message.secretVariable };
+
+    showSecretStatus();
   }
 
   // 'sites' in message, not a truthiness test: an empty array is a real answer - a first launch, or
@@ -651,6 +690,9 @@ urlInput.addEventListener('input', () => {
   showTrend();
   syncSiteButtons();
 });
+
+// Typing or clearing the client id changes what the line under it should say.
+clientIdInput.addEventListener('input', showSecretStatus);
 
 // Ctrl+Enter runs and Escape cancels, but only while the Scan page is the one on screen: a shortcut
 // that fires from another page would act on a form the operator cannot see.
