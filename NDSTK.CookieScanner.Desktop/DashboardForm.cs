@@ -278,6 +278,13 @@ public sealed class DashboardForm : Form
     /// - and a match <see cref="ScanHistory.Load"/> itself cannot parse - deleted or corrupted in the
     /// meantime - answer the same way: an inline <c>error</c>, never a silent nothing.
     /// </para>
+    /// <para>
+    /// Both envelopes echo <c>command.Path</c> back. This runs on the message loop and the page can
+    /// have moved its selection on before the answer arrives - unchecked the scan it asked about,
+    /// selected a different one - and without a way to tell which request an answer belongs to the
+    /// page would have no choice but to render whatever comes back regardless of what is still
+    /// selected.
+    /// </para>
     /// </remarks>
     private void PostScan(LoadScanCommand command)
     {
@@ -303,13 +310,14 @@ public sealed class DashboardForm : Form
             bridge?.Post(new
             {
                 type = "error",
+                path = command.Path,
                 message = "That scan could not be loaded. It may have been deleted or its file damaged.",
             });
 
             return;
         }
 
-        bridge?.Post(new { type = "scan", result });
+        bridge?.Post(new { type = "scan", path = command.Path, result });
     }
 
     private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)

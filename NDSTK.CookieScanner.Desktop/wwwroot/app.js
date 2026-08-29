@@ -452,6 +452,14 @@ window.addEventListener('keydown', (event) => {
 });
 
 /**
+ * The one path a `scan`/`error` answer is allowed to render, or null when that would not be exactly
+ * one thing. `loadScan` carries no correlation id of its own, so this is what lets a reply that
+ * arrives after the operator has already moved on get recognised as stale and dropped - see the
+ * `scan`/`error` cases below.
+ */
+let selectedHistoryPath = null;
+
+/**
  * Exactly one selected is the only count this task answers: `loadScan` asks the host to read that
  * one file. Zero or several both put the detail pane away rather than leave it showing a scan that
  * is no longer the one thing selected - two is Task 8's to answer, not this one's.
@@ -460,12 +468,15 @@ historyList?.addEventListener('selection-changed', (event) => {
   const paths = Array.isArray(event.detail?.paths) ? event.detail.paths : [];
 
   if (paths.length !== 1) {
+    selectedHistoryPath = null;
     historyDetail.hidden = true;
 
     return;
   }
 
-  post({ type: 'loadScan', path: paths[0] });
+  selectedHistoryPath = paths[0];
+
+  post({ type: 'loadScan', path: selectedHistoryPath });
 });
 
 host?.addEventListener('message', (event) => {
@@ -505,7 +516,18 @@ host?.addEventListener('message', (event) => {
     // The answer to loadScan for a file that read back cleanly. Rendered into the SAME element the
     // Scan page uses - see cs-findings-table.js - so the colouring rule the exit code has to agree
     // with exists in exactly one place.
+    //
+    // Dropped, not rendered, when `message.path` is not what is still selected: loadScan carries no
+    // correlation id, so an answer can arrive after the operator has already unchecked that row,
+    // moved to a different one, or watched it fall out of a refreshed list. Rendering it anyway
+    // would force the pane back open on data for a scan that is no longer the one thing selected -
+    // exactly the invariant above, reached through the asynchronous door instead of the synchronous
+    // one.
     case 'scan':
+      if (message.path !== selectedHistoryPath) {
+        break;
+      }
+
       historyError.hidden = true;
       historyFindingsTable.result = message.result;
       historyDetail.hidden = false;
@@ -514,8 +536,14 @@ host?.addEventListener('message', (event) => {
 
     // loadScan (and later, compare) answering a file that would not read back - deleted or
     // corrupted since the list was drawn. Shown inline rather than left silent: the operator asked
-    // for one specific scan and is owed a reason it did not appear.
+    // for one specific scan and is owed a reason it did not appear. Same staleness guard as `scan`,
+    // and for the same reason: a corrupted-since-listed file's error must not reopen the pane for a
+    // selection that has already moved on.
     case 'error':
+      if (message.path !== selectedHistoryPath) {
+        break;
+      }
+
       historyFindingsTable.result = null;
       historyError.textContent = message.message;
       historyError.hidden = false;
