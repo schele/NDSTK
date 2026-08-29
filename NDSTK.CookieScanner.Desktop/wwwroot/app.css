@@ -938,6 +938,23 @@ cs-stat-tile {
   margin-left: auto;
 }
 
+/*
+    The confirmation beside Save site and Delete. Teal, the palette's "good outcome" colour, with the
+    word carrying the meaning; it fades out rather than snapping, and reduced-motion turns the fade
+    off through the global rule so it simply disappears.
+*/
+.toast {
+  margin: 0;
+  font-size: 13px;
+  color: var(--teal-800);
+  opacity: 1;
+  transition: opacity .4s ease;
+}
+
+.toast.is-fading {
+  opacity: 0;
+}
+
 /* ---------------------------------------------------------------- data table */
 
 /*

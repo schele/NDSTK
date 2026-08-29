@@ -233,6 +233,13 @@
               <button class="button button--danger" id="scan-delete-site" type="button"
                       aria-label="Delete saved site">Delete</button>
               <!--
+                What just happened, said once. Save and Delete otherwise succeed in silence - the
+                dropdown changes, a button greys out - and silence reads as "did that work?". A
+                status region, so a screen reader hears it without it stealing focus; it fades on its
+                own because a confirmation that has to be dismissed is a chore.
+              -->
+              <p class="toast" id="site-toast" role="status" aria-live="polite" hidden></p>
+              <!--
                 Run sits at the far right, apart from the two that edit the profile, and Cancel takes
                 its exact place while a scan runs. Last in the DOM as well as on screen, so the tab
                 order reads the row the way the eye does; Ctrl+Enter still submits from anywhere.
