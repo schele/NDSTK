@@ -57,7 +57,8 @@ and the host talk in one JSON envelope both ways (`PostWebMessageAsJson` out of 
 progress as messages rather than as console lines.
 
 The dashboard has two pages. **Scan** takes the same options as the CLI's flags — site URL, max
-pages, locale, member email and password, client id — runs the scan with live progress in a log
+pages, locale, member email and password, client id — picked in one go from the site dropdown above
+them (see Site profiles, below), runs the scan with live progress in a log
 panel (warnings called out), and fills four stat tiles plus a findings table where violations are
 tinted red and `NeedsReview` candidates amber (`cs-findings-table`). A trend chart beside the run
 card plots entries and violations across the last twenty scans of whatever site is in the URL
@@ -70,16 +71,56 @@ appeared, disappeared and recategorised cookies, as three groups from `ScanDiff.
 clicked first, and a warning when the two ran under different options, so a difference caused by
 the options rather than by the site is not read as a change to the site.
 
-Two differences from the CLI are deliberate. **Dry run defaults to on** in the dashboard
-(`DashboardSettings.DryRun` defaults `true`), so the obvious button to press cannot write to a live
-policy page; the console tool still defaults it off, because a CI invocation names every flag
-explicitly. And the dashboard remembers its options between runs — URL, max pages, locale, member
-email, client id, the dry-run flag — in `%LOCALAPPDATA%\NDSTK.CookieScanner\settings.json`, while
-the console tool takes flags fresh every time. **The client secret and the member password are
-never written to that file** — see The client secret environment variable, below, for why.
+Two differences from the CLI are deliberate. **Dry run defaults to on** in the dashboard, so the
+obvious button to press cannot write to a live policy page; the console tool still defaults it off,
+because a CI invocation names every flag explicitly. And the dashboard remembers its options
+between runs — as site profiles, below — while the console tool takes flags fresh every time.
 
 A `cookie-catalogue.json` beside *either* exe replaces the embedded catalogue exactly as before —
 see Overriding the catalogue, below.
+
+### Site profiles
+
+The run card's dropdown holds one **profile per site**: the URL, max pages, locale, the dry-run
+flag, the member email, the member password and the API client id. Picking one fills every field
+below it, including the password; **New site…** clears them to the defaults (25 pages, SV, dry run
+on). **Save site** writes what the form currently holds, **Delete** forgets the selected profile,
+and running a scan saves the profile for the URL it ran against — so a site scanned once is a site
+you can pick next time without having typed anything extra.
+
+The URL is the profile's identity as well as its label: there is no separate name to keep in step
+with it. Two URLs are the same profile if they match trimmed and ignoring case. That makes editing
+the URL of a selected profile and pressing Save a **save as** — the new URL matches nothing, so a
+second profile appears and the original stays until it is deleted. Copying a set of options from
+staging to production is the common case, and a window that silently renamed the original would
+have destroyed what it was copied from.
+
+Profiles live in `%LOCALAPPDATA%\NDSTK.CookieScanner\settings.json`, and **the member email, the
+member password and the API client id are encrypted at rest** with DPAPI
+(`System.Security.Cryptography.ProtectedData`, `DataProtectionScope.CurrentUser`, plus a fixed
+application entropy that is a namespace rather than a secret — see `ProtectedText`). Each is stored
+as `"dpapi:<base64>"`, so a reader can tell ciphertext from a value the pre-profiles build wrote in
+the clear.
+
+What that is worth, precisely:
+
+- **It protects** the file against another Windows account on this machine, against another
+  machine, and against the file being copied anywhere else. All three produce a blob that will not
+  decrypt.
+- **It does not protect** against anything running as this Windows user. DPAPI hands that code the
+  same plaintext it hands the dashboard, by design. This is at-rest protection for a convenience
+  file, not a vault — a laptop left unlocked is exactly as bad as it was before.
+
+A blob that will not open costs its own field and nothing else: it loads as empty, the rest of the
+profile is kept, and the log gets one line on startup naming the site and the field to retype.
+Neither the whole profile nor the whole file is discarded.
+
+**The client secret is still never written there** — see The client secret environment variable,
+below, for why that one is different.
+
+An old flat `settings.json` from before profiles **migrates automatically**: its fields become one
+profile, selected, with an empty password (the old file never stored one). Nothing is rewritten on
+read — the new shape is written the next time anything saves.
 
 ### The WebView2 runtime, and where its user-data folder lives
 
@@ -297,14 +338,24 @@ long as either persists. An environment variable set for one shell session, or i
 secret store directly into the process environment, does not have either problem.
 
 The dashboard applies the same rule to itself. `DashboardSettings` persists everything else the
-Scan page holds, but has no member for the client secret or the member password — the secret still
-only ever comes from `NDSTK_COOKIESCAN_CLIENT_SECRET`, read straight into
-`ScanSession.BuildOptions` and shown nowhere, and the note beside the client-id field says plainly
-whether that variable is currently set rather than offering a field that would let a secret reach
-`settings.json`. The member password is typed fresh for every run for the same reason, and is never
-sent to the page — the envelope from host to page carries no credential at all. A settings file
-that persisted either would have undone, to save a paste, exactly what refusing `--client-secret`
-was for.
+Scan page holds — including, since site profiles, the member password and the client id, encrypted
+at rest — but has **no member for the client secret**. It still only ever comes from
+`NDSTK_COOKIESCAN_CLIENT_SECRET`, read straight into `ScanSession.BuildOptions` and shown nowhere,
+and the note beside the client-id field says plainly whether that variable is currently set rather
+than offering a field that would let a secret reach `settings.json`.
+
+The member password used to be in the same category and no longer is, which is a deliberate change
+rather than an erosion of the rule. The two are not alike: the secret has a working alternative that
+costs the operator nothing per run — a variable set once in the shell or injected by a CI secret
+store — while the member password had none, and was retyped for every scan of a member area. The
+secret is also the credential that can write to the live policy page, and it is the one shared with
+CI. So the password is stored under DPAPI for one Windows user on one machine, and the secret is
+not stored at all.
+
+Nothing about that changes what reaches the page: `saveSite` carries the credentials the operator
+just typed, and the host sends a profile's own fields back so the form can be filled from it. Both
+directions stay inside the process — WebView2 hands the envelope to a renderer in the same exe, over
+no socket and no origin anything else can reach. The client secret is not in either direction.
 
 ## Publishing the portable exes
 
@@ -576,11 +627,37 @@ at: live progress appearing in the log panel as a scan runs, with warnings calle
 tiles and findings table filling to match the report JSON, including the rule that a row is a
 violation if it appears in `violations` even when its own `flag` is not `Violation`; a cancelled run
 leaving neither a report file nor a history entry behind; settings persisting across a restart with
-no credential ever written to `settings.json`; the trend chart plotting entries and violations
+no credential ever written to `settings.json` — that pass predates site profiles, and the file now
+holds three of them encrypted, which the site-profiles item below covers; the trend chart plotting
+entries and violations
 across kept scans; History listing, opening and comparing scans; and the compare showing exactly
 the one cookie that differs between a member scan and a public scan, placed in the same group
 (Appeared, Disappeared or Recategorised) regardless of which of the two rows was selected first,
 with the differing-options warning shown for that pair.
+
+**Site profiles, end to end through UI Automation**
+
+An existing pre-profiles `settings.json` migrated on the first launch into one selected profile with
+an empty password, and the run card opened on it with its URL, page count, locale, member email and
+dry-run flag all in place. Three profiles were then created from the dropdown, switched between
+(every field refilled from the profile picked, the two masked fields visibly refilling to the right
+lengths), one was edited and saved, and one deleted — after which the dropdown returned to
+**New site…**, the form cleared to its defaults, and both Save site and Delete correctly disabled
+themselves. Closing the window and relaunching brought the survivors back with the edit intact and
+every credential still filled.
+
+The file was read at each step. All three credential fields were `dpapi:`-prefixed base64 with no
+plaintext anywhere in it — checked by searching the raw text for each of the six values that had
+been typed, none of which appeared. All six blobs were then decrypted out-of-process with
+`ProtectedData.Unprotect` under the same user and entropy and matched what had been typed exactly;
+the same blob handed the same call with a different entropy was refused with a
+`CryptographicException`, which is what the application entropy is there to do.
+
+One scan was then run from a profile against the local site: it took its 25 pages and `Sv` locale
+from the profile, ran all six passes plus the member dimension, found 2 entries and wrote its report
+and history entry. Finally, the two hero cards were measured off the captured pixels rather than off
+the layout — both spanned rows 262 to 1037 of the window, a 776px box each, top and bottom deltas of
+zero.
 
 **The report JSON's `options` object is the only difference**
 
