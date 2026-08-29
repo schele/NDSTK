@@ -44,12 +44,6 @@ public sealed class ScanSession(DashboardBridge bridge)
             return;
         }
 
-        // Remembered before the URL is validated, not after: the run against a mistyped URL is
-        // exactly when the typed value is worth keeping, and that was the run that used to discard
-        // it. The client secret and the member password have no member to be captured into,
-        // deliberately - see DashboardSettings.
-        Remembered(command).Save();
-
         ScanOptions options;
 
         try
@@ -65,6 +59,15 @@ public sealed class ScanSession(DashboardBridge bridge)
 
             return;
         }
+
+        // Remembered as soon as the options are known good, rather than only when the scan works. A
+        // scan that fails is exactly when the operator has typed something worth not losing - a URL
+        // that turned out to resolve to nothing, a client id being tried for the first time - and
+        // that was the run that used to discard it. Not before the check above, though: a URL this
+        // window has just refused is not one to hand back at every later launch. The client secret
+        // and the member password have no member to be captured into, deliberately - see
+        // DashboardSettings.
+        Remembered(command).Save();
 
         bridge.Post(new { type = "state", running = true });
 
@@ -190,9 +193,7 @@ public sealed class ScanSession(DashboardBridge bridge)
             // does not, which is a console-tool concern: nothing in the window offers it, so the root
             // here is the deliberate answer rather than an omission.
             Target: root,
-            // The console tool's rule for a number it cannot use, applied to the one sender that
-            // could send one: anything not positive means the default rather than a crawl of nothing.
-            MaxPages: command.MaxPages > 0 ? command.MaxPages : 25,
+            MaxPages: Pages(command.MaxPages),
             Locale: ParseLocale(command.Locale),
             MemberEmail: Supplied(command.MemberEmail),
             MemberPassword: Supplied(command.MemberPassword),
@@ -211,10 +212,22 @@ public sealed class ScanSession(DashboardBridge bridge)
             => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
+    /// <summary>
+    /// The console tool's rule for a page count it cannot use: anything not positive means the
+    /// default rather than a crawl of nothing.
+    /// </summary>
+    /// <remarks>
+    /// One rule, read by both the options and the settings, because they must agree. A blank field
+    /// reaches the host as zero by design; remembering that zero rather than the 25 that actually
+    /// ran would put a 0 in the spinner at every later launch - a value the form's own min="1"
+    /// cannot correct, since the settings are assigned rather than typed.
+    /// </remarks>
+    private static int Pages(int requested) => requested > 0 ? requested : 25;
+
     /// <summary>The six things worth keeping until next time.</summary>
     private static DashboardSettings Remembered(RunCommand command) => new(
         Url: command.Url.Trim(),
-        MaxPages: command.MaxPages,
+        MaxPages: Pages(command.MaxPages),
         Locale: ParseLocale(command.Locale),
         MemberEmail: command.MemberEmail?.Trim() ?? "",
         ClientId: command.ClientId?.Trim() ?? "",

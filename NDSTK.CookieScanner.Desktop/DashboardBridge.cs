@@ -71,10 +71,15 @@ public sealed class DashboardBridge
             {
                 webView.BeginInvoke(() => Send(json));
             }
-            catch (ObjectDisposedException)
+            catch (Exception error) when (error is ObjectDisposedException or InvalidOperationException)
             {
-                // The window closed between the guard above and this call. A log line whose window
-                // no longer exists has nowhere to go, and is not worth failing a scan over.
+                // The window closed between the guard above and this call. InvalidOperationException
+                // is the likelier of the two, not the exotic one: a destroyed handle makes
+                // Control.MarshaledInvoke throw "Invoke or BeginInvoke cannot be called on a control
+                // until the window handle has been created", and only a control disposed at just the
+                // right moment gives ObjectDisposedException. Either way a log line whose window no
+                // longer exists has nowhere to go - and this runs on Playwright's threads, so an
+                // escape here would unwind the engine mid-scan over a message nobody can read.
             }
 
             return;

@@ -56,6 +56,27 @@ public sealed class DashboardForm : Form
         _ = InitializeWebViewAsync();
     }
 
+    /// <summary>Tells a running scan to stop, on the way out.</summary>
+    /// <remarks>
+    /// The same path the Cancel button takes, on the same session, with the same guarantee that
+    /// nothing is written. It matters because the scan owns a browser process that only its own
+    /// cancellation path tears down: <c>Application.Run</c> returns the moment this form closes, so
+    /// without this the process exits with the run still on a background thread and the engine's
+    /// <c>await using</c> teardown never reached, leaving Chromium to be reaped by Playwright's
+    /// driver noticing that its parent died.
+    /// <para>
+    /// Cancel, never refuse: a window that argued about closing would be answering a question nobody
+    /// asked. Nothing is waited for either - a close that hung for the rest of a pass would look
+    /// like the window had frozen.
+    /// </para>
+    /// </remarks>
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        session?.Cancel();
+
+        base.OnFormClosing(e);
+    }
+
     private async Task InitializeWebViewAsync()
     {
         try
