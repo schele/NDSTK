@@ -116,6 +116,6 @@ public sealed class SwishPaymentSurfaceController(
             .SelectMany(root => root.DescendantsOrSelfOfType("memberPortal"))
             .FirstOrDefault();
 
-        return portal?.Url(publishedUrlProvider) ?? "/";
+        return portal?.Url(PublishedUrlProvider) ?? "/";
     }
 }
