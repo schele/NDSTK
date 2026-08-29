@@ -34,6 +34,17 @@
   </ItemGroup>
 
   <!--
+    The WebView2 package ships a WPF control beside the WinForms one, and the WPF assembly
+    references a WindowsBase this project does not have - MSB3277 on every build, over a reference
+    nothing here loads. Dropping it also keeps it out of the published single file.
+  -->
+  <Target Name="DropUnusedWebView2Wpf" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+
+  <!--
     The dashboard lives inside the exe. LogicalName keeps the relative path, so the resolver can map
     a URL straight onto a resource name without a lookup table that would drift.
   -->
