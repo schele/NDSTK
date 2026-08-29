@@ -44,6 +44,8 @@ public abstract record DashboardCommand
                 "run" => JsonSerializer.Deserialize<RunCommand>(json, ScanJson.Options),
                 "loadScan" => JsonSerializer.Deserialize<LoadScanCommand>(json, ScanJson.Options),
                 "compare" => JsonSerializer.Deserialize<CompareCommand>(json, ScanJson.Options),
+                "saveSite" => Complete(JsonSerializer.Deserialize<SaveSiteCommand>(json, ScanJson.Options)),
+                "deleteSite" => JsonSerializer.Deserialize<DeleteSiteCommand>(json, ScanJson.Options),
                 _ => null,
             };
         }
@@ -51,6 +53,14 @@ public abstract record DashboardCommand
         {
             return null;
         }
+
+        // System.Text.Json fills a constructor parameter the message does not carry with default,
+        // so a saveSite with no `profile` deserialises into a command holding a null the record's
+        // own type says cannot be there. Checked here rather than at the handler because this one
+        // ends in a write: every other command's missing member costs a scan, and this one would
+        // fault the settings file's own save path.
+        static SaveSiteCommand? Complete(SaveSiteCommand? command)
+            => command is { Profile: not null } ? command : null;
     }
 }
 
@@ -60,16 +70,50 @@ public abstract record DashboardCommand
 /// format, and a page sending a locale this build has never heard of should be one warning line
 /// rather than a message the whole loop cannot parse.
 /// <para>
-/// There is a member password here and none in <see cref="DashboardSettings"/>, deliberately: it is
-/// typed per run and lives only as long as the run does.
+/// A run carries the fields the form currently shows rather than the name of a saved profile, even
+/// though the two are usually the same: what runs must be what is on screen, and a run that fetched
+/// its own options from the settings would scan something other than what the operator was reading.
+/// The profile is written FROM the run afterwards - see <see cref="ScanSession"/> - never the other
+/// way round.
 /// </para>
 /// </remarks>
 public sealed record RunCommand(
     string Url, int MaxPages, string Locale, string? MemberEmail,
     string? MemberPassword, string? ClientId, bool DryRun) : DashboardCommand;
 
+/// <summary>Save the run card's current values as the profile for the URL they name.</summary>
+/// <remarks>
+/// The whole profile travels in one member rather than as seven loose fields, so the record the page
+/// sends and the record the file stores are the same type - a field added to
+/// <see cref="SiteProfile"/> later reaches the page's message without a second declaration to keep
+/// in step. Its <c>Locale</c> is therefore the enum itself, unlike <see cref="RunCommand"/>'s: a
+/// spelling this build cannot read is worth refusing at the parse when the next thing that happens
+/// is a write to disk.
+/// </remarks>
+public sealed record SaveSiteCommand(SiteProfile Profile) : DashboardCommand;
+
+/// <summary>Forget the profile saved for one URL.</summary>
+public sealed record DeleteSiteCommand(string Url) : DashboardCommand;
+
 public sealed record CancelCommand : DashboardCommand;
 public sealed record ListHistoryCommand : DashboardCommand;
 public sealed record LoadScanCommand(string Path) : DashboardCommand;
 public sealed record CompareCommand(string PathA, string PathB) : DashboardCommand;
 public sealed record ReadyCommand : DashboardCommand;
+
+/// <summary>
+/// The envelopes the host sends back that more than one place has to build.
+/// </summary>
+/// <remarks>
+/// Only <c>sites</c> qualifies today: the form answers <c>saveSite</c> and <c>deleteSite</c> with it,
+/// and a finished <see cref="ScanSession"/> answers with it too, because a run saves the profile it
+/// ran with. Two anonymous objects spelling the same envelope in two files is exactly the drift the
+/// page cannot be told about - a renamed member would leave the dropdown empty after a run and full
+/// after a save, with nothing to compile against. Every other answer is built where it is posted,
+/// because every other answer has one caller.
+/// </remarks>
+public static class DashboardAnswer
+{
+    public static object Sites(DashboardSettings settings)
+        => new { type = "sites", sites = settings.Sites, selectedUrl = settings.SelectedUrl };
+}

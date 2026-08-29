@@ -28,6 +28,14 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
   </ItemGroup>
 
+  <!--
+    ProtectedText encrypts the settings file's credentials with DPAPI, which lives in
+    System.Security.Cryptography.ProtectedData. There is deliberately no PackageReference for it:
+    on net10.0 that assembly is part of the shared framework, and referencing the package anyway
+    raises NU1510 ("will not be pruned ... does not need to be referenced explicitly"). Latest
+    stable on nuget.org is 10.0.11, if this ever has to target a TFM that does need it.
+  -->
+
   <ItemGroup>
     <ProjectReference Include="..\NDSTK.CookieScan.Core\NDSTK.CookieScan.Core.csproj" />
     <ProjectReference Include="..\NDSTK.CookieScanner\NDSTK.CookieScanner.csproj" />

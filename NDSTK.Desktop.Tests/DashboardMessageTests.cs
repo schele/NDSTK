@@ -65,6 +65,48 @@ public class DashboardMessageTests
     }
 
     /// <summary>
+    /// The whole profile, exactly as the run card sends it.
+    /// </summary>
+    /// <remarks>
+    /// The locale is the enum's NAME here and the enum's type on the record, unlike
+    /// <see cref="RunCommand"/> where it stays a string: a profile is what gets written to disk, so a
+    /// spelling this build cannot read is worth finding out about at the parse rather than storing
+    /// and quietly defaulting later. <see cref="ScanJson.Options"/> is what makes both halves of that
+    /// work - camelCase off the page, enums as names.
+    /// </remarks>
+    [Fact]
+    public void A_save_site_command_parses_with_its_whole_profile()
+    {
+        const string json = """
+            {"type":"saveSite","profile":{"url":"https://localhost:44351","maxPages":7,"locale":"En",
+             "dryRun":false,"memberEmail":"a@b.c","memberPassword":"secret","clientId":"cookie-scanner"}}
+            """;
+
+        DashboardCommand? command = DashboardCommand.Parse(json);
+
+        SaveSiteCommand save = Assert.IsType<SaveSiteCommand>(command);
+
+        Assert.Equal("https://localhost:44351", save.Profile.Url);
+        Assert.Equal(7, save.Profile.MaxPages);
+        Assert.Equal(Locale.En, save.Profile.Locale);
+        Assert.False(save.Profile.DryRun);
+        Assert.Equal("a@b.c", save.Profile.MemberEmail);
+        Assert.Equal("secret", save.Profile.MemberPassword);
+        Assert.Equal("cookie-scanner", save.Profile.ClientId);
+    }
+
+    [Fact]
+    public void A_delete_site_command_parses_with_its_url()
+    {
+        DashboardCommand? command = DashboardCommand.Parse(
+            """{"type":"deleteSite","url":"https://localhost:44351"}""");
+
+        DeleteSiteCommand delete = Assert.IsType<DeleteSiteCommand>(command);
+
+        Assert.Equal("https://localhost:44351", delete.Url);
+    }
+
+    /// <summary>
     /// The names the diff view reads a comparison by.
     /// </summary>
     /// <remarks>

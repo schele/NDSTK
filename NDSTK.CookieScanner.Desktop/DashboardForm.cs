@@ -28,6 +28,12 @@ public sealed class DashboardForm : Form
     /// Loaded here rather than on <c>ready</c>: a settings file that cannot be read costs the window
     /// its remembered options, and finding that out while the page waits for its first message is
     /// worse than finding it out before the page exists.
+    /// <para>
+    /// One instance, shared with <see cref="ScanSession"/>: saving a site and running a scan both
+    /// write a profile, so two instances would be two lists racing each other onto the same file.
+    /// Both mutate it on the UI thread only - this class from the message loop, the session before
+    /// it hands anything to a background task - so there is no lock around it and none is needed.
+    /// </para>
     /// </remarks>
     private readonly DashboardSettings settings = DashboardSettings.Load();
 
@@ -161,7 +167,7 @@ public sealed class DashboardForm : Form
             bridge = new DashboardBridge(webView);
             bridge.CommandReceived += OnCommandReceived;
 
-            session = new ScanSession(bridge);
+            session = new ScanSession(bridge, settings);
 
             core.Navigate("https://app.localhost/index.html");
         }
@@ -205,14 +211,35 @@ public sealed class DashboardForm : Form
                 // The first thing the page hears: what it may not persist, and what it remembered
                 // last time. Posted on ready rather than baked into index.html, because the page is
                 // an embedded resource and the settings are not.
+                //
+                // The sites go out decrypted, passwords included. That is the point of storing them:
+                // the page fills its own password field from a saved profile, and a run posts back
+                // what the field holds. The envelope never leaves the process - WebView2 hands it to
+                // a renderer inside this exe, over no socket and no origin anything else can reach.
                 bridge?.Post(new
                 {
                     type = "state",
                     running = false,
                     secretIsSet,
                     secretVariable = ScanOptions.SecretVariable,
-                    settings,
+                    sites = settings.Sites,
+                    selectedUrl = settings.SelectedUrl,
+                    // Load's decrypt failures, carried on the one message that is guaranteed to
+                    // arrive after the log panel exists. The page prints them as warnings; there is
+                    // nothing for it to do about them beyond telling the operator which field to
+                    // retype.
+                    warnings = settings.Warnings,
                 });
+
+                break;
+
+            case SaveSiteCommand save:
+                SaveSite(save.Profile);
+
+                break;
+
+            case DeleteSiteCommand delete:
+                DeleteSite(delete.Url);
 
                 break;
 
@@ -244,6 +271,45 @@ public sealed class DashboardForm : Form
 
                 break;
         }
+    }
+
+    /// <summary>Saves the run card's current values as the profile for the URL they name.</summary>
+    /// <remarks>
+    /// Written to disk and answered in the same breath, because the two can disagree: the profile
+    /// stored is the trimmed one, and a page left showing the untrimmed text would then Delete
+    /// something it thinks is selected and is not. The answer is the file's own view of the list, so
+    /// the dropdown is always what was actually written.
+    /// <para>
+    /// The saved profile becomes the selected one. Anything else would leave the operator having
+    /// just saved a site and looking at a dropdown that says "New site".
+    /// </para>
+    /// </remarks>
+    private void SaveSite(SiteProfile profile)
+    {
+        // The page count goes through the same rule a run applies, so Save site and Run store the
+        // same number for the same form: a blank field arrives as zero, and a profile holding a zero
+        // would put one in the spinner at every later launch - see ScanSession.Pages. Nothing else
+        // is normalised here; Upsert trims the URL because that is the identity it matches on.
+        settings.Upsert(profile with { MaxPages = ScanSession.Pages(profile.MaxPages) });
+        settings.SelectedUrl = profile.Url.Trim();
+        settings.Save();
+
+        bridge?.Post(DashboardAnswer.Sites(settings));
+    }
+
+    /// <summary>Forgets one profile.</summary>
+    /// <remarks>
+    /// The selection goes to nothing rather than to the neighbouring profile: deleting a site is not
+    /// a request to open a different one, and a form that silently refilled itself with someone
+    /// else's credentials after a Delete would be the worst possible answer to that click.
+    /// </remarks>
+    private void DeleteSite(string url)
+    {
+        settings.Remove(url);
+        settings.SelectedUrl = null;
+        settings.Save();
+
+        bridge?.Post(DashboardAnswer.Sites(settings));
     }
 
     /// <summary>Answers <c>listHistory</c> with every kept scan, newest first.</summary>
