@@ -11,7 +11,7 @@
       item glob at once (Compile, Content, None, EmbeddedResource), so no individual Remove is
       needed. Any further project added beside this one has to be listed here too.
     -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);NDSTK.Tests\**;NDSTK.Domain\**;NDSTK.CookieScan.Core\**;NDSTK.CookieScanner\**;NDSTK.CookieScanner.Gui\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);NDSTK.Tests\**;NDSTK.Domain\**;NDSTK.CookieScan.Core\**;NDSTK.CookieScanner\**;NDSTK.CookieScanner.Desktop\**;NDSTK.Desktop.Tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

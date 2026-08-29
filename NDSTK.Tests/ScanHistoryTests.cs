@@ -136,4 +136,26 @@ public class ScanHistoryTests : IDisposable
 
         Assert.Equal(2, history.List().Count);
     }
+
+    // The trend chart needs a violation count per scan. List() already parses every file, so the
+    // count is free here and would otherwise cost a second read of all fifty.
+    [Fact]
+    public void An_entry_carries_the_violation_count()
+    {
+        var history = new ScanHistory(folder);
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 29, 10, 0, 0, TimeSpan.Zero), candidates: 3) with
+        {
+            Violations =
+            [
+                new CookieDeclarationCandidate("_fbp", "Meta", "marketing", "Annonser.", "3 månader",
+                    "Cookie", CandidateFlag.Violation, ConsentPass.RejectAll, "https://ndstk.se/"),
+            ],
+        });
+
+        ScanHistoryEntry entry = Assert.Single(history.List());
+
+        Assert.Equal(3, entry.EntryCount);
+        Assert.Equal(1, entry.ViolationCount);
+        Assert.Equal(1, entry.ExitCode);
+    }
 }

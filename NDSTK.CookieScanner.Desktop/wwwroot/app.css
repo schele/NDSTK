@@ -1,0 +1,1050 @@
+/*
+    The dashboard's design system: tokens, the shell, and the handful of primitives every page is
+    assembled from. Hand-written, because there is no build step - no npm, no bundler, no PostCSS.
+
+    Two rules that the pages depend on and that are easy to break later:
+
+    1. @font-face is declared HERE and nowhere else. A @font-face inside a shadow root is ignored by
+       some engines and duplicated by others, so no component may re-declare it.
+    2. A Lit component's shadow root does not see these class rules, but custom properties DO cross
+       the boundary. cs-log-panel keeps a shadow root and reads --log-bg, --log-ink and --log-warn
+       through it, which is what those aliases are for. cs-stat-tile and cs-findings-table render
+       into the light DOM instead, deliberately: the .tile, .data-table and .pill rules below ARE
+       the design system, and a component that encapsulated them would be holding a second copy of
+       the same palette - the row tint and the pill it sits under, free to drift apart.
+*/
+
+:root {
+  color-scheme: light;
+
+  --canvas: #F4F7FC;      --surface: #FFFFFF;      --surface-2: #F9FBFE;
+  --border: #E2E9F4;      --border-strong: #CFDBEC;
+  --ink-900: #16202E;     --ink-600: #516079;      --ink-500: #6F7E96;  --ink-400: #95A2B8;
+  --blue-600: #1D4ED8;    --blue-800: #16389E;     --blue-100: #E8EDFD; --blue-50: #F2F5FE;
+  --teal-600: #0F8B7A;    --teal-800: #0A6357;     --teal-50: #E3F5F1;
+  --amber-700: #9A6300;   --amber-50: #FFF6E3;
+  --red-600: #C2334B;     --red-50: #FDECEF;
+  --log-bg: #0F1826;      --log-ink: #C6D2E4;      --log-warn: #FFC978;
+
+  --r-sm: 6px; --r-md: 10px; --r-lg: 12px; --r-xl: 14px; --r-pill: 999px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --shadow-sm: 0 1px 2px rgba(22,32,46,.04), 0 2px 6px rgba(29,78,216,.06);
+  --shadow-md: 0 4px 12px rgba(22,32,46,.06), 0 1px 3px rgba(22,32,46,.04);
+
+  --font-sans: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+}
+
+/*
+    Aliases, not new colours: they name a role so a component can read the role through the shadow
+    boundary without hard-coding which tint plays it.
+*/
+:root {
+  --row-violation: var(--red-50);
+  --row-review: var(--amber-50);
+  --hairline: rgba(22,32,46,.06);
+  --sidebar-width: 196px;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: block;
+}
+
+/* ---------------------------------------------------------------- reset */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink-900);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, p, figure, blockquote {
+  margin: 0;
+}
+
+ul, ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--blue-600);
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+svg {
+  display: block;
+}
+
+::selection {
+  background: var(--blue-100);
+  color: var(--blue-800);
+}
+
+/*
+    Chromium's default scrollbar is a grey slab that reads as a browser part. This one is the same
+    furniture as the rest of the page.
+*/
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  border-radius: var(--r-pill);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-400);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Keyboard focus is always visible, on every element, without exception. */
+:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px }
+
+/* ---------------------------------------------------------------- sidebar */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-5) var(--s-3) var(--s-4);
+  overflow-y: auto;
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+  /* Chrome, not content: dragging a selection across the navigation is never what was meant. */
+  user-select: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-2);
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-md);
+  background: linear-gradient(140deg, var(--blue-600), var(--teal-600));
+  color: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.brand-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--ink-900);
+}
+
+.brand-sub {
+  font-size: 11px;
+  letter-spacing: .02em;
+  color: var(--ink-500);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  color: var(--ink-600);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color .12s ease, color .12s ease;
+}
+
+.nav-link:hover {
+  background: var(--blue-50);
+  color: var(--ink-900);
+}
+
+.nav-link[aria-current='page'] {
+  background: var(--blue-100);
+  color: var(--blue-800);
+  font-weight: 600;
+}
+
+.nav-icon {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  opacity: .85;
+}
+
+.nav-link[aria-current='page'] .nav-icon {
+  opacity: 1;
+}
+
+/*
+    Pushed to the bottom by margin-top:auto rather than by a spacer element. Both values are filled
+    in later, so both hold their line height while empty and the sidebar does not jump when they
+    arrive.
+*/
+.sidebar-foot {
+  display: grid;
+  gap: var(--s-3);
+  margin-top: auto;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border);
+}
+
+.foot-item {
+  display: grid;
+  gap: 2px;
+  padding: 0 var(--s-3);
+}
+
+.foot-value {
+  min-height: 1.35em;
+  font-size: 13px;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- page area */
+
+.page-area {
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--s-8) var(--s-8) var(--s-10);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  max-width: 1180px;
+}
+
+/* [hidden] alone loses to the display above, so the router's hidden pages need this to disappear. */
+.page[hidden] {
+  display: none;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-6);
+}
+
+.page-title {
+  margin-top: var(--s-1);
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+
+.page-lede {
+  max-width: 64ch;
+  margin-top: var(--s-2);
+  color: var(--ink-600);
+}
+
+/* ---------------------------------------------------------------- primitives */
+
+.card {
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-3);
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+  color: var(--ink-600);
+}
+
+/*
+    --ink-600, not --ink-500: --ink-500 on --surface white measures 4.12:1, under WCAG AA (4.5:1) for
+    text below 18.66px, and every use of this class on this page is 11-14px. --ink-600 measures
+    6.37:1 on white - see the four-tint numbers on .tile-hint above, which is the same ink on the
+    same surfaces.
+*/
+.muted {
+  color: var(--ink-600);
+}
+
+/* Anything read as a quantity: figures line up in a column instead of shimmering as they change. */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Anything the browser sets rather than the page: cookie names, storage keys, paths. */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip-path: inset(50%);
+}
+
+/* ---------------------------------------------------------------- hero
+
+    The Scan page's top row: the run card beside the trend.
+*/
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 330px);
+  gap: var(--s-6);
+  /*
+      start rather than stretch: opening the Options disclosure makes the run card half again as
+      tall, and a chart that grew with it would be changing size for a reason that has nothing to do
+      with what it is measuring.
+  */
+  align-items: start;
+}
+
+/*
+    The window's minimum client width is 1040, so this is a floor rather than a layout anyone will
+    meet: below it the two cards stack instead of squeezing the trend into a smear.
+*/
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------- trend
+
+    A hand-drawn SVG chart - see cs-trend-chart.js for why every part of it is where it is. The rules
+    here are the component's, in app.css rather than in a shadow root, because the two series are
+    --blue-600 and --red-600 from the palette above and a second copy of them would be free to drift
+    from the tiles this card sits over.
+*/
+
+cs-trend-chart {
+  display: block;
+}
+
+.trend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/* The latest entry count, pulled out beside the shape it is the last point of. */
+.trend-figure {
+  display: grid;
+  flex: none;
+  gap: 2px;
+}
+
+.trend-value {
+  font-size: 27px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-figure-label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ink-600);
+}
+
+/*
+    A fixed height against a fluid width, which is what makes the scale non-uniform and every
+    vector-effect below load-bearing.
+*/
+.trend-chart {
+  flex: 1;
+  min-width: 0;
+  height: 88px;
+}
+
+/*
+    Stroke geometry is built AFTER the transform, so preserveAspectRatio="none" cannot thin the line
+    on a narrow card or fatten it on a wide one - and the round cap that draws each end point stays a
+    circle instead of being squashed into an ellipse.
+*/
+.trend-line,
+.trend-dot {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.trend-line {
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trend-dot {
+  stroke-width: 6px;
+  stroke-linecap: round;
+}
+
+.trend-line--entries,
+.trend-dot--entries {
+  stroke: var(--blue-600);
+}
+
+.trend-line--violations,
+.trend-dot--violations {
+  stroke: var(--red-600);
+}
+
+/*
+    stop-color and stop-opacity are CSS properties, so the gradient reads the token here rather than
+    through a var() inside a presentation attribute - which is a place custom properties are not
+    reliably resolved.
+*/
+.trend-fade-in {
+  stop-color: var(--blue-600);
+  stop-opacity: .2;
+}
+
+.trend-fade-out {
+  stop-color: var(--blue-600);
+  stop-opacity: 0;
+}
+
+/* The same height the chart would have taken, so the card does not resize when the first scan lands. */
+.trend-empty {
+  display: grid;
+  place-items: center;
+  min-height: 88px;
+  color: var(--ink-600);
+}
+
+.trend-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.trend-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.trend-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-600);
+}
+
+/*
+    The word beside it is the cue; this only repeats it in colour, which is why it is aria-hidden in
+    the component. The latest value is spelled out next to both names for the same reason: a
+    violations series flat along zero is a shape that says nothing on its own.
+*/
+.trend-swatch {
+  width: 14px;
+  height: 3px;
+  border-radius: var(--r-pill);
+}
+
+.trend-key--entries .trend-swatch {
+  background: var(--blue-600);
+}
+
+.trend-key--violations .trend-swatch {
+  background: var(--red-600);
+}
+
+.trend-key-value {
+  color: var(--ink-900);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --ink-600 rather than .muted: this is 11px, and --ink-500 on white is 4.12:1. */
+.trend-range {
+  font-size: 11px;
+  color: var(--ink-600);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- findings
+
+    The tiles and the table together: what the operator is actually looking at once a scan finishes.
+    Both are rendered by components that put their markup in the light DOM, so everything they use is
+    right here.
+*/
+
+/*
+    Hidden until a scan produces something to put in it. The display below outranks [hidden] exactly
+    as .page[hidden] and .button[hidden] already discovered, so it needs its own rule to disappear.
+*/
+.findings {
+  display: grid;
+  gap: var(--s-6);
+}
+
+.findings[hidden] {
+  display: none;
+}
+
+.tile-band {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+/* The element is the grid item and the tile inside it fills the cell, so a tile with no hint under
+   it is the same height as its neighbours rather than a short box in a row of tall ones. */
+cs-stat-tile {
+  display: block;
+}
+
+.tile {
+  display: grid;
+  align-content: start;
+  gap: var(--s-1);
+  height: 100%;
+  padding: var(--s-4);
+  background: var(--tile-bg, var(--surface));
+  color: var(--tile-ink, var(--ink-900));
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+}
+
+.tile-value {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--tile-ink-soft, var(--ink-600));
+}
+
+/*
+    --ink-600, not --ink-500: on a tinted tile the lighter ink measures 3.61:1 against --red-50 and
+    3.65:1 against --teal-50, both under AA, and this is 10px text. --ink-600 clears it on all four
+    tints - 5.84 on blue, 5.58 on red, 5.92 on amber, 5.64 on teal.
+*/
+.tile-hint {
+  font-size: 10px;
+  color: var(--ink-600);
+}
+
+.tile--blue  { --tile-bg: var(--blue-50);  --tile-ink: var(--blue-800);  --tile-ink-soft: var(--blue-600) }
+.tile--red   { --tile-bg: var(--red-50);   --tile-ink: var(--red-600);   --tile-ink-soft: var(--red-600) }
+.tile--amber { --tile-bg: var(--amber-50); --tile-ink: var(--amber-700); --tile-ink-soft: var(--amber-700) }
+.tile--teal  { --tile-bg: var(--teal-50);  --tile-ink: var(--teal-800);  --tile-ink-soft: var(--teal-600) }
+
+/* ---------------------------------------------------------------- pills */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--ink-600);
+  border-color: var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pill--ok        { background: var(--teal-50);  color: var(--teal-800);  border-color: transparent }
+
+/*
+    These two keep a border where the other two drop it. They are the two that land on a findings row
+    tinted in their own colour, so the pill's fill is the row's fill and a transparent edge left
+    nothing of the pill but floating text - which is only visible once these rules actually render.
+*/
+.pill--review    { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-700) }
+.pill--violation { background: var(--red-50);   color: var(--red-600);   border-color: var(--red-600) }
+
+/* ---------------------------------------------------------------- controls */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: 34px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-900);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+.button:hover {
+  background: var(--surface-2);
+  border-color: var(--ink-400);
+}
+
+.button--primary {
+  background: var(--blue-600);
+  border-color: var(--blue-600);
+  color: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.button--primary:hover {
+  background: var(--blue-800);
+  border-color: var(--blue-800);
+}
+
+.button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+/*
+    The display above outranks [hidden]'s own rule, exactly as .page[hidden] does higher up, so a
+    button hidden by the page stayed on screen - Run and Cancel were both showing at once.
+*/
+.button[hidden] {
+  display: none;
+}
+
+.field {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-600);
+}
+
+.input {
+  height: 34px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-900);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.input:hover {
+  border-color: var(--ink-400);
+}
+
+/*
+    A ring drawn with box-shadow, never `outline: none`: killing the outline here would also kill the
+    :focus-visible rule above, which is the one that has to survive.
+*/
+.input:focus {
+  border-color: var(--blue-600);
+  box-shadow: 0 0 0 3px var(--blue-100);
+}
+
+.input::placeholder {
+  color: var(--ink-400);
+}
+
+/*
+    A running scan disables every field, and a field with an explicit background of its own does not
+    grey out on its own: without this the form looks live for the fifty seconds it is not.
+*/
+.input:disabled {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--ink-500);
+}
+
+/* ---------------------------------------------------------------- scan form
+
+    Layout only. Every control in here is one of the primitives above; what this section adds is the
+    spacing between them and the disclosure that holds the five options nobody changes twice.
+*/
+
+.scan-form {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.options-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: fit-content;
+  color: var(--ink-600);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  /* Both are needed: Chromium draws its marker through a pseudo-element list-style cannot reach. */
+  list-style: none;
+}
+
+.options-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Drawn rather than borrowed, so it turns with the state instead of sitting under the browser's. */
+.options-summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform .12s ease;
+}
+
+.options[open] > .options-summary::before {
+  transform: rotate(90deg);
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+}
+
+.field-note {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: fit-content;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/* ---------------------------------------------------------------- data table */
+
+/*
+    The element scrolls, not the page: a cookie name is one unbroken token and six columns of them
+    can outgrow a narrow window, and a table that widened the page body would take the sidebar and
+    every card with it.
+*/
+cs-findings-table {
+  display: block;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.data-table th {
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--border-strong);
+  text-align: left;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+  color: var(--ink-600);
+}
+
+.data-table td {
+  padding: var(--s-3);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.data-table td.num,
+.data-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table tbody tr:hover td {
+  background: var(--surface-2);
+}
+
+/*
+    The tinted rows keep their tint under the cursor - hence the duplicated :hover selectors, which
+    outrank the plain hover above. The colour is a second cue only: the row's state pill carries the
+    word, because a red row means nothing to a reader who cannot see red.
+*/
+.data-table tbody tr.is-violation td,
+.data-table tbody tr.is-violation:hover td {
+  background: var(--row-violation);
+}
+
+.data-table tbody tr.needs-review td,
+.data-table tbody tr.needs-review:hover td {
+  background: var(--row-review);
+}
+
+.data-table tbody tr.is-violation td:first-child {
+  box-shadow: inset 3px 0 0 var(--red-600);
+}
+
+.data-table tbody tr.needs-review td:first-child {
+  box-shadow: inset 3px 0 0 var(--amber-700);
+}
+
+/* ---------------------------------------------------------------- history
+
+    <cs-history-list> reuses .data-table wholesale rather than defining a second table - see the note
+    at the top of this file about why cs-findings-table does the same. The only rules of its own are
+    the checkbox column's width and the tint on a row someone has checked, and the tint is never the
+    only cue: the checkbox itself IS the selection, so a monochrome screenshot still shows exactly
+    which boxes are ticked.
+*/
+
+cs-history-list {
+  display: block;
+  overflow-x: auto;
+}
+
+.history-check {
+  width: 1px;
+  white-space: nowrap;
+}
+
+.data-table tbody tr.is-selected td,
+.data-table tbody tr.is-selected:hover td {
+  background: var(--blue-50);
+}
+
+.history-note {
+  margin-bottom: var(--s-3);
+}
+
+/* ---------------------------------------------------------------- diff
+
+    <cs-diff-view> reuses .data-table, .pill and .muted for the same reason the two tables above do.
+    Its own rules are the header, the two banners and the three groups.
+
+    The three group tints are the four tile tints' own pairings - the ink and the background that
+    .tile--teal, .tile--red and .tile--blue already put together - reused rather than reinvented, so
+    a group and a tile of the same colour are the same colour. Every one of them measures over AA
+    for the 11px pill it carries: teal-800 on teal-50 6.34:1, red-600 on red-50 4.76:1, blue-800 on
+    blue-50 8.58:1. The tint carries nothing on its own: each group's heading is a word and a count.
+*/
+
+cs-diff-view {
+  display: block;
+}
+
+.diff-head {
+  margin-bottom: var(--s-4);
+}
+
+.diff-sides {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-8);
+  margin-bottom: var(--s-2);
+}
+
+.diff-side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.diff-side-value {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/*
+    The whole reason the scan record carries an options summary. Amber for the two that say a
+    difference below may not be the site's; red for the one that says the two scans are not even of
+    the same site. Neither colour is the message - both paragraphs say it in words.
+*/
+.diff-banner {
+  margin-bottom: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid;
+  border-radius: var(--r-md);
+  font-size: 13px;
+}
+
+.diff-banner--amber { background: var(--amber-50); border-color: var(--amber-700); color: var(--amber-700) }
+.diff-banner--red   { background: var(--red-50);   border-color: var(--red-600);   color: var(--red-600) }
+
+/*
+    The answer to "what changed" when the answer is "nothing". Full-strength ink rather than .muted:
+    it is the finding, not an absence of one, and it must not be mistaken for a pane that failed to
+    fill. No max-width and no overflow - the sentence wraps rather than being clipped.
+*/
+.diff-unchanged {
+  padding: var(--s-6) var(--s-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  color: var(--ink-900);
+  text-align: center;
+  font-weight: 600;
+}
+
+.diff-groups {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.diff-group {
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--diff-edge);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.diff-group--teal { --diff-bg: var(--teal-50); --diff-ink: var(--teal-800); --diff-edge: var(--teal-600) }
+.diff-group--red  { --diff-bg: var(--red-50);  --diff-ink: var(--red-600);  --diff-edge: var(--red-600) }
+.diff-group--blue { --diff-bg: var(--blue-50); --diff-ink: var(--blue-800); --diff-edge: var(--blue-600) }
+
+.diff-group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* A .pill tinted by whichever group it sits in, rather than a fourth set of pill classes. */
+.diff-count {
+  background: var(--diff-bg);
+  color: var(--diff-ink);
+  border-color: var(--diff-edge);
+}
+
+/*
+    The table scrolls, not the group - same reasoning as cs-findings-table, and kept off the element
+    itself so that the nothing-changed sentence is never inside a scroll container.
+*/
+.diff-scroll {
+  margin-top: var(--s-2);
+  overflow-x: auto;
+}
+
+/* ---------------------------------------------------------------- stale results
+
+    The previous scan's tiles, chart and table stay on screen for the fifty seconds the next scan
+    takes, de-emphasised rather than blanked: the run you are about to compare against is exactly
+    the one pressing Run would otherwise take away.
+
+    Opacity and nothing else - no second palette for a "faded" state, which would be two sets of
+    colours to keep in step. The transition is disabled by the reduced-motion rule below, which
+    applies to every transition on the page including this one.
+*/
+
+.is-stale {
+  opacity: .45;
+  transition: opacity .18s ease;
+}
+
+/* ---------------------------------------------------------------- motion */
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important } }

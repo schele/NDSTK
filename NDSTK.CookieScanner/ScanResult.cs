@@ -3,6 +3,19 @@ using NDSTK.CookieScan.Core;
 
 namespace NDSTK.CookieScanner;
 
+/// <summary>The options that shaped a scan, as much of them as a comparison needs.</summary>
+/// <remarks>
+/// Recorded because two scans run with different options diff as though the site had changed: a
+/// member scan finds the member cookie and a public scan does not, which is a property of the run
+/// rather than of the site. Nullable, because a history file written before this existed must load
+/// and say "not recorded" instead of claiming a default nobody chose.
+/// <para>
+/// Deliberately not the whole <see cref="ScanOptions"/>: that record carries the client secret and
+/// the member password, and neither may ever reach a file.
+/// </para>
+/// </remarks>
+public sealed record ScanOptionsSummary(int MaxPages, Locale Locale, bool MemberScanEnabled, bool DryRun);
+
 /// <summary>
 /// Everything one scan produced. Serialized as-is to both the report file and the history
 /// folder, so it must stay round-trippable: no computed collections, no types System.Text.Json
@@ -17,7 +30,8 @@ public sealed record ScanResult(
     bool CanReachApi,
     bool DryRun,
     DateTimeOffset CompletedAt,
-    string Site)
+    string Site,
+    ScanOptionsSummary? Options = null)
 {
     /// <summary>
     /// The process exit code. Findings outrank plumbing, and configuration is never an error on

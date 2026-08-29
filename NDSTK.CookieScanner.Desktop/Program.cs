@@ -1,4 +1,4 @@
-namespace NDSTK.CookieScanner.Gui;
+namespace NDSTK.CookieScanner.Desktop;
 
 internal static class Program
 {
@@ -6,6 +6,6 @@ internal static class Program
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm());
+        Application.Run(new DashboardForm());
     }
 }

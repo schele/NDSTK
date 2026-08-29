@@ -10,9 +10,9 @@ Four projects carry this: `NDSTK.CookieScan.Core` (pure rules — catalogue matc
 inference, the violation rule, duration formatting; no Umbraco, no Playwright, no HTTP, so it is
 unit tested without either), `NDSTK.CookieScanner` (the engine and its console front end,
 `ndstk-cookiescan`: crawling, the six passes, the report, the write-back client, and scan history),
-`NDSTK.CookieScanner.Gui` (`ndstk-cookiescan-ui`, a WinForms window built on that same engine — a
-Scan tab and a History tab in place of stdout, nothing about the scan itself different), and
-`CookieScan/` inside the site itself (the merge endpoint the tool posts its findings to, and the
+`NDSTK.CookieScanner.Desktop` (`ndstk-cookiescan-ui`, a desktop dashboard built on that same engine
+— one WebView2 control filling a WinForms window, with a Scan page and a History page in place of
+stdout, nothing about the scan itself different), and `CookieScan/` inside the site itself (the merge endpoint the tool posts its findings to, and the
 API user that authenticates the post).
 
 ## What it does, and what it deliberately does not do
@@ -37,35 +37,78 @@ API user that authenticates the post).
 - `/umbraco` is excluded from the crawl outright (`SiteCrawler.Exclusions.IsExcluded`). Backoffice
   cookies are not a visitor's cookies and have no business on a public policy page.
 
-## The window
+## The dashboard
 
 `NDSTK.CookieScanner` publishes as `ndstk-cookiescan.exe`, the console tool — unchanged in
-behaviour, and what CI runs. `NDSTK.CookieScanner.Gui` publishes as `ndstk-cookiescan-ui.exe`, the
-window — and the one to double-click. Both run the same `ScanRunner`, the same six passes, the
-same violation rule and the same catalogue; the console tool prints what `ScanRunner` and
-`ScanReportWriter` produce, and the window puts the same `ScanResult` into a grid instead.
+behaviour, and what CI runs. `NDSTK.CookieScanner.Desktop` publishes as `ndstk-cookiescan-ui.exe`,
+the dashboard — and the one to double-click. Both run the same `ScanRunner`, the same six passes,
+the same violation rule and the same catalogue; the console tool prints what `ScanRunner` and
+`ScanReportWriter` produce, and the dashboard puts the same `ScanResult` on a page instead.
 `ScanRunner`'s own remarks say why this is one class rather than two similar ones: a window that
 found something different from what CI gates on would be worse than no window.
 
-The window has two tabs. **Scan** takes the same options as the CLI's flags — site URL, max
-pages, locale, member email and password, client id — runs the scan with live progress in a log
-pane (warnings in red), and fills a findings grid where violations are firebrick and
-`NeedsReview` candidates are dark orange (`MainForm.Colour`). **History** lists every past scan
-newest-first (see Scan history, below), shows any one of them in the same grid, and compares any
-two — appeared, disappeared and recategorised cookies, as three groups from `ScanDiff.Between`
-(in `NDSTK.CookieScan.Core`) — with the pair ordered by completion time rather than by which row
-was clicked first.
+**It is a web page in a desktop window, not a browser app.** The shell is a `net10.0-windows`
+WinExe whose entire client area is one WebView2 control (`DashboardForm`). The page's files —
+`index.html`, `app.css`, `app.js`, the Lit components, a vendored Lit and one woff2 — are embedded
+resources inside the exe, served to the control over `https://app.localhost/` through
+`WebResourceRequested`; nothing is fetched from the network and there is no build step. The page
+and the host talk in one JSON envelope both ways (`PostWebMessageAsJson` out of the host,
+`chrome.webview.postMessage` in), so `ScanSession` runs the same engine the CLI does and reports
+progress as messages rather than as console lines.
 
-Two differences from the CLI are deliberate. **Dry run defaults to on** in the window
-(`GuiSettings.DryRun` defaults `true`), so the obvious button to press cannot write to a live
+The dashboard has two pages. **Scan** takes the same options as the CLI's flags — site URL, max
+pages, locale, member email and password, client id — runs the scan with live progress in a log
+panel (warnings called out), and fills four stat tiles plus a findings table where violations are
+tinted red and `NeedsReview` candidates amber (`cs-findings-table`). A trend chart beside the run
+card plots entries and violations across the last twenty scans of whatever site is in the URL
+field. **History** lists every past scan newest-first (see Scan history, below), each row carrying
+its result as a word on a pill (`clean`, `1 violation`, `write-back failed`) — the numeric exit code
+itself lives in the row's `title` tooltip, not on the pill — shows any one of them in the same
+findings table, and compares any two —
+appeared, disappeared and recategorised cookies, as three groups from `ScanDiff.Between` (in
+`NDSTK.CookieScan.Core`) — with the pair ordered by completion time rather than by which row was
+clicked first, and a warning when the two ran under different options, so a difference caused by
+the options rather than by the site is not read as a change to the site.
+
+Two differences from the CLI are deliberate. **Dry run defaults to on** in the dashboard
+(`DashboardSettings.DryRun` defaults `true`), so the obvious button to press cannot write to a live
 policy page; the console tool still defaults it off, because a CI invocation names every flag
-explicitly. And the window remembers its options between runs — URL, max pages, locale, member
+explicitly. And the dashboard remembers its options between runs — URL, max pages, locale, member
 email, client id, the dry-run flag — in `%LOCALAPPDATA%\NDSTK.CookieScanner\settings.json`, while
 the console tool takes flags fresh every time. **The client secret and the member password are
 never written to that file** — see The client secret environment variable, below, for why.
 
 A `cookie-catalogue.json` beside *either* exe replaces the embedded catalogue exactly as before —
 see Overriding the catalogue, below.
+
+### The WebView2 runtime, and where its user-data folder lives
+
+The dashboard needs the **WebView2 Evergreen runtime** on the machine that runs it. It ships with
+Windows 11 and with recent Windows 10, so in practice it is already there; it is not bundled into
+the exe. `DashboardForm` checks for it before creating anything, by calling
+`CoreWebView2Environment.GetAvailableBrowserVersionString()`, and if that throws
+`WebView2RuntimeNotFoundException` the window shows a message box titled **"WebView2 runtime not
+found"** reading:
+
+```
+NDSTK cookie scanner needs the WebView2 Evergreen runtime, which is not installed on this
+machine. Install it from https://go.microsoft.com/fwlink/p/?LinkId=2124703 and run this program
+again.
+```
+
+and then closes. A missing runtime is therefore a named, actionable message rather than a silent
+blank window — which is what an unhandled `EnsureCoreWebView2Async` failure would otherwise look
+like.
+
+**The user-data folder is redirected to
+`%LOCALAPPDATA%\NDSTK.CookieScanner\webview2`**, deliberately, and this is not a detail. WebView2's
+default is a `<exe-name>.WebView2` folder created **beside the exe**, which is exactly wrong for a
+portable exe: dropped in `C:\Program Files`, on a read-only share, or in any folder the operator
+cannot write to, creating that folder fails and the control never initialises — the window opens
+blank or not at all, with nothing saying why. `DashboardForm` passes an explicit folder under
+`%LOCALAPPDATA%` to `CoreWebView2Environment.CreateAsync` instead, which is writable wherever the
+exe itself happens to sit. It sits beside `settings.json`, `scans\` and `reports\`, all of which
+are there for the same reason.
 
 ## Scan history
 
@@ -85,17 +128,45 @@ script that parsed the old report, since it is buried inside every entry rather 
 the top level. **Anything that parsed the old shape needs updating.** `cookie-scan-report.md` is
 unchanged.
 
+**`options` is newer than the rest of that list.** Every report now carries a top-level `options`
+object recording what the run was asked to do, alongside `site` and `completedAt`:
+
+```json
+"options": {
+  "maxPages": 7,
+  "locale": "Sv",
+  "memberScanEnabled": false,
+  "dryRun": true
+}
+```
+
+It is `ScanOptionsSummary`, a record on `ScanResult`, and it exists so History's compare can say
+that two scans ran under different options — a member scan against a public one will differ by
+`.AspNetCore.Identity.Application` no matter what the site does, and a comparison that presented
+that as a change to the site would be actively misleading. It is purely additive: `options` is the
+**only** difference between a report this build writes and one the pre-dashboard build wrote, and
+no existing key changed name, type or value. It carries no credential — `memberScanEnabled` is a
+boolean, not the member's email, and there is no field for the client id or either secret.
+
+A scan kept from before this change has **no** `options` key at all — not `null`, simply absent,
+because the key did not exist yet when that file was written. Comparing a scan like that against a
+newer one does not claim the two ran the same way: History's compare shows the amber banner
+`cs-diff-view.js` renders when either side is missing its summary, reading exactly "The options
+were not recorded for one of these scans, so this comparison cannot say whether the two ran the
+same way. Anything below may be a difference in how the scan was run rather than a change to the
+site."
+
 The reason for the change is `ScanHistory`: every completed run, from either front end, writes
 this same JSON to `%LOCALAPPDATA%\NDSTK.CookieScanner\scans\<utc-timestamp>-<suffix>.json`, capped
 at the most recent 50 (`ScanHistory.Keep`) and pruned *after* the write completes, specifically so
 a prune that fails cannot cost the scan that just finished. A file that will not parse is skipped
 when history is listed, not fatal to the rest of the list — the folder holds files this code did
 not necessarily write itself, so one bad one must not cost the whole list. Both front ends write
-to the same folder, so a scan run from the command line shows up in the window's History tab.
+to the same folder, so a scan run from the command line shows up in the dashboard's History page.
 
 Scan history is not the same thing as the report files. The console tool's report still goes to
 `--report-dir` as before (`cookie-scan-report.md` and `.json`, current directory by default); the
-window's own copy of those same two files goes to `%LOCALAPPDATA%\NDSTK.CookieScanner\reports`
+dashboard's own copy of those same two files goes to `%LOCALAPPDATA%\NDSTK.CookieScanner\reports`
 instead, because a window's current directory is wherever it happened to be launched from — a
 desktop shortcut leaves it at the system directory — and reports written there would scatter or
 fail to write.
@@ -157,10 +228,10 @@ against `NDSTK.CookieScanner/ScanOptions.cs`.
 
 The client secret is **not** a flag — see below.
 
-The window's Scan tab takes the same options through fields rather than flags —
-`MainForm.BuildOptions` builds exactly the `ScanOptions` a CLI invocation with the same values
-would have — with two deliberate omissions: no field for `--target` (the window always compares
-against the host it scanned) and none for `--headed` (the window always runs headless; `--headed`
+The dashboard's Scan page takes the same options through fields rather than flags —
+`ScanSession.BuildOptions` builds exactly the `ScanOptions` a CLI invocation with the same values
+would have — with two deliberate omissions: no field for `--target` (the dashboard always compares
+against the host it scanned) and none for `--headed` (the dashboard always runs headless; `--headed`
 exists to watch the engine while debugging it, which is not what a window is for).
 
 ## The API user
@@ -225,24 +296,28 @@ history and in any process listing (`ps`, Task Manager, a CI log that echoes its
 long as either persists. An environment variable set for one shell session, or injected by a CI
 secret store directly into the process environment, does not have either problem.
 
-The window applies the same rule to itself. `GuiSettings` persists everything else the Scan tab
-holds, but has no member for the client secret or the member password — the secret still only ever
-comes from `NDSTK_COOKIESCAN_CLIENT_SECRET`, read straight into `MainForm.BuildOptions` and shown
-nowhere, and the label beside the client-id field says plainly whether that variable is currently
-set rather than offering a field that would let a secret reach `settings.json`. The member password
-is typed fresh for every run for the same reason. A settings file that persisted either would have
-undone, to save a paste, exactly what refusing `--client-secret` was for.
+The dashboard applies the same rule to itself. `DashboardSettings` persists everything else the
+Scan page holds, but has no member for the client secret or the member password — the secret still
+only ever comes from `NDSTK_COOKIESCAN_CLIENT_SECRET`, read straight into
+`ScanSession.BuildOptions` and shown nowhere, and the note beside the client-id field says plainly
+whether that variable is currently set rather than offering a field that would let a secret reach
+`settings.json`. The member password is typed fresh for every run for the same reason, and is never
+sent to the page — the envelope from host to page carries no credential at all. A settings file
+that persisted either would have undone, to save a paste, exactly what refusing `--client-secret`
+was for.
 
 ## Publishing the portable exes
 
 ### The console tool
 
 ```
-dotnet publish NDSTK.CookieScanner -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -o dist
+dotnet publish NDSTK.CookieScanner -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true -o dist
 ```
 
-Produces `dist/ndstk-cookiescan.exe`, roughly 180 MB (172 MiB) as a single self-contained file —
-verified against Windows x64, `net10.0`.
+Produces `dist/ndstk-cookiescan.exe`, **72.1 MB (75,572,875 bytes)** as a single self-contained
+file — verified against Windows x64, `net10.0`. `EnableCompressionInSingleFile` is what brings that
+down from the roughly 180 MB the same publish produced without it; see First launch, below, for
+what it costs at run time.
 
 **Chromium itself is not inside the exe.** `BrowserBootstrap.EnsureChromium` shells out to
 Playwright's own installer on every run, which is a no-op once a build is already cached but
@@ -268,17 +343,44 @@ your project before running Playwright tool.
 into the single file too and extracts it next to the exe on first run. Confirmed by publishing and
 then running the exe from a directory containing nothing else, per the Verified section below.
 
-### The window
+### The dashboard
 
 ```
-dotnet publish NDSTK.CookieScanner.Gui -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -o dist
+dotnet publish NDSTK.CookieScanner.Desktop -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true -o dist
 ```
 
-Produces `dist/ndstk-cookiescan-ui.exe`. Same three properties, baked into
-`NDSTK.CookieScanner.Gui.csproj` for the same reason as above: the window references
-`NDSTK.CookieScanner` and therefore Playwright, so it hits exactly the same driver-is-content
-problem the console tool does, and the failure only shows up once the exe is copied somewhere
-without the loose `.playwright\` folder beside it.
+Produces `dist/ndstk-cookiescan-ui.exe`, **86.0 MB (90,170,856 bytes)**. Same three single-file
+properties, baked into `NDSTK.CookieScanner.Desktop.csproj` for the same reason as above: the
+dashboard references `NDSTK.CookieScanner` and therefore Playwright, so it hits exactly the same
+driver-is-content problem the console tool does, and the failure only shows up once the exe is
+copied somewhere without the loose `.playwright\` folder beside it. The native switch also carries
+`WebView2Loader.dll` into the bundle — the bundler classifies by content, not by item type — and
+the dashboard's own `wwwroot` is embedded resources, so the page needs nothing on disk either.
+
+The assembly name is deliberately still `ndstk-cookiescan-ui`, the retired WinForms window's:
+the published exe, the shortcut pointing at it and the commands here stay as they were, and the
+two were never going to ship together.
+
+`NDSTK.CookieScanner.Desktop.csproj` also carries a `DropUnusedWebView2Wpf` target. The WebView2
+package ships a WPF control beside the WinForms one, and the WPF assembly references a
+`WindowsBase` this project does not have — MSB3277 on every build, over a reference nothing here
+loads. Removing it silences that and keeps it out of the single file. **Confirmed under `publish`,
+not only `build`**: a clean `dotnet publish` of this project emits 0 warnings and no MSB3277.
+
+### First launch
+
+A compressed single-file exe is not run in place. On first launch the runtime extracts the bundle —
+roughly 200 MB — to `%TEMP%\.net\<app>\<hash>\`, which takes a few seconds; every later launch
+reuses that folder and starts normally. **A first launch that seems to sit there for a few seconds
+is this extraction, not a hang**, and it is the price `EnableCompressionInSingleFile` pays for
+halving the download.
+
+Two consequences worth knowing. If `%TEMP%` is small, on a locked-down volume, or wiped between
+runs, set **`DOTNET_BUNDLE_EXTRACT_BASE_DIR`** to a writable directory with room and the runtime
+extracts there instead. And this is separate from Chromium: `%TEMP%\.net` holds the app's own
+assemblies, while Playwright's browser build lives in `%LOCALAPPDATA%\ms-playwright` and is
+downloaded on first use by `BrowserBootstrap.EnsureChromium`, as above. A genuinely cold machine
+pays both, once.
 
 ## Overriding the catalogue
 
@@ -330,9 +432,9 @@ from, so an override means the same thing regardless of which exe is running. Ve
 | `2` | `ScanResult.ExitCode`, or `ScanReportWriter.ExitError` | Either a write-back was configured and attempted but never produced an outcome, or the scan itself could not complete at all — a bad URL, no reachable pages, a Chromium launch failure, and so on. |
 
 Both front ends return the same number for the same reason: `ScanResult.ExitCode` is a property on
-the shared result, not something either one recomputes for itself. The window has no process to
-exit, but the same rule is what colours its findings grid and drives the History tab's exit-code
-column.
+the shared result, not something either one recomputes for itself. The dashboard has no process to
+exit, but the same rule is what tints its findings table and drives the exit-code pill on every
+History row.
 
 **The exit code reflects findings, never configuration.** A report-only run — no `--client-id`, no
 secret — that finds a violation still exits `1`; a missing credential can never mask a violation.
@@ -380,6 +482,14 @@ four, with matching exit codes, bad credentials included (`2` on both sides). Ba
 exiting `2` rather than `0` — described under Exit codes, above — was decided during the scanner's
 original development, before this refactor; this comparison is what confirms the refactor itself
 changed nothing further.
+
+**The same gate was run again for the dashboard work**, which added two fields to `ScanResult` and
+retired the WinForms window. The console tool built from this branch's merge base and the console
+tool built from its tip were run against the same live site 75 seconds apart, across the same four
+scenarios, and stdout, stderr and `cookie-scan-report.md` were diffed for each: **empty diffs in
+all four, with matching exit codes** (`0`, `0`, `2`, `2`). `cookie-scan-report.json` is excluded
+from that diff for one known reason only — the added `options` object, above. The console tool did
+not notice the dashboard.
 
 **The scan itself**
 
@@ -435,23 +545,48 @@ bootstrap, crawl, report. The `IncludeAllContentForSelfExtract` property is what
 without it the exe runs from its own build folder and fails with a missing-assets error the moment
 it is copied anywhere, which is the only situation a portable exe is for.
 
-**The window's portable exe**
+**The dashboard's portable exe**
 
-Published the same way — `dist/ndstk-cookiescan-ui.exe`, roughly 213 MB single-file — then copied
-to a directory outside the repository and run from there: all six passes appeared in the log, the
-run finished with `2 entr(ies) found.`, both report paths were written, and the findings grid
-filled. No Playwright assets error and no orphan process left behind, which is the same failure
-this check exists to catch — see Publishing the portable exes, above.
+Published compressed — `dist/ndstk-cookiescan-ui.exe`, 86.0 MB single-file, from a clean rebuild
+that emitted **0 warnings and no MSB3277**, which is also what proves the `DropUnusedWebView2Wpf`
+target works under `publish` and not only under `build`. Then copied to a directory outside the
+repository holding nothing else and run from there: the window appeared in 2.6 s, the embedded page
+rendered, and one full scan completed through the UI — eight pages discovered, all six passes in
+the log, `2 entr(ies) found.`, both report paths written under
+`%LOCALAPPDATA%\NDSTK.CookieScanner\reports`, the stat tiles and findings table filled, and the
+trend chart and the sidebar's kept-scan count moving from 24 to 25. No Playwright assets error and
+no orphan process. **Nothing was created beside the exe** — the folder still held only the exe
+afterwards, which is what the redirected user-data folder is for.
 
-**The window**
+**The dashboard from a read-only folder**
 
-Driven end to end through UI Automation, not just opened and looked at: live progress appearing in
-the log pane as a scan runs, with warnings rendered in red; the findings grid filling to match the
-report JSON; a cancelled run leaving neither a report file nor a history entry behind; settings
-persisting across a restart with no credential ever written to `settings.json`; and the History
-tab's compare showing exactly the one cookie that differs between a member scan and a public scan,
-placed in the same group (Appeared, Disappeared or Recategorised) regardless of which of the two
-rows was selected first.
+The case the default user-data folder fails, and the only way to know the redirect works. The exe
+was copied into a folder, a deny ACE for the current user was then applied to that folder for the
+specific write rights (`WD,AD,WEA,WA,DC` — not a blanket `W`, which would also deny `SYNCHRONIZE`
+and break reads), and the folder was proven read-only before launching: creating a file in it was
+denied, and so was creating the `ndstk-cookiescan-ui.exe.WebView2` subdirectory WebView2 would have
+made by default, while opening the exe for reading still succeeded. Launched from there, the window
+appeared in 1.5 s and the dashboard rendered in full — Scan page, trend chart, history counts — and
+the folder still contained nothing but the exe while the app was running.
+
+**The dashboard's UI**
+
+Driven end to end through UI Automation across the tasks that built it, not just opened and looked
+at: live progress appearing in the log panel as a scan runs, with warnings called out; the stat
+tiles and findings table filling to match the report JSON, including the rule that a row is a
+violation if it appears in `violations` even when its own `flag` is not `Violation`; a cancelled run
+leaving neither a report file nor a history entry behind; settings persisting across a restart with
+no credential ever written to `settings.json`; the trend chart plotting entries and violations
+across kept scans; History listing, opening and comparing scans; and the compare showing exactly
+the one cookie that differs between a member scan and a public scan, placed in the same group
+(Appeared, Disappeared or Recategorised) regardless of which of the two rows was selected first,
+with the differing-options warning shown for that pair.
+
+**The report JSON's `options` object is the only difference**
+
+The pre-dashboard and post-dashboard console tools were run against the same live site minutes
+apart and their `cookie-scan-report.json` files compared key by key: the sole structural difference
+is the added top-level `options`. No existing key changed name, type or value.
 
 ## What has not been verified
 
@@ -467,8 +602,40 @@ rows was selected first.
   writes `TempData` — a booking, cancellation, child-management or registration POST — and the
   crawl issues only GETs. It appears under "expected but not observed" by design; declare it
   deliberately rather than waiting for a scan to find it.
+- **A machine without the WebView2 Evergreen runtime.** Every machine this has run on already had
+  it. The missing-runtime path — `GetAvailableBrowserVersionString` throwing
+  `WebView2RuntimeNotFoundException`, the named message box, the window then closing — is read from
+  `DashboardForm`, not seen. The message's wording above is quoted from the source.
+- **`DOTNET_BUNDLE_EXTRACT_BASE_DIR`.** Named above as the escape hatch when `%TEMP%` will not do,
+  on the runtime's documented behaviour; not exercised here, because `%TEMP%` has been adequate on
+  every machine this has run on.
+- **The dashboard anywhere but Windows 11 x64.** Published `win-x64` self-contained and run only
+  there. Nothing in it is version-specific beyond the WebView2 runtime requirement, but that is
+  reasoning, not a run.
 
 ## Troubleshooting
+
+**"WebView2 runtime not found" when the dashboard starts.**
+The WebView2 Evergreen runtime is missing. Install it from
+`https://go.microsoft.com/fwlink/p/?LinkId=2124703` and run the exe again. The dashboard checks for
+it before it builds anything, so this is a named message box rather than a blank window — see The
+WebView2 runtime, above.
+
+**The dashboard's window opens blank, or a window never appears at all.**
+Almost always the WebView2 user-data folder. It is redirected to
+`%LOCALAPPDATA%\NDSTK.CookieScanner\webview2` precisely so this cannot happen from a read-only or
+Program Files location, so if it does happen, check that `%LOCALAPPDATA%` itself is writable and
+that nothing is holding a lock on that folder — a second copy of the exe already running against
+the same profile will do it. Deleting the `webview2` folder is safe: it is a browser profile, and
+nothing in it is scan data. Settings, scan history and reports are separate folders beside it.
+
+**The exe sits for a few seconds on first launch and nothing happens.**
+Expected. Both exes are compressed single-file bundles, and the first launch extracts roughly
+200 MB to `%TEMP%\.net` before any of your code runs; later launches reuse it. If `%TEMP%` is
+small, wiped between runs, or on a volume you cannot write to, set
+`DOTNET_BUNDLE_EXTRACT_BASE_DIR` to a writable directory with room. A separate first-run pause at
+"Checking for a Chromium build..." is Playwright's browser download — different folder, different
+cause, see Publishing the portable exes, above.
 
 **`invalid_client` / "The specified 'client_id' is invalid" from the token endpoint.**
 The OpenIddict application was never registered. The seeder did not run, or it failed —

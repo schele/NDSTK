@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using NDSTK.CookieScan.Core;
 
-namespace NDSTK.CookieScanner.Gui;
+namespace NDSTK.CookieScanner.Desktop;
 
 /// <summary>
 /// What the window remembers between runs.
@@ -13,7 +13,7 @@ namespace NDSTK.CookieScanner.Gui;
 /// file storing one would undo that to save a paste. The secret comes from
 /// NDSTK_COOKIESCAN_CLIENT_SECRET and the member password is typed per run.
 /// </remarks>
-public sealed record GuiSettings(
+public sealed record DashboardSettings(
     string Url = "https://localhost:44351",
     int MaxPages = 25,
     Locale Locale = Locale.Sv,
@@ -37,13 +37,13 @@ public sealed record GuiSettings(
         "NDSTK.CookieScanner",
         "settings.json");
 
-    public static GuiSettings Load()
+    public static DashboardSettings Load()
     {
         try
         {
             return File.Exists(Path)
-                ? JsonSerializer.Deserialize<GuiSettings>(File.ReadAllText(Path), Options) ?? new GuiSettings()
-                : new GuiSettings();
+                ? JsonSerializer.Deserialize<DashboardSettings>(File.ReadAllText(Path), Options) ?? new DashboardSettings()
+                : new DashboardSettings();
         }
         catch (Exception)
         {
@@ -51,7 +51,7 @@ public sealed record GuiSettings(
             // deliberately: this runs from a field initializer, on the constructor path, where
             // anything that escapes means no window at all rather than a window with defaults in
             // it. A remembered URL is a convenience; nothing about reading one earns that risk.
-            return new GuiSettings();
+            return new DashboardSettings();
         }
     }
 

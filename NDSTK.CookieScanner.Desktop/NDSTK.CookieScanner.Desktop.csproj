@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>NDSTK.CookieScanner.Desktop</RootNamespace>
+    <!--
+      The retired WinForms window's assembly name, deliberately: the published exe, the publish
+      command and every line of docs/cookie-scanner.md stay as they are, and the two never ship
+      together.
+    -->
+    <AssemblyName>ndstk-cookiescan-ui</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!--
+      The same three the console tool needs, for the same reason: Playwright's driver ships node.exe,
+      which the SDK classifies as content rather than a native library. WebView2Loader.dll rides
+      along on the native switch - the bundler classifies by content, not by item type.
+    -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NDSTK.CookieScan.Core\NDSTK.CookieScan.Core.csproj" />
+    <ProjectReference Include="..\NDSTK.CookieScanner\NDSTK.CookieScanner.csproj" />
+  </ItemGroup>
+
+  <!--
+    The WebView2 package ships a WPF control beside the WinForms one, and the WPF assembly
+    references a WindowsBase this project does not have - MSB3277 on every build, over a reference
+    nothing here loads. Dropping it also keeps it out of the published single file.
+  -->
+  <Target Name="DropUnusedWebView2Wpf" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    The dashboard lives inside the exe. LogicalName keeps the relative path, so the resolver can map
+    a URL straight onto a resource name without a lookup table that would drift.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\**\*">
+      <LogicalName>wwwroot/$([System.String]::Copy('%(RecursiveDir)%(Filename)%(Extension)').Replace('\','/'))</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>
