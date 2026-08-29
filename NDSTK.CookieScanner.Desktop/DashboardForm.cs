@@ -45,6 +45,17 @@ public sealed class DashboardForm : Form
     {
         Text = "NDSTK cookie scanner";
 
+        // From the embedded copy rather than Icon.ExtractAssociatedIcon(Environment.ProcessPath): the
+        // resource is always there and never touches the disk, and the extracted-bundle layout of a
+        // single-file publish is exactly the place a path-based lookup goes wrong.
+        using (Stream? icon = typeof(DashboardForm).Assembly.GetManifestResourceStream("app.ico"))
+        {
+            if (icon is not null)
+            {
+                Icon = new Icon(icon);
+            }
+        }
+
         // Every size goes through LogicalToDeviceUnits: raw pixels render at two-thirds size on a
         // 150% display.
         ClientSize = LogicalToDeviceUnits(new Size(1280, 860));
