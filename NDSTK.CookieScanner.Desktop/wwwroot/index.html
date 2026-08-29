@@ -137,19 +137,22 @@
               </select>
             </div>
 
-            <div class="field">
-              <label class="label" for="scan-url">Site URL</label>
-              <input class="input" id="scan-url" type="text" spellcheck="false" placeholder="https://ndstk.se">
-            </div>
-
             <!--
-              Collapsed by default: five of the six options are set once and never touched again, and a
-              form that opens with all of them showing buries the one field that matters.
+              Collapsed by default: everything in here is set once per site and then left alone, and a
+              form that opens with all of it showing buries the one control that is used every time -
+              the site dropdown above. The URL lives in here too, as the first row: it is part of the
+              profile like the rest, and a saved site is picked, not typed. Choosing "New site" opens
+              this section, so there is always somewhere to type the URL when there is no profile yet.
             -->
             <details class="options" id="scan-options">
               <summary class="options-summary">Options</summary>
 
               <div class="options-grid">
+
+                <div class="field field--wide">
+                  <label class="label" for="scan-url">Site URL</label>
+                  <input class="input" id="scan-url" type="text" spellcheck="false" placeholder="https://ndstk.se">
+                </div>
 
                 <div class="field">
                   <label class="label" for="scan-max-pages">Max pages</label>

@@ -696,16 +696,20 @@ cs-stat-tile {
   border-color: var(--ink-400);
 }
 
+/*
+    Run. The same construction as Save site and Delete - the hue's tint with its dark ink, the
+    border and hover mixed from the same two tokens - so the three actions read as one family and
+    Run is told apart by its blue and its place at the row's far end, not by being the only solid.
+*/
 .button--primary {
-  background: var(--blue-600);
-  border-color: var(--blue-600);
-  color: var(--surface);
-  box-shadow: var(--shadow-sm);
+  background: var(--blue-50);
+  border-color: color-mix(in srgb, var(--blue-600) 35%, var(--surface));
+  color: var(--blue-800);
 }
 
 .button--primary:hover {
-  background: var(--blue-800);
-  border-color: var(--blue-800);
+  background: color-mix(in srgb, var(--blue-600) 16%, var(--surface));
+  border-color: var(--blue-600);
 }
 
 /*
@@ -872,10 +876,15 @@ cs-stat-tile {
   margin-top: var(--s-3);
 }
 
-/* Every box in the grid fills its cell, so all five read as the same size. */
+/* Every box in the grid fills its cell, so the five paired ones read as the same size. */
 .options-grid .input {
   width: 100%;
   min-width: 0;
+}
+
+/* The URL row spans both columns: a full address wants the width, and it heads the section. */
+.field--wide {
+  grid-column: 1 / -1;
 }
 
 .field-note {

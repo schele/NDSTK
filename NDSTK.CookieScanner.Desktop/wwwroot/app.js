@@ -126,6 +126,7 @@ const runButton = document.querySelector('#scan-run');
 const cancelButton = document.querySelector('#scan-cancel');
 const saveSiteButton = document.querySelector('#scan-save-site');
 const deleteSiteButton = document.querySelector('#scan-delete-site');
+const optionsDetails = document.querySelector('#scan-options');
 const secretStatus = document.querySelector('#secret-status');
 
 /** @type {LogPanel} */
@@ -585,6 +586,13 @@ deleteSiteButton.addEventListener('click', requestDeleteSite);
 // or run, so browsing the saved sites cannot rewrite settings.json.
 siteSelect.addEventListener('change', () => {
   fillForm(profileFor(siteSelect.value) ?? NEW_SITE);
+
+  // The URL field lives inside Options now. A saved site needs nothing typed, so the section can
+  // stay closed; "New site" has nothing to run yet, and closing it back on the operator would leave
+  // them with an empty dropdown and no visible place to put the address.
+  if (siteSelect.value === '') {
+    optionsDetails.open = true;
+  }
 
   showTrend();
   syncSiteButtons();
