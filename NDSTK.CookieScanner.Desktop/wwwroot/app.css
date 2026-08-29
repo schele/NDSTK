@@ -709,21 +709,37 @@ cs-stat-tile {
 }
 
 /*
-    Delete, and the quietest thing in the actions row on purpose. NOT red: what it removes is one
-    saved profile - no scan, no report and no history entry goes with it, and the site itself is one
-    paste away from being back - so a destructive colour would be claiming a consequence this button
-    does not have. It borrows the same ink the labels use and finds its border on hover, so it is
-    still plainly a button when reached for.
+    Save site. Green, which in this palette is the teal pair - the same colour the History list's
+    "clean" pill uses for a good outcome - so saving reads as the positive act in the row.
 */
-.button--quiet {
-  /* --border, not transparent: borderless it read as a link sitting between two real buttons. */
-  border-color: var(--border);
-  color: var(--ink-600);
+.button--success {
+  background: var(--teal-600);
+  border-color: var(--teal-600);
+  color: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
-.button--quiet:hover {
-  border-color: var(--border-strong);
-  color: var(--ink-900);
+.button--success:hover {
+  background: var(--teal-800);
+  border-color: var(--teal-800);
+}
+
+/*
+    Delete. Red by the operator's choice: the earlier argument for a quiet button (it removes one
+    saved profile, nothing else) still holds, but a row with a blue Run and a green Save needs its
+    remover to read as the remover at a glance, and red is the colour every other tool uses for that.
+*/
+.button--danger {
+  background: var(--red-600);
+  border-color: var(--red-600);
+  color: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.button--danger:hover {
+  /* No darker red token exists; a shadow lift marks hover without inventing a colour. */
+  box-shadow: var(--shadow-md);
+  border-color: var(--red-600);
 }
 
 .button:disabled {
@@ -841,9 +857,21 @@ cs-stat-tile {
 
 .options-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  /*
+      Two equal columns, fixed: max pages beside locale, member email beside member password, and
+      the client id alone on the third row under max pages. auto-fit used to pack three to a row at
+      this width, which put the email next to the locale and let its box run past the card's edge;
+      minmax(0, 1fr) rather than 1fr so a long value cannot widen its column past its twin.
+  */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s-4);
   margin-top: var(--s-3);
+}
+
+/* Every box in the grid fills its cell, so all five read as the same size. */
+.options-grid .input {
+  width: 100%;
+  min-width: 0;
 }
 
 .field-note {
@@ -863,6 +891,13 @@ cs-stat-tile {
   display: flex;
   align-items: center;
   gap: var(--s-3);
+}
+
+/* Run and Cancel, pushed to the row's far right; whichever is visible occupies the same spot. */
+.actions-primary {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
 }
 
 /* ---------------------------------------------------------------- data table */

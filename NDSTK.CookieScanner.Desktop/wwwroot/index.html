@@ -218,17 +218,24 @@
               act on the form below them - the dropdown only chooses what fills it.
             -->
             <div class="actions">
-              <button class="button button--primary" id="scan-run" type="submit">Run</button>
-              <button class="button" id="scan-cancel" type="button" hidden>Cancel</button>
-              <button class="button" id="scan-save-site" type="button">Save site</button>
+              <button class="button button--success" id="scan-save-site" type="button">Save site</button>
               <!--
                 aria-label, because "Delete" alone is what a screen reader announces out of context -
                 in a list of this page's controls, say - and it does not say what is deleted. The
                 visible word stays "Delete": beside a site dropdown it is unambiguous to anyone who
                 can see the row it is in, and the longer label would crowd it.
               -->
-              <button class="button button--quiet" id="scan-delete-site" type="button"
+              <button class="button button--danger" id="scan-delete-site" type="button"
                       aria-label="Delete saved site">Delete</button>
+              <!--
+                Run sits at the far right, apart from the two that edit the profile, and Cancel takes
+                its exact place while a scan runs. Last in the DOM as well as on screen, so the tab
+                order reads the row the way the eye does; Ctrl+Enter still submits from anywhere.
+              -->
+              <div class="actions-primary">
+                <button class="button button--primary" id="scan-run" type="submit">Run</button>
+                <button class="button" id="scan-cancel" type="button" hidden>Cancel</button>
+              </div>
             </div>
 
           </form>
