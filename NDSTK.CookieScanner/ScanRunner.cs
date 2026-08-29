@@ -145,6 +145,7 @@ public sealed class ScanRunner(ScanOptions options, Func<CookieCatalogue> loadCa
 
         return new ScanResult(
             candidates, violations, expectedButNotObserved, hostsByPass, outcome,
-            options.CanReachApi, options.DryRun, now, options.Url.ToString());
+            options.CanReachApi, options.DryRun, now, options.Url.ToString(),
+            new ScanOptionsSummary(options.MaxPages, options.Locale, options.MemberScanEnabled, options.DryRun));
     }
 }

@@ -8,6 +8,7 @@ public sealed record ScanHistoryEntry(
     DateTimeOffset CompletedAt,
     string Site,
     int EntryCount,
+    int ViolationCount,
     int ExitCode);
 
 /// <summary>
@@ -76,7 +77,8 @@ public sealed class ScanHistory(string folder)
             }
 
             entries.Add(new ScanHistoryEntry(
-                path, result.CompletedAt, result.Site, result.Candidates.Count, result.ExitCode));
+                path, result.CompletedAt, result.Site, result.Candidates.Count,
+                result.Violations.Count, result.ExitCode));
         }
 
         return [.. entries.OrderByDescending(entry => entry.CompletedAt)];

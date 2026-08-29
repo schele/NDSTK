@@ -27,7 +27,8 @@ public class ScanJsonTests
         CanReachApi: true,
         DryRun: false,
         CompletedAt: new DateTimeOffset(2026, 8, 28, 9, 30, 0, TimeSpan.Zero),
-        Site: "https://ndstk.se/");
+        Site: "https://ndstk.se/",
+        Options: null);
 
     // The history browser loads past scans back into the same grid a live scan fills, so a report
     // that cannot be read back is a report history cannot use.
@@ -117,5 +118,41 @@ public class ScanJsonTests
             """;
 
         Assert.Null(ScanJson.Deserialize(json));
+    }
+
+    // The options that shape a scan are part of its record, because two scans run with different
+    // options diff as though the site changed - a member scan against a public one differs by the
+    // member cookie, which is an artefact of the run and not a change to the site.
+    [Fact]
+    public void The_options_summary_round_trips()
+    {
+        ScanResult sample = Sample() with
+        {
+            Options = new ScanOptionsSummary(MaxPages: 7, Locale: Locale.En, MemberScanEnabled: true, DryRun: false),
+        };
+
+        ScanResult? back = ScanJson.Deserialize(ScanJson.Serialize(sample));
+
+        Assert.NotNull(back?.Options);
+        Assert.Equal(7, back.Options.MaxPages);
+        Assert.Equal(Locale.En, back.Options.Locale);
+        Assert.True(back.Options.MemberScanEnabled);
+        Assert.False(back.Options.DryRun);
+    }
+
+    // A history file written before this field existed must still load, and must say "not recorded"
+    // rather than claiming a default that was never true.
+    [Fact]
+    public void A_result_without_an_options_summary_still_loads()
+    {
+        string json = ScanJson.Serialize(Sample() with { Options = null });
+
+        Assert.DoesNotContain("\"options\": {", json);
+
+        ScanResult? back = ScanJson.Deserialize(json);
+
+        Assert.NotNull(back);
+        Assert.Null(back.Options);
+        Assert.Single(back.Candidates);
     }
 }
