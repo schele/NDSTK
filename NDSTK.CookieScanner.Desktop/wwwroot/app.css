@@ -713,15 +713,20 @@ cs-stat-tile {
     "clean" pill uses for a good outcome - so saving reads as the positive act in the row.
 */
 .button--success {
-  background: var(--teal-600);
-  border-color: var(--teal-600);
-  color: var(--surface);
-  box-shadow: var(--shadow-sm);
+  /*
+      The pill's pairing rather than a solid fill: the operator asked for something softer than a
+      full teal block, and a tint with the hue's dark ink stays legible where a faded solid would
+      not. The border and hover are the same two tokens mixed with the surface, so the palette
+      gains no colour.
+  */
+  background: var(--teal-50);
+  border-color: color-mix(in srgb, var(--teal-600) 35%, var(--surface));
+  color: var(--teal-800);
 }
 
 .button--success:hover {
-  background: var(--teal-800);
-  border-color: var(--teal-800);
+  background: color-mix(in srgb, var(--teal-600) 18%, var(--surface));
+  border-color: var(--teal-600);
 }
 
 /*
@@ -730,15 +735,14 @@ cs-stat-tile {
     remover to read as the remover at a glance, and red is the colour every other tool uses for that.
 */
 .button--danger {
-  background: var(--red-600);
-  border-color: var(--red-600);
-  color: var(--surface);
-  box-shadow: var(--shadow-sm);
+  /* Same construction as Save site, in the red pair; the violation pill uses this exact pairing. */
+  background: var(--red-50);
+  border-color: color-mix(in srgb, var(--red-600) 35%, var(--surface));
+  color: var(--red-600);
 }
 
 .button--danger:hover {
-  /* No darker red token exists; a shadow lift marks hover without inventing a colour. */
-  box-shadow: var(--shadow-md);
+  background: color-mix(in srgb, var(--red-600) 14%, var(--surface));
   border-color: var(--red-600);
 }
 
