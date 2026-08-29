@@ -143,6 +143,37 @@ let secret = null;
  */
 let clientIdDefault = '';
 
+const siteToast = document.querySelector('#site-toast');
+
+/**
+ * What the page last asked the host to do to a profile, so the `sites` answer can be turned into
+ * words. The answer itself carries only the list: a saved site and a deleted one both arrive as
+ * "here is the list now", and the page is the one that knows which it asked for.
+ * @type {{ verb: string, url: string } | null}
+ */
+let pendingSiteAction = null;
+
+let toastTimer = 0;
+
+/** Shows one line beside the buttons for a few seconds, then fades it out. */
+function showToast(text) {
+  clearTimeout(toastTimer);
+
+  siteToast.textContent = text;
+  siteToast.hidden = false;
+  siteToast.classList.remove('is-fading');
+
+  toastTimer = setTimeout(() => {
+    siteToast.classList.add('is-fading');
+
+    // Hidden only after the fade has had its 400ms, so the region empties rather than blinking out.
+    toastTimer = setTimeout(() => {
+      siteToast.hidden = true;
+      siteToast.textContent = '';
+    }, 450);
+  }, 4000);
+}
+
 /**
  * The line under the API client id. Three states, the quietest first: an id typed and the secret
  * present says nothing at all - the dots in the box are the signal that the pair is complete, and a
@@ -642,7 +673,11 @@ function requestSaveSite() {
     return;
   }
 
-  post({ type: 'saveSite', profile: currentProfile() });
+  const profile = currentProfile();
+
+  pendingSiteAction = { verb: 'saved', url: profile.url };
+
+  post({ type: 'saveSite', profile });
 }
 
 /**
@@ -655,6 +690,8 @@ function requestDeleteSite() {
   if (deleteSiteButton.disabled) {
     return;
   }
+
+  pendingSiteAction = { verb: 'deleted', url: siteSelect.value };
 
   post({ type: 'deleteSite', url: siteSelect.value });
 }
@@ -861,6 +898,13 @@ host?.addEventListener('message', (event) => {
     // for.
     case 'sites':
       showSites(message.sites, message.selectedUrl);
+
+      // Only for a save or a delete the page asked for. A starting run posts this same answer after
+      // its own upsert, and the log already says a scan began - a second line for it would be noise.
+      if (pendingSiteAction !== null) {
+        showToast(`Site ${pendingSiteAction.verb}: ${pendingSiteAction.url}`);
+        pendingSiteAction = null;
+      }
 
       break;
 
