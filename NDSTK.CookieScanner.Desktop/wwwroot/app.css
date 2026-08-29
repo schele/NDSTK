@@ -43,7 +43,7 @@
   --row-violation: var(--red-50);
   --row-review: var(--amber-50);
   --hairline: rgba(22,32,46,.06);
-  --sidebar-width: 212px;
+  --sidebar-width: 196px;
 }
 
 @font-face {
@@ -641,7 +641,6 @@ cs-stat-tile {
 }
 
 .pill--ok        { background: var(--teal-50);  color: var(--teal-800);  border-color: transparent }
-.pill--info      { background: var(--blue-50);  color: var(--blue-800);  border-color: transparent }
 
 /*
     These two keep a border where the other two drop it. They are the two that land on a findings row
@@ -1028,25 +1027,6 @@ cs-diff-view {
 .diff-scroll {
   margin-top: var(--s-2);
   overflow-x: auto;
-}
-
-/* ---------------------------------------------------------------- log */
-
-.log {
-  padding: var(--s-3) var(--s-4);
-  border-radius: var(--r-lg);
-  background: var(--log-bg);
-  color: var(--log-ink);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.55;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.log .warn {
-  color: var(--log-warn);
 }
 
 /* ---------------------------------------------------------------- stale results

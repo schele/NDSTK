@@ -62,7 +62,9 @@ panel (warnings called out), and fills four stat tiles plus a findings table whe
 tinted red and `NeedsReview` candidates amber (`cs-findings-table`). A trend chart beside the run
 card plots entries and violations across the last twenty scans of whatever site is in the URL
 field. **History** lists every past scan newest-first (see Scan history, below), each row carrying
-its exit code as a pill, shows any one of them in the same findings table, and compares any two —
+its result as a word on a pill (`clean`, `1 violation`, `write-back failed`) — the numeric exit code
+itself lives in the row's `title` tooltip, not on the pill — shows any one of them in the same
+findings table, and compares any two —
 appeared, disappeared and recategorised cookies, as three groups from `ScanDiff.Between` (in
 `NDSTK.CookieScan.Core`) — with the pair ordered by completion time rather than by which row was
 clicked first, and a warning when the two ran under different options, so a difference caused by
@@ -145,6 +147,14 @@ that as a change to the site would be actively misleading. It is purely additive
 **only** difference between a report this build writes and one the pre-dashboard build wrote, and
 no existing key changed name, type or value. It carries no credential — `memberScanEnabled` is a
 boolean, not the member's email, and there is no field for the client id or either secret.
+
+A scan kept from before this change has **no** `options` key at all — not `null`, simply absent,
+because the key did not exist yet when that file was written. Comparing a scan like that against a
+newer one does not claim the two ran the same way: History's compare shows the amber banner
+`cs-diff-view.js` renders when either side is missing its summary, reading exactly "The options
+were not recorded for one of these scans, so this comparison cannot say whether the two ran the
+same way. Anything below may be a difference in how the scan was run rather than a change to the
+site."
 
 The reason for the change is `ScanHistory`: every completed run, from either front end, writes
 this same JSON to `%LOCALAPPDATA%\NDSTK.CookieScanner\scans\<utc-timestamp>-<suffix>.json`, capped

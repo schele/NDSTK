@@ -40,7 +40,6 @@ public abstract record DashboardCommand
                 // no payload to read, and a constructor cannot fail on a member that is not there.
                 "cancel" => new CancelCommand(),
                 "listHistory" => new ListHistoryCommand(),
-                "openReportFolder" => new OpenReportFolderCommand(),
                 "ready" => new ReadyCommand(),
                 "run" => JsonSerializer.Deserialize<RunCommand>(json, ScanJson.Options),
                 "loadScan" => JsonSerializer.Deserialize<LoadScanCommand>(json, ScanJson.Options),
@@ -73,5 +72,4 @@ public sealed record CancelCommand : DashboardCommand;
 public sealed record ListHistoryCommand : DashboardCommand;
 public sealed record LoadScanCommand(string Path) : DashboardCommand;
 public sealed record CompareCommand(string PathA, string PathB) : DashboardCommand;
-public sealed record OpenReportFolderCommand : DashboardCommand;
 public sealed record ReadyCommand : DashboardCommand;

@@ -29,7 +29,11 @@ public sealed class DashboardBridge
 
     // Both touched on the UI thread and nowhere else: Post marshals before it reaches Send, and
     // WebMessageReceived already arrives on the UI thread. That confinement is what lets this class
-    // hold a queue and a flag without a lock around either.
+    // hold a queue and a flag without a lock around either. The one gap: if DashboardForm's handle
+    // is destroyed between the IsHandleCreated read and InvokeRequired below, InvokeRequired can
+    // itself come back false and Send runs unmarshalled on whatever thread called Post - Playwright's,
+    // mid-scan. Tolerated rather than locked, because the worst that follows is a queue mutation on a
+    // window that is already gone, and Deliver's own catch absorbs whatever comes after that.
     private readonly Queue<string> pending = new();
 
     private bool ready;

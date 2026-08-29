@@ -266,7 +266,7 @@ function showHistoryFooter() {
 }
 
 /**
- * "29 Aug 2026, 03:09 - 3 entries" - or just the count, for a date the field cannot read.
+ * "29 Aug, 03:09 - 3 entries" - or just the count, for a date the field cannot read.
  *
  * A plain hyphen, not the middle dot this file already has one of (in the violations hint below):
  * a second literal non-ASCII byte pair here would be one more thing for a careless encoding
@@ -455,6 +455,15 @@ window.addEventListener('keydown', (event) => {
 
   if (event.key === 'Escape') {
     requestCancel();
+  }
+});
+
+// PostHistory re-reads the folder on every request rather than caching it, specifically so a scan
+// run from a terminal while this window is open shows up here - and that only holds if the History
+// page actually asks again on every visit, not just once at startup.
+window.addEventListener('page-shown', (event) => {
+  if (event.detail?.page === 'history') {
+    post({ type: 'listHistory' });
   }
 });
 

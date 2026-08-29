@@ -140,16 +140,25 @@ public class ScanJsonTests
         Assert.False(back.Options.DryRun);
     }
 
-    // A history file written before this field existed must still load, and must say "not recorded"
-    // rather than claiming a default that was never true.
+    // Two shapes, and only the second is a history file written before this field existed. A null
+    // Options has no [JsonIgnoreCondition], so this build writes it as an explicit "options": null -
+    // the key is present, just empty - which is checked first below. A genuine pre-branch file has
+    // no such key at all: it predates the field entirely, so nothing here ever serialized one. Both
+    // shapes must still load, and both must say "not recorded" rather than claiming a default that
+    // was never true.
     [Fact]
     public void A_result_without_an_options_summary_still_loads()
     {
         string json = ScanJson.Serialize(Sample() with { Options = null });
 
-        Assert.DoesNotContain("\"options\": {", json);
+        Assert.Contains("\"options\": null", json);
 
-        ScanResult? back = ScanJson.Deserialize(json);
+        // Options is the last constructor parameter, so it is also the last property written: this
+        // strips both its line and the now-trailing comma on the property before it, leaving exactly
+        // what a file predating the field would look like - no "options" key at all.
+        string preBranchJson = json.Replace(",\n  \"options\": null\n}", "\n}");
+
+        ScanResult? back = ScanJson.Deserialize(preBranchJson);
 
         Assert.NotNull(back);
         Assert.Null(back.Options);
