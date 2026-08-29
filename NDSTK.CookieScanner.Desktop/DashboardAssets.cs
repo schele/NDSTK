@@ -22,7 +22,12 @@ public static class DashboardAssets
         content = Stream.Null;
         contentType = "application/octet-stream";
 
-        string relative = path.TrimStart('/');
+        // Uri.AbsolutePath hands back percent-encoded octets undecoded (e.g. "%2E" stays "%2E"), so
+        // this decodes before anything else looks at the path - including the traversal guard below.
+        // Decoding after the guard would let "%2E%2E" walk straight past it, since the literal string
+        // contains no ".." until it is decoded; the guard has to see what the resolver will actually
+        // use.
+        string relative = Uri.UnescapeDataString(path).TrimStart('/');
 
         if (relative.Length == 0)
         {

@@ -71,7 +71,22 @@ public sealed class DashboardForm : Form
             CoreWebView2Environment environment =
                 await CoreWebView2Environment.CreateAsync(null, userDataFolder, new CoreWebView2EnvironmentOptions());
 
+            // CreateAsync can span an arbitrary amount of time, and the user can close the window
+            // while it is in flight. IsDisposed/Disposing are safe to read on a disposed Form; touching
+            // `this` or `webView` beyond this point without checking would run against already-disposed
+            // objects.
+            if (IsDisposed || Disposing)
+            {
+                return;
+            }
+
             await webView.EnsureCoreWebView2Async(environment);
+
+            // Same reasoning as above: EnsureCoreWebView2Async is another await the window can outlive.
+            if (IsDisposed || Disposing)
+            {
+                return;
+            }
 
             CoreWebView2 core = webView.CoreWebView2!;
 
@@ -102,6 +117,15 @@ public sealed class DashboardForm : Form
         }
         catch (Exception error)
         {
+            // The awaits above can span an arbitrary amount of time; if the window was closed while
+            // one was in flight, `this` and `webView` are already disposed - there is nothing left to
+            // report to and nothing left to close, and calling MessageBox.Show(this, ...) with a
+            // disposed owner would throw inside the handler meant to report failures.
+            if (IsDisposed || Disposing)
+            {
+                return;
+            }
+
             // A window that throws during initialisation otherwise leaves a process alive with
             // nothing on screen, which is how the previous window's first crash hid itself.
             MessageBox.Show(

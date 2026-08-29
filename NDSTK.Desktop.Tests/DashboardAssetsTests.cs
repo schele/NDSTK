@@ -38,4 +38,22 @@ public class DashboardAssetsTests
     {
         Assert.False(DashboardAssets.TryOpen("/../NDSTK.CookieScanner.Desktop.dll", out _, out _));
     }
+
+    // Uri.AbsolutePath hands back percent-encoded octets undecoded, so the resolver decodes before
+    // it looks anything up - otherwise every asset with a space or an accent in its name 404s.
+    [Fact]
+    public void A_percent_encoded_path_resolves()
+    {
+        Assert.True(DashboardAssets.TryOpen("/index%2Ehtml", out Stream content, out _));
+
+        content.Dispose();
+    }
+
+    // Decoding happens before the traversal guard, not after: %2E%2E contains no ".." until it is
+    // decoded, so a guard that ran first would wave this through.
+    [Fact]
+    public void An_encoded_traversing_path_does_not_resolve()
+    {
+        Assert.False(DashboardAssets.TryOpen("/%2E%2E/NDSTK.CookieScanner.Desktop.dll", out _, out _));
+    }
 }
