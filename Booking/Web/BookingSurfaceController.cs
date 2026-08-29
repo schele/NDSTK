@@ -139,6 +139,6 @@ public sealed class BookingSurfaceController(
 
         return page is null
             ? null
-            : $"{page.Url(publishedUrlProvider)}?ref={Uri.EscapeDataString(reference.ToString())}";
+            : $"{page.Url(PublishedUrlProvider)}?ref={Uri.EscapeDataString(reference.ToString())}";
     }
 }

@@ -95,7 +95,7 @@ public sealed class LoginSurfaceController(
         logger.LogInformation("A member signed out.");
 
         IPublishedContent? home = CurrentPage?.Root();
-        return Redirect(home?.Url(publishedUrlProvider) ?? "/");
+        return Redirect(home?.Url(PublishedUrlProvider) ?? "/");
     }
 
     private async Task<bool> PasswordIsCorrectAsync(string email, string password)
@@ -113,9 +113,9 @@ public sealed class LoginSurfaceController(
         IPublishedContent? portal = settings.GetMemberPortalPage();
         if (portal is not null)
         {
-            return portal.Url(publishedUrlProvider);
+            return portal.Url(PublishedUrlProvider);
         }
 
-        return CurrentPage?.Root()?.Url(publishedUrlProvider) ?? "/";
+        return CurrentPage?.Root()?.Url(PublishedUrlProvider) ?? "/";
     }
 }

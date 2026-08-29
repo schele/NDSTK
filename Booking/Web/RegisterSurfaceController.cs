@@ -315,7 +315,7 @@ public sealed class RegisterSurfaceController(
             .ContentAtRoot()
             .SelectMany(root => root.DescendantsOrSelfOfType(documentTypeAlias))
             .FirstOrDefault()?
-            .Url(publishedUrlProvider, mode: UrlMode.Absolute);
+            .Url(PublishedUrlProvider, mode: UrlMode.Absolute);
 
     private bool IsProbablyABot(RegisterFormModel form)
     {
