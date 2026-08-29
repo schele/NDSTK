@@ -200,7 +200,9 @@
                     Beside the client id, because it is the other half of the same answer: an id with
                     no secret cannot reach the endpoint. Filled from the host on ready - the variable
                     is read once at startup, so a page that re-read it would be claiming it could
-                    change without a restart.
+                    change without a restart. Silent once an id is typed and the secret is present:
+                    the dots in the box say the pair is complete. It speaks up only when something
+                    is missing - see showSecretStatus in app.js.
                   -->
                   <p class="field-note muted" id="secret-status"></p>
                 </div>
