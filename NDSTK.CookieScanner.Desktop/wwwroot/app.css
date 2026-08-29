@@ -1,0 +1,576 @@
+/*
+    The dashboard's design system: tokens, the shell, and the handful of primitives every page is
+    assembled from. Hand-written, because there is no build step - no npm, no bundler, no PostCSS.
+
+    Two rules that the pages depend on and that are easy to break later:
+
+    1. @font-face is declared HERE and nowhere else. A @font-face inside a shadow root is ignored by
+       some engines and duplicated by others, so no component may re-declare it.
+    2. A Lit component's shadow root does not see these class rules, but custom properties DO cross
+       the boundary. So the tinted sets below (.tile--*, and the --row-* aliases) set custom
+       properties on the host element: put the class on the custom element and the shadow DOM can
+       read the tint without app.css reaching inside it.
+*/
+
+:root {
+  color-scheme: light;
+
+  --canvas: #F4F7FC;      --surface: #FFFFFF;      --surface-2: #F9FBFE;
+  --border: #E2E9F4;      --border-strong: #CFDBEC;
+  --ink-900: #16202E;     --ink-600: #516079;      --ink-500: #6F7E96;  --ink-400: #95A2B8;
+  --blue-600: #1D4ED8;    --blue-800: #16389E;     --blue-100: #E8EDFD; --blue-50: #F2F5FE;
+  --teal-600: #0F8B7A;    --teal-800: #0A6357;     --teal-50: #E3F5F1;
+  --amber-700: #9A6300;   --amber-50: #FFF6E3;
+  --red-600: #C2334B;     --red-50: #FDECEF;
+  --log-bg: #0F1826;      --log-ink: #C6D2E4;      --log-warn: #FFC978;
+
+  --r-sm: 6px; --r-md: 10px; --r-lg: 12px; --r-xl: 14px; --r-pill: 999px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --shadow-sm: 0 1px 2px rgba(22,32,46,.04), 0 2px 6px rgba(29,78,216,.06);
+  --shadow-md: 0 4px 12px rgba(22,32,46,.06), 0 1px 3px rgba(22,32,46,.04);
+
+  --font-sans: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+}
+
+/*
+    Aliases, not new colours: they name a role so a component can read the role through the shadow
+    boundary without hard-coding which tint plays it.
+*/
+:root {
+  --row-violation: var(--red-50);
+  --row-review: var(--amber-50);
+  --hairline: rgba(22,32,46,.06);
+  --sidebar-width: 212px;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: block;
+}
+
+/* ---------------------------------------------------------------- reset */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink-900);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, p, figure, blockquote {
+  margin: 0;
+}
+
+ul, ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--blue-600);
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+svg {
+  display: block;
+}
+
+::selection {
+  background: var(--blue-100);
+  color: var(--blue-800);
+}
+
+/*
+    Chromium's default scrollbar is a grey slab that reads as a browser part. This one is the same
+    furniture as the rest of the page.
+*/
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  border-radius: var(--r-pill);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-400);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Keyboard focus is always visible, on every element, without exception. */
+:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px }
+
+/* ---------------------------------------------------------------- sidebar */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-5) var(--s-3) var(--s-4);
+  overflow-y: auto;
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+  /* Chrome, not content: dragging a selection across the navigation is never what was meant. */
+  user-select: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-2);
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-md);
+  background: linear-gradient(140deg, var(--blue-600), var(--teal-600));
+  color: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.brand-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--ink-900);
+}
+
+.brand-sub {
+  font-size: 11px;
+  letter-spacing: .02em;
+  color: var(--ink-500);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  color: var(--ink-600);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color .12s ease, color .12s ease;
+}
+
+.nav-link:hover {
+  background: var(--blue-50);
+  color: var(--ink-900);
+}
+
+.nav-link[aria-current='page'] {
+  background: var(--blue-100);
+  color: var(--blue-800);
+  font-weight: 600;
+}
+
+.nav-icon {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  opacity: .85;
+}
+
+.nav-link[aria-current='page'] .nav-icon {
+  opacity: 1;
+}
+
+/*
+    Pushed to the bottom by margin-top:auto rather than by a spacer element. Both values are filled
+    in later, so both hold their line height while empty and the sidebar does not jump when they
+    arrive.
+*/
+.sidebar-foot {
+  display: grid;
+  gap: var(--s-3);
+  margin-top: auto;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border);
+}
+
+.foot-item {
+  display: grid;
+  gap: 2px;
+  padding: 0 var(--s-3);
+}
+
+.foot-value {
+  min-height: 1.35em;
+  font-size: 13px;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- page area */
+
+.page-area {
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--s-8) var(--s-8) var(--s-10);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  max-width: 1180px;
+}
+
+/* [hidden] alone loses to the display above, so the router's hidden pages need this to disappear. */
+.page[hidden] {
+  display: none;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-6);
+}
+
+.page-title {
+  margin-top: var(--s-1);
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+
+.page-lede {
+  max-width: 64ch;
+  margin-top: var(--s-2);
+  color: var(--ink-600);
+}
+
+/* ---------------------------------------------------------------- primitives */
+
+.card {
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-3);
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+  color: var(--ink-600);
+}
+
+.muted {
+  color: var(--ink-500);
+}
+
+/* Anything read as a quantity: figures line up in a column instead of shimmering as they change. */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip-path: inset(50%);
+}
+
+/* ---------------------------------------------------------------- stat tiles */
+
+.tile-band {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+.tile {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-4);
+  background: var(--tile-bg, var(--surface));
+  color: var(--tile-ink, var(--ink-900));
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+}
+
+.tile-value {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tile-ink-soft, var(--ink-600));
+}
+
+.tile--blue  { --tile-bg: var(--blue-50);  --tile-ink: var(--blue-800);  --tile-ink-soft: var(--blue-600) }
+.tile--red   { --tile-bg: var(--red-50);   --tile-ink: var(--red-600);   --tile-ink-soft: var(--red-600) }
+.tile--amber { --tile-bg: var(--amber-50); --tile-ink: var(--amber-700); --tile-ink-soft: var(--amber-700) }
+.tile--teal  { --tile-bg: var(--teal-50);  --tile-ink: var(--teal-800);  --tile-ink-soft: var(--teal-600) }
+
+/* ---------------------------------------------------------------- pills */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--ink-600);
+  border-color: var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pill--ok        { background: var(--teal-50);  color: var(--teal-800);  border-color: transparent }
+.pill--info      { background: var(--blue-50);  color: var(--blue-800);  border-color: transparent }
+.pill--review    { background: var(--amber-50); color: var(--amber-700); border-color: transparent }
+.pill--violation { background: var(--red-50);   color: var(--red-600);   border-color: transparent }
+
+/* ---------------------------------------------------------------- controls */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: 34px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-900);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+.button:hover {
+  background: var(--surface-2);
+  border-color: var(--ink-400);
+}
+
+.button--primary {
+  background: var(--blue-600);
+  border-color: var(--blue-600);
+  color: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.button--primary:hover {
+  background: var(--blue-800);
+  border-color: var(--blue-800);
+}
+
+.button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.field {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-600);
+}
+
+.input {
+  height: 34px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-900);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.input:hover {
+  border-color: var(--ink-400);
+}
+
+/*
+    A ring drawn with box-shadow, never `outline: none`: killing the outline here would also kill the
+    :focus-visible rule above, which is the one that has to survive.
+*/
+.input:focus {
+  border-color: var(--blue-600);
+  box-shadow: 0 0 0 3px var(--blue-100);
+}
+
+.input::placeholder {
+  color: var(--ink-400);
+}
+
+/* ---------------------------------------------------------------- data table */
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.data-table th {
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--border-strong);
+  text-align: left;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+  color: var(--ink-600);
+}
+
+.data-table td {
+  padding: var(--s-3);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.data-table td.num,
+.data-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table tbody tr:hover td {
+  background: var(--surface-2);
+}
+
+/*
+    The tinted rows keep their tint under the cursor - hence the duplicated :hover selectors, which
+    outrank the plain hover above. The colour is a second cue only: the row's state pill carries the
+    word, because a red row means nothing to a reader who cannot see red.
+*/
+.data-table tbody tr.is-violation td,
+.data-table tbody tr.is-violation:hover td {
+  background: var(--row-violation);
+}
+
+.data-table tbody tr.needs-review td,
+.data-table tbody tr.needs-review:hover td {
+  background: var(--row-review);
+}
+
+.data-table tbody tr.is-violation td:first-child {
+  box-shadow: inset 3px 0 0 var(--red-600);
+}
+
+.data-table tbody tr.needs-review td:first-child {
+  box-shadow: inset 3px 0 0 var(--amber-700);
+}
+
+/* ---------------------------------------------------------------- log */
+
+.log {
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--log-bg);
+  color: var(--log-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log .warn {
+  color: var(--log-warn);
+}
+
+/* ---------------------------------------------------------------- motion */
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important } }

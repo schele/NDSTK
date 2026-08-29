@@ -2,17 +2,118 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="color-scheme" content="light">
   <title>NDSTK cookie scanner</title>
+  <!--
+    Everything this page loads is served from inside the exe. No CDN, no Google Fonts, no external
+    script or stylesheet: the window has to render with the machine offline.
+  -->
+  <link rel="stylesheet" href="/app.css">
+  <!--
+    The components of the later pages all import /vendor/lit.js. Preloading it warms the module cache
+    before the first component asks for it, and it puts the vendored bundle on the path the asset
+    test crawls - a rename that missed one of the two places would otherwise be a blank page.
+  -->
+  <link rel="modulepreload" href="/vendor/lit.js">
+  <!-- An empty data URI, purely so the window does not fire a request for a favicon that 404s. -->
+  <link rel="icon" href="data:,">
 </head>
 <body>
-  <h1 id="hello">Serving from inside the exe.</h1>
-  <p id="origin"></p>
-  <script type="module">
-    // A module script and localStorage both prove the origin is real: neither works from
-    // NavigateToString, which is why the dashboard is served rather than injected.
-    localStorage.setItem('probe', 'ok');
-    document.getElementById('origin').textContent =
-      `${location.origin} · localStorage ${localStorage.getItem('probe')}`;
-  </script>
+
+  <aside class="sidebar">
+
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+             stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3 4.5 6v5.4c0 4.3 3 8.3 7.5 9.6 4.5-1.3 7.5-5.3 7.5-9.6V6L12 3Z"/>
+          <circle cx="10" cy="10.2" r="1" fill="currentColor" stroke="none"/>
+          <circle cx="13.9" cy="12.4" r="1" fill="currentColor" stroke="none"/>
+          <circle cx="10.6" cy="14.4" r="1" fill="currentColor" stroke="none"/>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">Cookie scanner</span>
+        <span class="brand-sub">NDSTK</span>
+      </span>
+    </div>
+
+    <nav class="nav" aria-label="Pages">
+      <a class="nav-link" href="#scan" data-page="scan" aria-current="page">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="5.8"/>
+          <path d="m14.8 14.8 4.4 4.4"/>
+        </svg>
+        Scan
+      </a>
+      <a class="nav-link" href="#history" data-page="history">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.2"/>
+          <path d="M12 7.4V12l3.2 1.9"/>
+        </svg>
+        History
+      </a>
+    </nav>
+
+    <!--
+      Both values are filled in by the history page later. They are present and empty now so nothing
+      has to create them, and so the sidebar does not change height when they arrive.
+    -->
+    <div class="sidebar-foot">
+      <div class="foot-item">
+        <span class="eyebrow">Last scan</span>
+        <span class="foot-value" id="last-scan"></span>
+      </div>
+      <div class="foot-item">
+        <span class="eyebrow">Kept scans</span>
+        <span class="foot-value num" id="kept-scans"></span>
+      </div>
+    </div>
+
+  </aside>
+
+  <main class="page-area">
+
+    <!--
+      One section per page, all but the active one hidden. tabindex="-1" is there for the router: on
+      a page change it moves focus to the heading of the page that just appeared, which is the only
+      way a keyboard reader learns that anything happened.
+
+      The ids are deliberately NOT "scan" and "history". A fragment navigation focuses the element
+      the fragment names if that element is focusable, so an id matching the route name made the
+      window open with a focus ring drawn around the whole page - correct behaviour, wrong moment.
+      The router matches on data-page and never on the id, so the two can differ freely.
+    -->
+    <section class="page" id="page-scan" data-page="scan" tabindex="-1" aria-labelledby="scan-title">
+      <header class="page-head">
+        <div>
+          <p class="eyebrow">Cookie declaration</p>
+          <h1 class="page-title" id="scan-title">Scan</h1>
+          <p class="page-lede">
+            Crawl the site and read back everything it puts in a visitor's browser - cookies, local
+            storage, session storage - against the declaration that is supposed to describe them.
+          </p>
+        </div>
+      </header>
+    </section>
+
+    <section class="page" id="page-history" data-page="history" tabindex="-1" aria-labelledby="history-title" hidden>
+      <header class="page-head">
+        <div>
+          <p class="eyebrow">Kept scans</p>
+          <h1 class="page-title" id="history-title">History</h1>
+          <p class="page-lede">
+            Every scan that was kept, newest first. Open one to see its findings again, or pick two
+            to see what changed between them.
+          </p>
+        </div>
+      </header>
+    </section>
+
+  </main>
+
+  <script type="module" src="/app.js"></script>
 </body>
 </html>
