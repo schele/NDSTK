@@ -1,4 +1,4 @@
-import { LitElement, css, html } from '/vendor/lit.js';
+import { LitElement, css, html, nothing } from '/vendor/lit.js';
 
 /*
     The scan's commentary, as it arrives.
@@ -10,7 +10,15 @@ import { LitElement, css, html } from '/vendor/lit.js';
     operator was making halfway down it.
 */
 export class LogPanel extends LitElement {
-  static properties = {};
+  static properties = {
+    /**
+     * Whether nothing has been logged since the last clear. Internal state: the panel is the only
+     * thing that knows when a line lands. Mirrored onto an `empty` host attribute so the styles can
+     * size the panel for its resting state - a shorter, quieter box with one line saying what it is
+     * for - and grow it to working height the moment the first line arrives.
+     */
+    empty: { state: true },
+  };
 
   static styles = css`
     /*
@@ -65,6 +73,33 @@ export class LogPanel extends LitElement {
     .level {
       font-weight: 700;
     }
+
+    /*
+        At rest: shorter, and centred on one quiet line. The panel keeps its dark surface so the
+        page does not rearrange itself when the scan starts - the box simply grows and the line goes.
+    */
+    :host([empty]) {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 112px;
+    }
+
+    .empty {
+      margin: 0;
+      text-align: center;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.5;
+      /* The log's own ink, dimmed by mixing rather than by opacity, so it stays comfortably legible. */
+      color: color-mix(in srgb, var(--log-ink) 70%, var(--log-bg));
+    }
+
+    .empty strong {
+      display: block;
+      font-weight: 600;
+      color: var(--log-ink);
+    }
   `;
 
   constructor() {
@@ -76,6 +111,7 @@ export class LogPanel extends LitElement {
 
     this.queued = [];
     this.frame = 0;
+    this.empty = true;
   }
 
   connectedCallback() {
@@ -88,10 +124,16 @@ export class LogPanel extends LitElement {
     this.setAttribute('aria-live', 'polite');
     this.setAttribute('aria-relevant', 'additions');
     this.setAttribute('aria-label', 'Scan log');
+
+    // Here and not in the constructor: a custom element may not give itself attributes before it
+    // is connected.
+    this.toggleAttribute('empty', this.empty);
   }
 
   render() {
-    return html`${this.list}`;
+    return html`${this.list}${this.empty
+      ? html`<p class="empty"><strong>Nothing logged yet.</strong>Run a scan and it fills in here.</p>`
+      : nothing}`;
   }
 
   /**
@@ -115,6 +157,8 @@ export class LogPanel extends LitElement {
   clear() {
     this.queued = [];
     this.list.replaceChildren();
+    this.empty = true;
+    this.toggleAttribute('empty', true);
   }
 
   flush() {
@@ -150,6 +194,11 @@ export class LogPanel extends LitElement {
 
     this.queued = [];
     this.list.append(batch);
+
+    if (this.empty) {
+      this.empty = false;
+      this.removeAttribute('empty');
+    }
 
     if (atBottom) {
       this.scrollTop = this.scrollHeight;
