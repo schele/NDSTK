@@ -334,6 +334,7 @@ application store, with no manual step in the backoffice. Update the copy the sc
 
 ```
 NDSTK_COOKIESCAN_CLIENT_SECRET=<secret>
+NDSTK_COOKIESCAN_CLIENT_ID=<client id>      # optional, dashboard only - see below
 ```
 
 Read once, in `ScanOptions.Parse`, straight from `Environment.GetEnvironmentVariable`. This is
@@ -341,6 +342,15 @@ deliberately not a `--client-secret` flag: an argument passed on the command lin
 history and in any process listing (`ps`, Task Manager, a CI log that echoes its invocation) for as
 long as either persists. An environment variable set for one shell session, or injected by a CI
 secret store directly into the process environment, does not have either problem.
+
+`NDSTK_COOKIESCAN_CLIENT_ID` is the secret's optional companion, and the dashboard alone reads it.
+The id is not a secret - it is the name the site registers the API user under, `cookie-scanner` in
+this repository's development configuration - so it can live in a profile, encrypted like the rest;
+the variable is for the machine that has the secret set once and should not need the id typed into
+every profile as well. When a profile has no client id of its own, the dashboard fills the masked
+client-id box from the variable, and the note under the box falls silent because the pair is
+complete. A profile's saved id always wins over the variable. The console tool does not read it:
+`--client-id` stays a flag there.
 
 The dashboard applies the same rule to itself. `DashboardSettings` persists everything else the
 Scan page holds — including, since site profiles, the member password and the client id, encrypted

@@ -138,6 +138,12 @@ const secretStatus = document.querySelector('#secret-status');
 let secret = null;
 
 /**
+ * The client id the host found in NDSTK_COOKIESCAN_CLIENT_ID, or "" - what the client-id box shows
+ * when a profile has no id of its own. A profile's saved id always wins over it.
+ */
+let clientIdDefault = '';
+
+/**
  * The line under the API client id. Three states, the quietest first: an id typed and the secret
  * present says nothing at all - the dots in the box are the signal that the pair is complete, and a
  * line repeating it was noise. An empty box with the secret present says the secret is waiting for an
@@ -436,7 +442,9 @@ function fillForm(profile) {
   maxPagesInput.value = profile.maxPages ?? NEW_SITE.maxPages;
   memberEmailInput.value = profile.memberEmail ?? '';
   memberPasswordInput.value = profile.memberPassword ?? '';
-  clientIdInput.value = profile.clientId ?? '';
+  // The profile's own id when it has one; otherwise the environment's, so a machine that carries the
+  // secret and its id shows the pair complete without the id being typed into every profile.
+  clientIdInput.value = profile.clientId || clientIdDefault || '';
   dryRunInput.checked = profile.dryRun ?? true;
 
   // Setting .value fires no input event, so the line under the client id is recomputed by hand.
@@ -533,6 +541,13 @@ function applyState(message) {
     // engine reads it with. Left in the ordinary muted colour deliberately: report-only is a
     // supported mode, not a fault.
     secret = { isSet: message.secretIsSet === true, variable: message.secretVariable };
+    clientIdDefault = typeof message.clientIdDefault === 'string' ? message.clientIdDefault.trim() : '';
+
+    // Before showSites below fills the form, so the first fill already sees the default; and for the
+    // box itself, in case this state arrives with the form already showing a profile without an id.
+    if (clientIdInput.value.trim() === '' && clientIdDefault !== '') {
+      clientIdInput.value = clientIdDefault;
+    }
 
     showSecretStatus();
   }
