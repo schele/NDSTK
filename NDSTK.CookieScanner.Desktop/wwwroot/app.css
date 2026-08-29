@@ -69,6 +69,17 @@ body {
 body {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
+  /*
+      One row, pinned to the body's own height. Without this the row is sized by its content, so a
+      page taller than the window - a long comparison - grows the row past the body, the body
+      overflows, and the DOCUMENT becomes scrollable: a wheel over the sidebar or an End key then
+      scrolls the whole layout up, sidebar and footer included, and leaves bare canvas below. The
+      page area and the sidebar are the only things that scroll, and minmax(0, 1fr) is what lets
+      them - a bare 1fr would still refuse to shrink below their content. overflow: hidden states the
+      same invariant from the other side, so nothing that slips past the row can bring the scrollbar back.
+  */
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
   margin: 0;
   background: var(--canvas);
   color: var(--ink-900);
