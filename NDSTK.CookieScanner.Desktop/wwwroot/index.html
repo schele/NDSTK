@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>NDSTK cookie scanner</title>
+</head>
+<body>
+  <h1 id="hello">Serving from inside the exe.</h1>
+  <p id="origin"></p>
+  <script type="module">
+    // A module script and localStorage both prove the origin is real: neither works from
+    // NavigateToString, which is why the dashboard is served rather than injected.
+    localStorage.setItem('probe', 'ok');
+    document.getElementById('origin').textContent =
+      `${location.origin} · localStorage ${localStorage.getItem('probe')}`;
+  </script>
+</body>
+</html>
