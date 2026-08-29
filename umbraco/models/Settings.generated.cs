@@ -78,6 +78,14 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		public virtual int FirstClassPrice => this.Value<int>(_publishedValueFallback, "firstClassPrice");
 
 		///<summary>
+		/// Footer links: The links along the bottom of every page, e.g. Kakor and Stadgar. A row may point at a page, at a PDF in the media library or at an external address, and carries its own label.
+		///</summary>
+		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
+		[global::System.Diagnostics.CodeAnalysis.MaybeNull]
+		[ImplementPropertyType("footerLinks")]
+		public virtual global::System.Collections.Generic.IEnumerable<global::Umbraco.Cms.Core.Models.Link> FooterLinks => this.Value<global::System.Collections.Generic.IEnumerable<global::Umbraco.Cms.Core.Models.Link>>(_publishedValueFallback, "footerLinks");
+
+		///<summary>
 		/// Footer text
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "18.1.1+2d8d866")]
