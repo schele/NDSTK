@@ -7,9 +7,11 @@
     1. @font-face is declared HERE and nowhere else. A @font-face inside a shadow root is ignored by
        some engines and duplicated by others, so no component may re-declare it.
     2. A Lit component's shadow root does not see these class rules, but custom properties DO cross
-       the boundary. So the tinted sets below (.tile--*, and the --row-* aliases) set custom
-       properties on the host element: put the class on the custom element and the shadow DOM can
-       read the tint without app.css reaching inside it.
+       the boundary. cs-log-panel keeps a shadow root and reads --log-bg, --log-ink and --log-warn
+       through it, which is what those aliases are for. cs-stat-tile and cs-findings-table render
+       into the light DOM instead, deliberately: the .tile, .data-table and .pill rules below ARE
+       the design system, and a component that encapsulated them would be holding a second copy of
+       the same palette - the row tint and the pill it sits under, free to drift apart.
 */
 
 :root {
@@ -337,6 +339,11 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 
+/* Anything the browser sets rather than the page: cookie names, storage keys, paths. */
+.mono {
+  font-family: var(--font-mono);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -349,7 +356,25 @@ svg {
   clip-path: inset(50%);
 }
 
-/* ---------------------------------------------------------------- stat tiles */
+/* ---------------------------------------------------------------- findings
+
+    The tiles and the table together: what the operator is actually looking at once a scan finishes.
+    Both are rendered by components that put their markup in the light DOM, so everything they use is
+    right here.
+*/
+
+/*
+    Hidden until a scan produces something to put in it. The display below outranks [hidden] exactly
+    as .page[hidden] and .button[hidden] already discovered, so it needs its own rule to disappear.
+*/
+.findings {
+  display: grid;
+  gap: var(--s-6);
+}
+
+.findings[hidden] {
+  display: none;
+}
 
 .tile-band {
   display: grid;
@@ -357,9 +382,17 @@ svg {
   gap: var(--s-4);
 }
 
+/* The element is the grid item and the tile inside it fills the cell, so a tile with no hint under
+   it is the same height as its neighbours rather than a short box in a row of tall ones. */
+cs-stat-tile {
+  display: block;
+}
+
 .tile {
   display: grid;
+  align-content: start;
   gap: var(--s-1);
+  height: 100%;
   padding: var(--s-4);
   background: var(--tile-bg, var(--surface));
   color: var(--tile-ink, var(--ink-900));
@@ -368,7 +401,7 @@ svg {
 }
 
 .tile-value {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: -.02em;
@@ -376,9 +409,14 @@ svg {
 }
 
 .tile-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--tile-ink-soft, var(--ink-600));
+}
+
+.tile-hint {
+  font-size: 10px;
+  color: var(--ink-500);
 }
 
 .tile--blue  { --tile-bg: var(--blue-50);  --tile-ink: var(--blue-800);  --tile-ink-soft: var(--blue-600) }
@@ -405,8 +443,14 @@ svg {
 
 .pill--ok        { background: var(--teal-50);  color: var(--teal-800);  border-color: transparent }
 .pill--info      { background: var(--blue-50);  color: var(--blue-800);  border-color: transparent }
-.pill--review    { background: var(--amber-50); color: var(--amber-700); border-color: transparent }
-.pill--violation { background: var(--red-50);   color: var(--red-600);   border-color: transparent }
+
+/*
+    These two keep a border where the other two drop it. They are the two that land on a findings row
+    tinted in their own colour, so the pill's fill is the row's fill and a transparent edge left
+    nothing of the pill but floating text - which is only visible once these rules actually render.
+*/
+.pill--review    { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-700) }
+.pill--violation { background: var(--red-50);   color: var(--red-600);   border-color: var(--red-600) }
 
 /* ---------------------------------------------------------------- controls */
 
@@ -576,6 +620,16 @@ svg {
 }
 
 /* ---------------------------------------------------------------- data table */
+
+/*
+    The element scrolls, not the page: a cookie name is one unbroken token and six columns of them
+    can outgrow a narrow window, and a table that widened the page body would take the sidebar and
+    every card with it.
+*/
+cs-findings-table {
+  display: block;
+  overflow-x: auto;
+}
 
 .data-table {
   width: 100%;

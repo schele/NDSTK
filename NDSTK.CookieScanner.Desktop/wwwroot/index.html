@@ -181,6 +181,34 @@
       </div>
 
       <!--
+        What the operator is here to read, in the order the design puts it: a band of four tiles
+        under the run card, and the findings table full width below them.
+
+        Hidden until a scan produces something to put in it - four zeroed tiles and an empty table
+        before the first run would be a claim about the site rather than the absence of one - but
+        present in the markup all the same, so the result handler fills elements it never has to
+        create, and so a second scan's numbers replace the first scan's in place instead of the
+        whole block appearing again.
+      -->
+      <div class="findings" id="scan-findings" hidden>
+
+        <div class="tile-band">
+          <cs-stat-tile id="tile-entries" tone="blue" label="Entries found"></cs-stat-tile>
+          <cs-stat-tile id="tile-violations" tone="red" label="Violations"></cs-stat-tile>
+          <cs-stat-tile id="tile-review" tone="amber" label="Needs review"></cs-stat-tile>
+          <cs-stat-tile id="tile-expected" tone="teal" label="Expected but not observed"></cs-stat-tile>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">Findings</h2>
+          </div>
+          <cs-findings-table id="scan-findings-table"></cs-findings-table>
+        </div>
+
+      </div>
+
+      <!--
         Present from the start rather than created on the first line: a panel that appears halfway
         through a run moves everything under it, and the operator is reading it at the time.
       -->

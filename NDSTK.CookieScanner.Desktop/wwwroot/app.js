@@ -15,7 +15,9 @@
     Keep example import syntax out of these comments, too: the crawl is a regular expression over the
     file's text, and it cannot tell a specifier in a comment from one the module really imports.
 */
+import { FindingsTable } from '/components/cs-findings-table.js';
 import { LogPanel } from '/components/cs-log-panel.js';
+import { StatTile } from '/components/cs-stat-tile.js';
 
 const FALLBACK = 'scan';
 
@@ -123,6 +125,19 @@ const secretStatus = document.querySelector('#secret-status');
 /** @type {LogPanel} */
 const logPanel = document.querySelector('#scan-log');
 
+const findings = document.querySelector('#scan-findings');
+
+/** @type {FindingsTable} */
+const findingsTable = document.querySelector('#scan-findings-table');
+
+/** @type {Record<string, StatTile>} */
+const tiles = {
+  entries: document.querySelector('#tile-entries'),
+  violations: document.querySelector('#tile-violations'),
+  review: document.querySelector('#tile-review'),
+  expected: document.querySelector('#tile-expected'),
+};
+
 /** Everything a running scan must not let the operator change under it. */
 const inputs = [
   urlInput, maxPagesInput, localeInput, memberEmailInput,
@@ -185,6 +200,50 @@ function applyState(message) {
   if (message.settings) {
     restore(message.settings);
   }
+}
+
+/**
+ * Everything a finished scan puts on screen: the summary in the log, the four counts, the table.
+ *
+ * Nothing here recomputes what the host already decided. Each count is the length of a list on the
+ * result and the summary is the host's own text, so the window cannot end up telling a different
+ * story from the report on disk.
+ */
+function showResult(message) {
+  // Appended as ONE entry rather than one line at a time, so the blank lines survive: the panel
+  // renders a line as an <li>, and an <li> holding an empty string produces no line box and so no
+  // height. Its white-space is pre-wrap, so one multi-line string keeps both the blank lines and the
+  // leading spaces that put the json path under the markdown one.
+  if (Array.isArray(message.summary) && message.summary.length > 0) {
+    logPanel.append('info', message.summary.join('\n'));
+  }
+
+  const scan = message.scan;
+
+  // The host always sends one. A result without it would take the tiles down with it, and the
+  // summary above is worth keeping either way.
+  if (scan === undefined || scan === null) {
+    return;
+  }
+
+  const added = scan.outcome?.added?.length;
+
+  tiles.entries.value = scan.candidates.length;
+  // No outcome means the write-back was never attempted - not configured, or nothing to send - and
+  // a hint reading "0 added last run" would be an answer to a question nobody asked.
+  tiles.entries.hint = added === undefined ? '' : `${added} added last run`;
+
+  tiles.violations.value = scan.violations.length;
+  // The exit code is not recomputed here: 1 is what a violation means, and the tile says so in the
+  // same breath as the number, because the number alone does not tell the operator the run failed.
+  tiles.violations.hint = scan.violations.length > 0 ? 'fails the run · exit 1' : 'none';
+
+  tiles.review.value = scan.candidates.filter((candidate) => candidate.flag === 'NeedsReview').length;
+  tiles.expected.value = scan.expectedButNotObserved.length;
+
+  findingsTable.result = scan;
+
+  findings.hidden = false;
 }
 
 function requestRun() {
@@ -270,8 +329,13 @@ host?.addEventListener('message', (event) => {
 
       break;
 
-    // Everything else - result, history, scan, diff, error - belongs to a page that does not exist
-    // yet. Ignored rather than logged: an unhandled type is a task not written, not a fault.
+    case 'result':
+      showResult(message);
+
+      break;
+
+    // Everything else - history, scan, diff, error - belongs to a page that does not exist yet.
+    // Ignored rather than logged: an unhandled type is a task not written, not a fault.
     default:
       break;
   }
