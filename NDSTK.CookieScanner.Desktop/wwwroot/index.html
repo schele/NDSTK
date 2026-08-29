@@ -98,86 +98,107 @@
         </div>
       </header>
 
-      <div class="card">
-        <div class="card-head">
-          <h2 class="card-title">Run a scan</h2>
-          <p class="muted" id="run-hint">Ctrl+Enter runs a scan, Escape cancels one.</p>
-        </div>
+      <!--
+        The top row of the design: the run card beside the trend. Two columns rather than one,
+        because the trend answers "is this getting better" and that only means anything next to the
+        control that changes it.
+      -->
+      <div class="hero">
 
-        <!--
-          A real form, so Enter in the URL field runs the scan and the browser's own validation
-          reports an empty field. autocomplete is off on the form as well as on the password: the
-          window is not a browsing session and has nothing to offer from one.
-        -->
-        <form class="scan-form" id="scan-form" autocomplete="off" novalidate>
-
-          <div class="field">
-            <label class="label" for="scan-url">Site URL</label>
-            <input class="input" id="scan-url" type="text" spellcheck="false" placeholder="https://ndstk.se">
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">Run a scan</h2>
+            <p class="muted" id="run-hint">Ctrl+Enter runs a scan, Escape cancels one.</p>
           </div>
 
           <!--
-            Collapsed by default: five of the six options are set once and never touched again, and a
-            form that opens with all of them showing buries the one field that matters.
+            A real form, so Enter in the URL field runs the scan and the browser's own validation
+            reports an empty field. autocomplete is off on the form as well as on the password: the
+            window is not a browsing session and has nothing to offer from one.
           -->
-          <details class="options" id="scan-options">
-            <summary class="options-summary">Options</summary>
+          <form class="scan-form" id="scan-form" autocomplete="off" novalidate>
 
-            <div class="options-grid">
-
-              <div class="field">
-                <label class="label" for="scan-max-pages">Max pages</label>
-                <input class="input num" id="scan-max-pages" type="number" min="1" max="500" step="1">
-              </div>
-
-              <div class="field">
-                <label class="label" for="scan-locale">Locale</label>
-                <select class="input" id="scan-locale">
-                  <option value="Sv">Sv</option>
-                  <option value="En">En</option>
-                </select>
-              </div>
-
-              <div class="field">
-                <label class="label" for="scan-member-email">Member email</label>
-                <input class="input" id="scan-member-email" type="text" spellcheck="false">
-              </div>
-
-              <!--
-                Never persisted, and there is no settings field that could hold it: it is typed per
-                run and lives only as long as the run does.
-              -->
-              <div class="field">
-                <label class="label" for="scan-member-password">Member password</label>
-                <input class="input" id="scan-member-password" type="password" autocomplete="off">
-              </div>
-
-              <div class="field">
-                <label class="label" for="scan-client-id">API client id</label>
-                <input class="input" id="scan-client-id" type="text" spellcheck="false">
-                <!--
-                  Beside the client id, because it is the other half of the same answer: an id with
-                  no secret cannot reach the endpoint. Filled from the host on ready - the variable
-                  is read once at startup, so a page that re-read it would be claiming it could
-                  change without a restart.
-                -->
-                <p class="field-note muted" id="secret-status"></p>
-              </div>
-
+            <div class="field">
+              <label class="label" for="scan-url">Site URL</label>
+              <input class="input" id="scan-url" type="text" spellcheck="false" placeholder="https://ndstk.se">
             </div>
-          </details>
 
-          <label class="check">
-            <input type="checkbox" id="scan-dry-run">
-            Dry run (write nothing)
-          </label>
+            <!--
+              Collapsed by default: five of the six options are set once and never touched again, and a
+              form that opens with all of them showing buries the one field that matters.
+            -->
+            <details class="options" id="scan-options">
+              <summary class="options-summary">Options</summary>
 
-          <div class="actions">
-            <button class="button button--primary" id="scan-run" type="submit">Run</button>
-            <button class="button" id="scan-cancel" type="button" hidden>Cancel</button>
+              <div class="options-grid">
+
+                <div class="field">
+                  <label class="label" for="scan-max-pages">Max pages</label>
+                  <input class="input num" id="scan-max-pages" type="number" min="1" max="500" step="1">
+                </div>
+
+                <div class="field">
+                  <label class="label" for="scan-locale">Locale</label>
+                  <select class="input" id="scan-locale">
+                    <option value="Sv">Sv</option>
+                    <option value="En">En</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label class="label" for="scan-member-email">Member email</label>
+                  <input class="input" id="scan-member-email" type="text" spellcheck="false">
+                </div>
+
+                <!--
+                  Never persisted, and there is no settings field that could hold it: it is typed per
+                  run and lives only as long as the run does.
+                -->
+                <div class="field">
+                  <label class="label" for="scan-member-password">Member password</label>
+                  <input class="input" id="scan-member-password" type="password" autocomplete="off">
+                </div>
+
+                <div class="field">
+                  <label class="label" for="scan-client-id">API client id</label>
+                  <input class="input" id="scan-client-id" type="text" spellcheck="false">
+                  <!--
+                    Beside the client id, because it is the other half of the same answer: an id with
+                    no secret cannot reach the endpoint. Filled from the host on ready - the variable
+                    is read once at startup, so a page that re-read it would be claiming it could
+                    change without a restart.
+                  -->
+                  <p class="field-note muted" id="secret-status"></p>
+                </div>
+
+              </div>
+            </details>
+
+            <label class="check">
+              <input type="checkbox" id="scan-dry-run">
+              Dry run (write nothing)
+            </label>
+
+            <div class="actions">
+              <button class="button button--primary" id="scan-run" type="submit">Run</button>
+              <button class="button" id="scan-cancel" type="button" hidden>Cancel</button>
+            </div>
+
+          </form>
+        </div>
+
+        <!--
+          The trend across the scans kept for whatever site the URL field currently names. Present
+          from the start rather than created when the first history arrives: a card that appeared
+          beside the form half a second after the window opened would move the form as it did it.
+        -->
+        <div class="card trend-card" id="trend-card">
+          <div class="card-head">
+            <h2 class="card-title">Trend</h2>
           </div>
+          <cs-trend-chart id="scan-trend"></cs-trend-chart>
+        </div>
 
-        </form>
       </div>
 
       <!--

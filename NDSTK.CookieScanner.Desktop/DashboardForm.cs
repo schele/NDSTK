@@ -213,6 +213,11 @@ public sealed class DashboardForm : Form
 
                 break;
 
+            case ListHistoryCommand:
+                PostHistory();
+
+                break;
+
             case RunCommand run:
                 // Not awaited: this handler is on the message loop, and a scan takes the best part
                 // of a minute. StartAsync throws nothing - every failure inside it becomes a warning
@@ -226,6 +231,34 @@ public sealed class DashboardForm : Form
 
                 break;
         }
+    }
+
+    /// <summary>Answers <c>listHistory</c> with every kept scan, newest first.</summary>
+    /// <remarks>
+    /// Read here rather than cached, because the folder is shared: the console tool writes into it
+    /// too, so a scan run from a terminal while this window is open belongs in the answer.
+    /// <para>
+    /// An empty list rather than an exception for a folder that cannot be read. This runs on the
+    /// message loop, where a throw takes the loop down and with it the running scan's log - and
+    /// <see cref="ScanHistory.List"/> already treats a file it cannot parse as one to skip, so the
+    /// only failures left here are the folder-wide ones. A page that hears an empty history draws
+    /// "No scans yet", which is the truth about what could be read.
+    /// </para>
+    /// </remarks>
+    private void PostHistory()
+    {
+        IReadOnlyList<ScanHistoryEntry> entries;
+
+        try
+        {
+            entries = ScanHistory.Default().List();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            entries = [];
+        }
+
+        bridge?.Post(new { type = "history", entries });
     }
 
     private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)

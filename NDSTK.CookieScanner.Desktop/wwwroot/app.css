@@ -356,6 +356,194 @@ svg {
   clip-path: inset(50%);
 }
 
+/* ---------------------------------------------------------------- hero
+
+    The Scan page's top row: the run card beside the trend.
+*/
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 330px);
+  gap: var(--s-6);
+  /*
+      start rather than stretch: opening the Options disclosure makes the run card half again as
+      tall, and a chart that grew with it would be changing size for a reason that has nothing to do
+      with what it is measuring.
+  */
+  align-items: start;
+}
+
+/*
+    The window's minimum client width is 1040, so this is a floor rather than a layout anyone will
+    meet: below it the two cards stack instead of squeezing the trend into a smear.
+*/
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------- trend
+
+    A hand-drawn SVG chart - see cs-trend-chart.js for why every part of it is where it is. The rules
+    here are the component's, in app.css rather than in a shadow root, because the two series are
+    --blue-600 and --red-600 from the palette above and a second copy of them would be free to drift
+    from the tiles this card sits over.
+*/
+
+cs-trend-chart {
+  display: block;
+}
+
+.trend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/* The latest entry count, pulled out beside the shape it is the last point of. */
+.trend-figure {
+  display: grid;
+  flex: none;
+  gap: 2px;
+}
+
+.trend-value {
+  font-size: 27px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-figure-label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ink-600);
+}
+
+/*
+    A fixed height against a fluid width, which is what makes the scale non-uniform and every
+    vector-effect below load-bearing.
+*/
+.trend-chart {
+  flex: 1;
+  min-width: 0;
+  height: 88px;
+}
+
+/*
+    Stroke geometry is built AFTER the transform, so preserveAspectRatio="none" cannot thin the line
+    on a narrow card or fatten it on a wide one - and the round cap that draws each end point stays a
+    circle instead of being squashed into an ellipse.
+*/
+.trend-line,
+.trend-dot {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.trend-line {
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trend-dot {
+  stroke-width: 6px;
+  stroke-linecap: round;
+}
+
+.trend-line--entries,
+.trend-dot--entries {
+  stroke: var(--blue-600);
+}
+
+.trend-line--violations,
+.trend-dot--violations {
+  stroke: var(--red-600);
+}
+
+/*
+    stop-color and stop-opacity are CSS properties, so the gradient reads the token here rather than
+    through a var() inside a presentation attribute - which is a place custom properties are not
+    reliably resolved.
+*/
+.trend-fade-in {
+  stop-color: var(--blue-600);
+  stop-opacity: .2;
+}
+
+.trend-fade-out {
+  stop-color: var(--blue-600);
+  stop-opacity: 0;
+}
+
+/* The same height the chart would have taken, so the card does not resize when the first scan lands. */
+.trend-empty {
+  display: grid;
+  place-items: center;
+  min-height: 88px;
+  color: var(--ink-600);
+}
+
+.trend-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.trend-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.trend-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-600);
+}
+
+/*
+    The word beside it is the cue; this only repeats it in colour, which is why it is aria-hidden in
+    the component. The latest value is spelled out next to both names for the same reason: a
+    violations series flat along zero is a shape that says nothing on its own.
+*/
+.trend-swatch {
+  width: 14px;
+  height: 3px;
+  border-radius: var(--r-pill);
+}
+
+.trend-key--entries .trend-swatch {
+  background: var(--blue-600);
+}
+
+.trend-key--violations .trend-swatch {
+  background: var(--red-600);
+}
+
+.trend-key-value {
+  color: var(--ink-900);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --ink-600 rather than .muted: this is 11px, and --ink-500 on white is 4.12:1. */
+.trend-range {
+  font-size: 11px;
+  color: var(--ink-600);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------------------------------------------------------------- findings
 
     The tiles and the table together: what the operator is actually looking at once a scan finishes.
@@ -414,9 +602,14 @@ cs-stat-tile {
   color: var(--tile-ink-soft, var(--ink-600));
 }
 
+/*
+    --ink-600, not --ink-500: on a tinted tile the lighter ink measures 3.61:1 against --red-50 and
+    3.65:1 against --teal-50, both under AA, and this is 10px text. --ink-600 clears it on all four
+    tints - 5.84 on blue, 5.58 on red, 5.92 on amber, 5.64 on teal.
+*/
 .tile-hint {
   font-size: 10px;
-  color: var(--ink-500);
+  color: var(--ink-600);
 }
 
 .tile--blue  { --tile-bg: var(--blue-50);  --tile-ink: var(--blue-800);  --tile-ink-soft: var(--blue-600) }
@@ -710,6 +903,22 @@ cs-findings-table {
 
 .log .warn {
   color: var(--log-warn);
+}
+
+/* ---------------------------------------------------------------- stale results
+
+    The previous scan's tiles, chart and table stay on screen for the fifty seconds the next scan
+    takes, de-emphasised rather than blanked: the run you are about to compare against is exactly
+    the one pressing Run would otherwise take away.
+
+    Opacity and nothing else - no second palette for a "faded" state, which would be two sets of
+    colours to keep in step. The transition is disabled by the reduced-motion rule below, which
+    applies to every transition on the page including this one.
+*/
+
+.is-stale {
+  opacity: .45;
+  transition: opacity .18s ease;
 }
 
 /* ---------------------------------------------------------------- motion */

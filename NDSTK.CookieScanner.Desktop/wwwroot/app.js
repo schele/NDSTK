@@ -18,6 +18,7 @@
 import { FindingsTable } from '/components/cs-findings-table.js';
 import { LogPanel } from '/components/cs-log-panel.js';
 import { StatTile } from '/components/cs-stat-tile.js';
+import { TrendChart } from '/components/cs-trend-chart.js';
 
 const FALLBACK = 'scan';
 
@@ -130,6 +131,11 @@ const findings = document.querySelector('#scan-findings');
 /** @type {FindingsTable} */
 const findingsTable = document.querySelector('#scan-findings-table');
 
+const trendCard = document.querySelector('#trend-card');
+
+/** @type {TrendChart} */
+const trendChart = document.querySelector('#scan-trend');
+
 /** @type {Record<string, StatTile>} */
 const tiles = {
   entries: document.querySelector('#tile-entries'),
@@ -144,20 +150,81 @@ const inputs = [
   memberPasswordInput, clientIdInput, dryRunInput, runButton,
 ];
 
+/** Whether a scan is running, as the host last reported it. */
+let running = false;
+
+/** Every kept scan the host has told us about, newest first, for every site. */
+let history = [];
+
 function post(message) {
   host?.postMessage(message);
 }
 
-function setRunning(running) {
+function setRunning(next) {
+  running = next;
+
   for (const input of inputs) {
-    input.disabled = running;
+    input.disabled = next;
   }
 
   // Swapped rather than both shown: there is exactly one thing to do at any moment, and a disabled
   // Cancel sitting beside a disabled Run says nothing about which.
-  runButton.hidden = running;
-  cancelButton.hidden = !running;
+  runButton.hidden = next;
+  cancelButton.hidden = !next;
   cancelButton.disabled = false;
+
+  setStale(next);
+}
+
+/**
+ * De-emphasises the previous scan's numbers while the next scan runs.
+ *
+ * They stay on screen: the run you are about to compare against is exactly the one that pressing
+ * Run would otherwise throw away, and a scan takes the best part of a minute. Dimmed rather than
+ * left at full strength, because tiles and a chart that still read as current would be claiming to
+ * describe the run in progress.
+ *
+ * aria-busy carries the same thing to a reader who gets nothing from opacity - it is the only cue
+ * there is otherwise, and this window does not convey anything by appearance alone.
+ */
+function setStale(stale) {
+  for (const region of [trendCard, findings]) {
+    region.classList.toggle('is-stale', stale);
+
+    if (stale) {
+      region.setAttribute('aria-busy', 'true');
+    } else {
+      // Removed rather than set to "false": an element that is not busy should say nothing about
+      // it, the same reasoning as aria-current on the navigation.
+      region.removeAttribute('aria-busy');
+    }
+  }
+}
+
+/**
+ * The site the URL field names, in a form two spellings of the same site agree on.
+ *
+ * The history records a site as the scanned Uri's own text - "https://localhost:44351/", with the
+ * trailing slash Uri adds - while the field holds whatever was typed. Comparing them raw would
+ * leave the chart permanently empty for the site sitting in the box.
+ */
+function siteKey(site) {
+  return typeof site === 'string' ? site.trim().toLowerCase().replace(/\/+$/, '') : '';
+}
+
+/**
+ * Hands the chart the scans for the site currently in the URL field.
+ *
+ * The filter lives here rather than in the component because the URL field is this module's, and a
+ * chart that reached into the form for it would be a second thing that has to know where the field
+ * is. What the component decides is how much of what it is given it can draw.
+ */
+function showTrend() {
+  const wanted = siteKey(urlInput.value);
+
+  trendChart.entries = wanted === ''
+    ? []
+    : history.filter((entry) => siteKey(entry?.site) === wanted);
 }
 
 /**
@@ -185,7 +252,16 @@ function restore(settings) {
  */
 function applyState(message) {
   if ('running' in message) {
+    const wasRunning = running;
+
     setRunning(message.running);
+
+    // Asked for when the scan ENDS, not when its result arrives: the host writes the history file
+    // after it posts the result and before it posts this state, so a request made on the result
+    // would race that write and draw a chart missing the run that had just finished.
+    if (wasRunning && message.running === false) {
+      post({ type: 'listHistory' });
+    }
   }
 
   if ('secretIsSet' in message) {
@@ -199,6 +275,10 @@ function applyState(message) {
 
   if (message.settings) {
     restore(message.settings);
+
+    // The remembered URL is what decides which scans the chart is about, so the chart is re-filtered
+    // the moment that field is filled - whichever of the two messages arrives first.
+    showTrend();
   }
 }
 
@@ -236,7 +316,7 @@ function showResult(message) {
   tiles.violations.value = scan.violations.length;
   // The exit code is not recomputed here: 1 is what a violation means, and the tile says so in the
   // same breath as the number, because the number alone does not tell the operator the run failed.
-  tiles.violations.hint = scan.violations.length > 0 ? 'fails the run · exit 1' : 'none';
+  tiles.violations.hint = scan.violations.length > 0 ? 'fails the run Â· exit 1' : 'none';
 
   tiles.review.value = scan.candidates.filter((candidate) => candidate.flag === 'NeedsReview').length;
   tiles.expected.value = scan.expectedButNotObserved.length;
@@ -293,6 +373,10 @@ form.addEventListener('submit', (event) => {
 
 cancelButton.addEventListener('click', requestCancel);
 
+// The chart is about the site in the box, so it follows the box rather than the last run: typing a
+// different site there shows that site's trend without having to scan it first.
+urlInput.addEventListener('input', showTrend);
+
 // Ctrl+Enter runs and Escape cancels, but only while the Scan page is the one on screen: a shortcut
 // that fires from another page would act on a form the operator cannot see.
 window.addEventListener('keydown', (event) => {
@@ -334,8 +418,18 @@ host?.addEventListener('message', (event) => {
 
       break;
 
-    // Everything else - history, scan, diff, error - belongs to a page that does not exist yet.
-    // Ignored rather than logged: an unhandled type is a task not written, not a fault.
+    case 'history':
+      // Kept whole and filtered on the way to the chart, rather than filtered here: the History
+      // page lists every site's scans, and re-asking the host for the same folder because the URL
+      // field changed would be a file read per keystroke.
+      history = Array.isArray(message.entries) ? message.entries : [];
+
+      showTrend();
+
+      break;
+
+    // Everything else - scan, diff, error - belongs to a page that does not exist yet. Ignored
+    // rather than logged: an unhandled type is a task not written, not a fault.
     default:
       break;
   }
@@ -344,3 +438,8 @@ host?.addEventListener('message', (event) => {
 // Last, and only once the page can answer: this is what releases the envelopes the host buffered
 // while the window was still loading.
 post({ type: 'ready' });
+
+// After ready and never before it: the host only starts delivering once ready has arrived, and the
+// two are answered in the order they were sent, so the settings that name the site reach the page
+// ahead of the history that has to be filtered by it.
+post({ type: 'listHistory' });
