@@ -218,6 +218,11 @@ public sealed class DashboardForm : Form
 
                 break;
 
+            case LoadScanCommand load:
+                PostScan(load);
+
+                break;
+
             case RunCommand run:
                 // Not awaited: this handler is on the message loop, and a scan takes the best part
                 // of a minute. StartAsync throws nothing - every failure inside it becomes a warning
@@ -259,6 +264,52 @@ public sealed class DashboardForm : Form
         }
 
         bridge?.Post(new { type = "history", entries });
+    }
+
+    /// <summary>Answers <c>loadScan</c> with the parsed scan the page asked for, by path.</summary>
+    /// <remarks>
+    /// <see cref="ScanHistory.Load"/> takes the <see cref="ScanHistoryEntry"/> it listed, not a bare
+    /// path - so the path the page sent is matched back against a fresh <see cref="ScanHistory.List"/>
+    /// rather than opened directly. That is not a workaround for the missing overload: it also means
+    /// the window only ever opens a file it just told the page about, never whatever path a message
+    /// happens to name.
+    /// <para>
+    /// A path with no match in that list - deleted or renamed since the page's last <c>listHistory</c>
+    /// - and a match <see cref="ScanHistory.Load"/> itself cannot parse - deleted or corrupted in the
+    /// meantime - answer the same way: an inline <c>error</c>, never a silent nothing.
+    /// </para>
+    /// </remarks>
+    private void PostScan(LoadScanCommand command)
+    {
+        ScanHistory history = ScanHistory.Default();
+
+        IReadOnlyList<ScanHistoryEntry> entries;
+
+        try
+        {
+            entries = history.List();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            entries = [];
+        }
+
+        ScanHistoryEntry? entry = entries.FirstOrDefault(candidate => candidate.Path == command.Path);
+
+        ScanResult? result = entry is null ? null : history.Load(entry);
+
+        if (result is null)
+        {
+            bridge?.Post(new
+            {
+                type = "error",
+                message = "That scan could not be loaded. It may have been deleted or its file damaged.",
+            });
+
+            return;
+        }
+
+        bridge?.Post(new { type = "scan", result });
     }
 
     private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)

@@ -33,6 +33,18 @@ public class DashboardMessageTests
     }
 
     [Fact]
+    public void A_load_scan_command_parses_with_its_path()
+    {
+        const string json = """{"type":"loadScan","path":"C:\\scans\\one.json"}""";
+
+        DashboardCommand? command = DashboardCommand.Parse(json);
+
+        LoadScanCommand load = Assert.IsType<LoadScanCommand>(command);
+
+        Assert.Equal(@"C:\scans\one.json", load.Path);
+    }
+
+    [Fact]
     public void A_list_history_command_parses()
     {
         Assert.IsType<ListHistoryCommand>(DashboardCommand.Parse("""{"type":"listHistory"}"""));

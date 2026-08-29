@@ -253,6 +253,32 @@
           </p>
         </div>
       </header>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 class="card-title">Scans</h2>
+        </div>
+        <cs-history-list id="history-list"></cs-history-list>
+      </div>
+
+      <!--
+        Hidden until a selection fills it - exactly the reasoning behind #scan-findings on the Scan
+        page: a table and an error message both present in the markup from the start, so loadScan's
+        answer fills or reports into elements that already exist rather than building the section
+        the first time something is selected.
+      -->
+      <div class="card" id="history-detail" hidden>
+        <div class="card-head">
+          <h2 class="card-title">Findings</h2>
+        </div>
+        <!--
+          role="alert" so a screen reader hears a load failure the moment it happens, without the
+          operator having to go looking for it - the whole point of answering null with an error
+          instead of leaving the table exactly as it was.
+        -->
+        <p id="history-error" role="alert" hidden></p>
+        <cs-findings-table id="history-findings-table"></cs-findings-table>
+      </div>
     </section>
 
   </main>

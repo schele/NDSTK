@@ -330,8 +330,14 @@ svg {
   color: var(--ink-600);
 }
 
+/*
+    --ink-600, not --ink-500: --ink-500 on --surface white measures 4.12:1, under WCAG AA (4.5:1) for
+    text below 18.66px, and every use of this class on this page is 11-14px. --ink-600 measures
+    6.37:1 on white - see the four-tint numbers on .tile-hint above, which is the same ink on the
+    same surfaces.
+*/
 .muted {
-  color: var(--ink-500);
+  color: var(--ink-600);
 }
 
 /* Anything read as a quantity: figures line up in a column instead of shimmering as they change. */
@@ -884,6 +890,30 @@ cs-findings-table {
 
 .data-table tbody tr.needs-review td:first-child {
   box-shadow: inset 3px 0 0 var(--amber-700);
+}
+
+/* ---------------------------------------------------------------- history
+
+    <cs-history-list> reuses .data-table wholesale rather than defining a second table - see the note
+    at the top of this file about why cs-findings-table does the same. The only rules of its own are
+    the checkbox column's width and the tint on a row someone has checked, and the tint is never the
+    only cue: the checkbox itself IS the selection, so a monochrome screenshot still shows exactly
+    which boxes are ticked.
+*/
+
+cs-history-list {
+  display: block;
+  overflow-x: auto;
+}
+
+.history-check {
+  width: 1px;
+  white-space: nowrap;
+}
+
+.data-table tbody tr.is-selected td,
+.data-table tbody tr.is-selected:hover td {
+  background: var(--blue-50);
 }
 
 /* ---------------------------------------------------------------- log */

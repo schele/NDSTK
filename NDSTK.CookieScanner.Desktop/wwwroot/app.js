@@ -16,6 +16,7 @@
     file's text, and it cannot tell a specifier in a comment from one the module really imports.
 */
 import { FindingsTable } from '/components/cs-findings-table.js';
+import { HistoryList } from '/components/cs-history-list.js';
 import { LogPanel } from '/components/cs-log-panel.js';
 import { StatTile } from '/components/cs-stat-tile.js';
 import { TrendChart } from '/components/cs-trend-chart.js';
@@ -144,6 +145,18 @@ const tiles = {
   expected: document.querySelector('#tile-expected'),
 };
 
+/** @type {HistoryList} */
+const historyList = document.querySelector('#history-list');
+
+const historyDetail = document.querySelector('#history-detail');
+const historyError = document.querySelector('#history-error');
+
+/** @type {FindingsTable} */
+const historyFindingsTable = document.querySelector('#history-findings-table');
+
+const lastScanValue = document.querySelector('#last-scan');
+const keptScansValue = document.querySelector('#kept-scans');
+
 /** Everything a running scan must not let the operator change under it. */
 const inputs = [
   urlInput, maxPagesInput, localeInput, memberEmailInput,
@@ -155,6 +168,12 @@ let running = false;
 
 /** Every kept scan the host has told us about, newest first, for every site. */
 let history = [];
+
+/**
+ * ScanHistory.Keep, mirrored here rather than sent on the envelope: the count the sidebar reads is
+ * the length of the list the host already sent, and this is only the denominator "N of 50" needs.
+ */
+const HISTORY_KEEP = 50;
 
 function post(message) {
   host?.postMessage(message);
@@ -225,6 +244,41 @@ function showTrend() {
   trendChart.entries = wanted === ''
     ? []
     : history.filter((entry) => siteKey(entry?.site) === wanted);
+}
+
+/**
+ * Fills the sidebar's two footer values from the same `history` message the trend and the History
+ * page both read from: the last scan's own time and entry count, and how many of the fifty kept
+ * scans are on disk right now.
+ */
+function showHistoryFooter() {
+  const [latest] = history;
+
+  lastScanValue.textContent = latest ? describeScan(latest) : 'No scans yet';
+  keptScansValue.textContent = `${history.length} of ${HISTORY_KEEP} kept`;
+}
+
+/**
+ * "29 Aug 2026, 03:09 - 3 entries" - or just the count, for a date the field cannot read.
+ *
+ * A plain hyphen, not the middle dot this file already has one of (in the violations hint below):
+ * a second literal non-ASCII byte pair here would be one more thing for a careless encoding
+ * round-trip on this file to mangle, for a separator this string has no real need to match.
+ */
+function describeScan(entry) {
+  const at = new Date(entry?.completedAt);
+  const entries = Number.isFinite(entry?.entryCount) ? entry.entryCount : 0;
+  const noun = entries === 1 ? 'entry' : 'entries';
+
+  if (Number.isNaN(at.getTime())) {
+    return `${entries} ${noun}`;
+  }
+
+  const when = at.toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+
+  return `${when} - ${entries} ${noun}`;
 }
 
 /**
@@ -397,6 +451,23 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
+/**
+ * Exactly one selected is the only count this task answers: `loadScan` asks the host to read that
+ * one file. Zero or several both put the detail pane away rather than leave it showing a scan that
+ * is no longer the one thing selected - two is Task 8's to answer, not this one's.
+ */
+historyList?.addEventListener('selection-changed', (event) => {
+  const paths = Array.isArray(event.detail?.paths) ? event.detail.paths : [];
+
+  if (paths.length !== 1) {
+    historyDetail.hidden = true;
+
+    return;
+  }
+
+  post({ type: 'loadScan', path: paths[0] });
+});
+
 host?.addEventListener('message', (event) => {
   // Already an object: the host posts with PostWebMessageAsJson, so WebView2 has parsed it by the
   // time it arrives.
@@ -425,11 +496,35 @@ host?.addEventListener('message', (event) => {
       history = Array.isArray(message.entries) ? message.entries : [];
 
       showTrend();
+      showHistoryFooter();
+
+      historyList.entries = history;
 
       break;
 
-    // Everything else - scan, diff, error - belongs to a page that does not exist yet. Ignored
-    // rather than logged: an unhandled type is a task not written, not a fault.
+    // The answer to loadScan for a file that read back cleanly. Rendered into the SAME element the
+    // Scan page uses - see cs-findings-table.js - so the colouring rule the exit code has to agree
+    // with exists in exactly one place.
+    case 'scan':
+      historyError.hidden = true;
+      historyFindingsTable.result = message.result;
+      historyDetail.hidden = false;
+
+      break;
+
+    // loadScan (and later, compare) answering a file that would not read back - deleted or
+    // corrupted since the list was drawn. Shown inline rather than left silent: the operator asked
+    // for one specific scan and is owed a reason it did not appear.
+    case 'error':
+      historyFindingsTable.result = null;
+      historyError.textContent = message.message;
+      historyError.hidden = false;
+      historyDetail.hidden = false;
+
+      break;
+
+    // Everything else - diff - belongs to a page that does not exist yet. Ignored rather than
+    // logged: an unhandled type is a task not written, not a fault.
     default:
       break;
   }
