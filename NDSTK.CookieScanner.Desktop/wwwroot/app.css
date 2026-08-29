@@ -1011,6 +1011,11 @@ cs-history-list {
   background: var(--blue-50);
 }
 
+/* The whole row toggles its checkbox, and the cursor says so; the hover tint above already does. */
+.data-table tbody tr.history-row {
+  cursor: pointer;
+}
+
 .history-note {
   margin-bottom: var(--s-3);
 }

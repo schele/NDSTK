@@ -15,8 +15,18 @@ import { LitElement, html, nothing } from '/vendor/lit.js';
     is otherwise undiscoverable, because two checkboxes look exactly like two checkboxes. The words
     are handed in by whoever owns the meaning, the same way cs-stat-tile is handed every word it
     shows; this element only finds it somewhere to live.
+
+    The one thing this element does decide is HOW MANY can be ticked: at most two, and a third tick
+    lets go of the one ticked first. That is a property of the control, not of what two mean - a
+    "pick up to two" list is a different control from a "pick any" list, and letting the count run on
+    only ever produced a state the host had to apologise for ("untick down to two"). The whole row is
+    a click target as well, because the box is small and the row is what the eye is on; the box stays
+    the visible state and the thing the keyboard reaches.
 */
 export class HistoryList extends LitElement {
+  /** How many rows may be ticked at once - a comparison is between exactly two. */
+  static limit = 2;
+
   static properties = {
     /**
      * Every kept scan, newest first - the `history` message's `entries`, unmodified.
@@ -78,6 +88,12 @@ export class HistoryList extends LitElement {
     const next = new Set(this.selected);
 
     if (checked) {
+      // A Set iterates in insertion order, so its first value is the tick that has been there
+      // longest - the one that gives way when a third arrives.
+      if (next.has(path) === false && next.size >= HistoryList.limit) {
+        next.delete(next.values().next().value);
+      }
+
       next.add(path);
     } else {
       next.delete(path);
@@ -86,6 +102,19 @@ export class HistoryList extends LitElement {
     this.selected = next;
 
     this.announce();
+  }
+
+  /**
+   * A click anywhere on the row toggles it. The checkbox handles its own clicks through `change`,
+   * so a click that landed on the box is left alone here - otherwise one click would toggle twice
+   * and land back where it started.
+   */
+  rowClick(event, path, checked) {
+    if (event.target.closest('input')) {
+      return;
+    }
+
+    this.toggle(path, !checked);
   }
 
   /** Composed and bubbling, same as `page-shown`: whoever hosts this element listens on itself. */
@@ -140,7 +169,8 @@ function row(entry, checked, host) {
   const exitCode = whole(entry.exitCode);
 
   return html`
-    <tr class=${checked ? 'is-selected' : ''} title=${exitCode}>
+    <tr class="history-row ${checked ? 'is-selected' : ''}" title=${exitCode}
+        @click=${(event) => host.rowClick(event, entry.path, checked)}>
       <td class="history-check">
         <input
           type="checkbox"

@@ -726,11 +726,9 @@ function describeSelection(paths) {
     return 'One selected - its findings are below. Tick a second to compare the two.';
   }
 
-  if (paths.length === 2) {
-    return 'Two selected - the comparison is below.';
-  }
-
-  return `${paths.length} selected - a comparison is between exactly two, so untick down to two.`;
+  // The list itself holds the count at two - a third tick lets go of the first - so this is the last
+  // state there is, and the place to say how to move on from it.
+  return 'Two selected - the comparison is below. Tick another and the one ticked first gives way.';
 }
 
 host?.addEventListener('message', (event) => {
