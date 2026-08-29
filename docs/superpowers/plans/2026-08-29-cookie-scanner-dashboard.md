@@ -1020,7 +1020,7 @@ Three labelled groups with counts — Appeared (teal), Disappeared (red), Recate
 
 Builds and both suites green.
 
-**With the site up**, seed two genuinely different scans from the CLI — one plain, one with `--member-email 'cookie-scan-test@ndstk.local' --member-password 'amRTkMr4GULF0h9Aa!'`, a minute apart — then drive Compare by UI Automation and screenshot (`task8-compare.png`):
+**With the site up**, seed two genuinely different scans from the CLI — one plain, one with `--member-email 'cookie-scan-test@ndstk.local' --member-password '<test-member-password>'`, a minute apart — then drive Compare by UI Automation and screenshot (`task8-compare.png`):
 
 - the member-vs-public pair shows exactly `.AspNetCore.Identity.Application` in one group; name the group;
 - selecting the two in the **opposite order** puts it in the **same** group;

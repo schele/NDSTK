@@ -641,7 +641,7 @@ Then repeat Task 1 Step 8's four diffs — public, refused, badcreds, and the me
 ```bash
 dotnet run --project NDSTK.CookieScanner -- --url https://localhost:44351 --max-pages 7 \
   --client-id cookie-scanner --dry-run --member-email 'cookie-scan-test@ndstk.local' \
-  --member-password 'amRTkMr4GULF0h9Aa!' --report-dir ./scan-out \
+  --member-password '<test-member-password>' --report-dir ./scan-out \
   > /tmp/t3-member-out.txt 2> /tmp/t3-member-err.txt
 diff /tmp/t3-member-out.txt .superpowers/sdd/ui-baseline/member-stdout.txt
 ```
@@ -1753,7 +1753,7 @@ dotnet run --project NDSTK.CookieScanner -- --url https://localhost:44351 --max-
 # member
 dotnet run --project NDSTK.CookieScanner -- --url https://localhost:44351 --max-pages 7 \
   --client-id cookie-scanner --dry-run --member-email 'cookie-scan-test@ndstk.local' \
-  --member-password 'amRTkMr4GULF0h9Aa!' --report-dir ./scan-out > /tmp/f-mem-out.txt 2> /tmp/f-mem-err.txt
+  --member-password '<test-member-password>' --report-dir ./scan-out > /tmp/f-mem-out.txt 2> /tmp/f-mem-err.txt
 # unreachable
 dotnet run --project NDSTK.CookieScanner -- --url http://localhost:59999 --max-pages 3 \
   > /tmp/f-ref-out.txt 2> /tmp/f-ref-err.txt
