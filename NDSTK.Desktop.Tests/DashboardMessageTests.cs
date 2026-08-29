@@ -107,6 +107,24 @@ public class DashboardMessageTests
     }
 
     /// <summary>
+    /// The two commands that end in a write are the two whose payload is checked at the parse.
+    /// </summary>
+    /// <remarks>
+    /// System.Text.Json fills a constructor parameter the message does not carry with default, so
+    /// both of these deserialise into a command holding a null the record's own type says cannot be
+    /// there. A dropped message is the right answer: a saveSite with no profile would fault the
+    /// settings write, and a deleteSite with no URL would match nothing, remove nothing, drop the
+    /// selection and rewrite the file to say so - a silent edit nobody asked for.
+    /// </remarks>
+    [Theory]
+    [InlineData("""{"type":"saveSite"}""")]
+    [InlineData("""{"type":"deleteSite"}""")]
+    public void A_site_command_missing_its_payload_is_dropped(string json)
+    {
+        Assert.Null(DashboardCommand.Parse(json));
+    }
+
+    /// <summary>
     /// The names the diff view reads a comparison by.
     /// </summary>
     /// <remarks>

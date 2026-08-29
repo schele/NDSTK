@@ -44,8 +44,8 @@ public abstract record DashboardCommand
                 "run" => JsonSerializer.Deserialize<RunCommand>(json, ScanJson.Options),
                 "loadScan" => JsonSerializer.Deserialize<LoadScanCommand>(json, ScanJson.Options),
                 "compare" => JsonSerializer.Deserialize<CompareCommand>(json, ScanJson.Options),
-                "saveSite" => Complete(JsonSerializer.Deserialize<SaveSiteCommand>(json, ScanJson.Options)),
-                "deleteSite" => JsonSerializer.Deserialize<DeleteSiteCommand>(json, ScanJson.Options),
+                "saveSite" => CompleteSave(JsonSerializer.Deserialize<SaveSiteCommand>(json, ScanJson.Options)),
+                "deleteSite" => CompleteDelete(JsonSerializer.Deserialize<DeleteSiteCommand>(json, ScanJson.Options)),
                 _ => null,
             };
         }
@@ -54,13 +54,19 @@ public abstract record DashboardCommand
             return null;
         }
 
-        // System.Text.Json fills a constructor parameter the message does not carry with default,
-        // so a saveSite with no `profile` deserialises into a command holding a null the record's
-        // own type says cannot be there. Checked here rather than at the handler because this one
-        // ends in a write: every other command's missing member costs a scan, and this one would
-        // fault the settings file's own save path.
-        static SaveSiteCommand? Complete(SaveSiteCommand? command)
+        // System.Text.Json fills a constructor parameter the message does not carry with default, so
+        // a saveSite with no `profile` - or a deleteSite with no `url` - deserialises into a command
+        // holding a null the record's own type says cannot be there. Checked here rather than at the
+        // handlers because these are the two commands that end in a write: every other command's
+        // missing member costs a scan, and a deleteSite with no URL would match no profile, remove
+        // nothing, drop the selection and rewrite the file to say so.
+        //
+        // Two names rather than one overloaded pair, because local functions cannot be overloaded.
+        static SaveSiteCommand? CompleteSave(SaveSiteCommand? command)
             => command is { Profile: not null } ? command : null;
+
+        static DeleteSiteCommand? CompleteDelete(DeleteSiteCommand? command)
+            => command is { Url: not null } ? command : null;
     }
 }
 
@@ -106,11 +112,11 @@ public sealed record ReadyCommand : DashboardCommand;
 /// </summary>
 /// <remarks>
 /// Only <c>sites</c> qualifies today: the form answers <c>saveSite</c> and <c>deleteSite</c> with it,
-/// and a finished <see cref="ScanSession"/> answers with it too, because a run saves the profile it
-/// ran with. Two anonymous objects spelling the same envelope in two files is exactly the drift the
-/// page cannot be told about - a renamed member would leave the dropdown empty after a run and full
-/// after a save, with nothing to compile against. Every other answer is built where it is posted,
-/// because every other answer has one caller.
+/// and <see cref="ScanSession"/> posts it as a run STARTS - right after the upsert that records what
+/// the run is about to do, and long before the run finishes. Two anonymous objects spelling the same
+/// envelope in two files is exactly the drift the page cannot be told about - a renamed member would
+/// leave the dropdown empty after a run and full after a save, with nothing to compile against. Every
+/// other answer is built where it is posted, because every other answer has one caller.
 /// </remarks>
 public static class DashboardAnswer
 {

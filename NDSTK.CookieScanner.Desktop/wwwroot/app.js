@@ -388,7 +388,7 @@ function currentProfile() {
  * Redraws the dropdown from the host's list and refills the form from whichever profile it names.
  *
  * The one place the saved sites reach the page, so `state` at startup and every `sites` answer to a
- * save, a delete or a finished run all land in the same code - there is no second path that could
+ * save, a delete or a starting run all land in the same code - there is no second path that could
  * leave the list and the fields describing different profiles.
  *
  * The form is refilled unconditionally, including after a save of the values already in it. That
@@ -746,9 +746,10 @@ host?.addEventListener('message', (event) => {
 
       break;
 
-    // The answer to saveSite and to deleteSite - and to a finished run, which saves the profile it
-    // ran with. Always the host's whole list rather than the one entry that changed, so the page
-    // never has to reconstruct what the file now holds from what it asked for.
+    // The answer to saveSite and to deleteSite - and to a run STARTING, which saves the profile it
+    // is about to run with before it starts. Always the host's whole list rather than the one entry
+    // that changed, so the page never has to reconstruct what the file now holds from what it asked
+    // for.
     case 'sites':
       showSites(message.sites, message.selectedUrl);
 

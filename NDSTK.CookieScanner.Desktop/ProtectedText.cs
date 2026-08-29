@@ -19,10 +19,16 @@ namespace NDSTK.CookieScanner.Desktop;
 /// </para>
 /// <para>
 /// The stored form carries a prefix rather than being bare base64, so a reader - a person, a later
-/// build, or <see cref="DashboardSettings.Load(string)"/> itself - can tell a blob from a value the
-/// pre-profiles build wrote in plain text. Without it, a legacy client id that happened to be valid
-/// base64 would be handed to DPAPI and come back as a decrypt failure rather than as the plain
-/// string it is.
+/// build, or <see cref="DashboardSettings.Load(string)"/> itself - can tell at a glance whether a
+/// field holds ciphertext.
+/// <para>
+/// A value in the new-shape file WITHOUT the prefix is treated as a failure, not as plain text to be
+/// used: everything in that file was written by <see cref="Protect"/>, so a bare string there was
+/// put in by hand or by something that is not this program, and quietly signing in with it would be
+/// this class deciding that an unexplained credential is fine. It is cleared and warned about
+/// instead. The genuinely-plaintext case - a settings file from before profiles - never reaches
+/// here at all: that file has no <c>sites</c> array, so Load takes its migration path and reads the
+/// old flat fields directly.
 /// </para>
 /// </remarks>
 public static class ProtectedText

@@ -221,7 +221,14 @@
               <button class="button button--primary" id="scan-run" type="submit">Run</button>
               <button class="button" id="scan-cancel" type="button" hidden>Cancel</button>
               <button class="button" id="scan-save-site" type="button">Save site</button>
-              <button class="button button--quiet" id="scan-delete-site" type="button">Delete</button>
+              <!--
+                aria-label, because "Delete" alone is what a screen reader announces out of context -
+                in a list of this page's controls, say - and it does not say what is deleted. The
+                visible word stays "Delete": beside a site dropdown it is unambiguous to anyone who
+                can see the row it is in, and the longer label would crowd it.
+              -->
+              <button class="button button--quiet" id="scan-delete-site" type="button"
+                      aria-label="Delete saved site">Delete</button>
             </div>
 
           </form>

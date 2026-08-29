@@ -111,6 +111,43 @@ public class DashboardSettingsTests
         Assert.Equal("https://localhost:44351", settings.SelectedUrl);
     }
 
+    /// <summary>
+    /// A flat file whose URL is blank migrates to nothing, not to a profile nobody can reach.
+    /// </summary>
+    /// <remarks>
+    /// The old file allowed a blank URL - it stored whatever had last been typed - and a profile
+    /// carrying one is worse than no profile at all. The URL is the identity, the dropdown label and
+    /// the delete key, so a blank one renders as an option with the same empty value as "New site":
+    /// picking it does nothing, Delete stays disabled because the select reads as unselected, and it
+    /// survives every save. Nothing in it is worth that - it cannot even name a site to scan.
+    /// </remarks>
+    [Fact]
+    public void A_flat_file_with_no_url_migrates_to_no_profiles()
+    {
+        using TempSettings file = new();
+
+        file.Write(
+            """
+            {
+              "Url": "",
+              "MaxPages": 12,
+              "Locale": 0,
+              "MemberEmail": "old@ndstk.se",
+              "ClientId": "old-client",
+              "DryRun": false
+            }
+            """);
+
+        DashboardSettings settings = DashboardSettings.Load(file.Path);
+
+        Assert.Empty(settings.Sites);
+        Assert.Null(settings.SelectedUrl);
+
+        // Not a fault worth reporting either: an empty URL is a field nobody filled in, not a value
+        // that was lost on the way out of the file.
+        Assert.Empty(settings.Warnings);
+    }
+
     [Fact]
     public void Two_profiles_round_trip_through_save_and_load()
     {
@@ -211,6 +248,83 @@ public class DashboardSettingsTests
     }
 
     /// <summary>
+    /// A stored value with no ciphertext prefix is refused, not used.
+    /// </summary>
+    /// <remarks>
+    /// The case <see cref="ProtectedText.TryUnprotect"/>'s prefix check exists for. Everything in a
+    /// new-shape file was written by <see cref="ProtectedText.Protect"/>, so a bare string in one was
+    /// put there by hand or by something that is not this program - and signing in with an
+    /// unexplained credential is not a thing to do quietly. It is cleared and warned about, exactly
+    /// as a blob that will not decrypt is, and the operator is told which field to retype.
+    /// <para>
+    /// This is NOT the migration path. A settings file that genuinely predates profiles has no
+    /// <c>sites</c> array at all, so it is read by the flat reader that expects plain text - see the
+    /// first test in this file.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_stored_value_without_the_prefix_is_refused_and_warned_about()
+    {
+        using TempSettings file = new();
+
+        SiteProfile profile = Profile("https://localhost:44351");
+
+        new DashboardSettings([profile], profile.Url).Save(file.Path);
+
+        JsonNode document = JsonNode.Parse(file.Text)!;
+
+        document["Sites"]![0]!["MemberEmail"] = "plain@ndstk.se";
+
+        file.Write(document.ToJsonString());
+
+        DashboardSettings loaded = DashboardSettings.Load(file.Path);
+
+        SiteProfile opened = Assert.Single(loaded.Sites);
+
+        Assert.Equal("", opened.MemberEmail);
+
+        // The two fields either side of it are untouched, so this really is per-field.
+        Assert.Equal(profile.MemberPassword, opened.MemberPassword);
+        Assert.Equal(profile.ClientId, opened.ClientId);
+
+        string warning = Assert.Single(loaded.Warnings);
+
+        Assert.Contains(profile.Url, warning, StringComparison.Ordinal);
+        Assert.Contains("email", warning, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Deleting the selected profile takes it and the selection, and leaves everything else.
+    /// </summary>
+    /// <remarks>
+    /// The selection goes to null rather than to the neighbour: deleting a site is not a request to
+    /// open a different one, and a form that refilled itself with another site's credentials after a
+    /// Delete would be the worst possible answer to that click. The form sets that null itself, but
+    /// the removal below is what makes it the right answer.
+    /// </remarks>
+    [Fact]
+    public void Removing_a_site_takes_that_one_and_leaves_the_rest()
+    {
+        SiteProfile kept = Profile("https://ndstk.se");
+        SiteProfile doomed = Profile("https://localhost:44351");
+
+        DashboardSettings settings = new([doomed, kept], doomed.Url);
+
+        // Trimmed and case-insensitive here too, because the URL that comes back from the page is
+        // whatever the dropdown's option held.
+        settings.Remove("  HTTPS://LocalHost:44351  ");
+        settings.SelectedUrl = null;
+
+        Assert.Equal(kept, Assert.Single(settings.Sites));
+        Assert.Null(settings.SelectedUrl);
+
+        // Removing something that is not there is a no-op, not an error: the page can ask twice.
+        settings.Remove("https://nothing.here");
+
+        Assert.Single(settings.Sites);
+    }
+
+    /// <summary>
     /// The URL is the profile's identity, so saving the same site twice edits it rather than
     /// growing the list.
     /// </summary>
@@ -224,7 +338,11 @@ public class DashboardSettingsTests
     {
         DashboardSettings settings = new([Profile("https://localhost:44351")], "https://localhost:44351");
 
-        settings.Upsert(Profile("  HTTPS://LocalHost:44351  ") with { MaxPages = 99 });
+        settings.Upsert(Profile("  HTTPS://LocalHost:44351  ") with
+        {
+            MaxPages = 99,
+            MemberPassword = "  padded-password  ",
+        });
 
         SiteProfile profile = Assert.Single(settings.Sites);
 
@@ -233,6 +351,10 @@ public class DashboardSettingsTests
         // Stored trimmed, so the value the dropdown shows and the value the next lookup compares
         // are the same string.
         Assert.Equal("HTTPS://LocalHost:44351", profile.Url);
+
+        // And so are the credentials, here rather than at the two callers: trimmed on the run path
+        // and not on the Save site path was how the same form produced two different files.
+        Assert.Equal("padded-password", profile.MemberPassword);
 
         // A different site is a different entry, which is the other half of the same rule.
         settings.Upsert(Profile("https://ndstk.se"));

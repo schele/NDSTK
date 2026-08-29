@@ -88,6 +88,11 @@ on). **Save site** writes what the form currently holds, **Delete** forgets the 
 and running a scan saves the profile for the URL it ran against — so a site scanned once is a site
 you can pick next time without having typed anything extra.
 
+Picking a profile from the dropdown is not itself remembered: browsing the saved sites changes
+nothing on disk, and the window reopens on whichever site was last **saved or scanned** rather than
+on whichever was last selected. Deleting the selected profile leaves nothing selected, so the next
+launch opens on **New site…**.
+
 The URL is the profile's identity as well as its label: there is no separate name to keep in step
 with it. Two URLs are the same profile if they match trimmed and ignoring case. That makes editing
 the URL of a selected profile and pressing Save a **save as** — the new URL matches nothing, so a

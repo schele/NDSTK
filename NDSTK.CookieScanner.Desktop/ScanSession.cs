@@ -249,25 +249,27 @@ public sealed class ScanSession(DashboardBridge bridge, DashboardSettings settin
 
     /// <summary>The run, as the profile for the site it ran against.</summary>
     /// <remarks>
-    /// Normalised the same way <see cref="BuildOptions"/> normalises them - trimmed, and the page
-    /// count put through <see cref="Pages"/> - so the profile holds what actually ran rather than
-    /// what was typed. A blank max-pages field reaches the host as zero and the scan runs 25; a
-    /// profile that stored the zero would put it back in the spinner at every later launch, which
-    /// <see cref="Pages"/>'s own remark is about.
+    /// The page count is put through <see cref="Pages"/> here, so the profile holds what actually
+    /// ran rather than what was typed: a blank max-pages field reaches the host as zero and the scan
+    /// runs 25, and a profile that stored the zero would put it back in the spinner at every later
+    /// launch, which <see cref="Pages"/>'s own remark is about.
     /// <para>
-    /// The password is trimmed for the same reason and no other: <see cref="BuildOptions"/> already
-    /// trims the one it signs in with, so storing the untrimmed text would save a value the scan
-    /// never used.
+    /// The URL and the three credentials are handed over untrimmed, because
+    /// <see cref="DashboardSettings.Upsert"/> trims every stored string itself. That is deliberate
+    /// and not an omission: trimming on this path and not on the Save site button's was how the same
+    /// form came to produce two different files depending on which one was pressed.
+    /// <see cref="BuildOptions"/> trims what it signs in with independently, so what is stored is
+    /// still exactly what the scan used.
     /// </para>
     /// </remarks>
     private static SiteProfile Remembered(RunCommand command) => new(
-        Url: command.Url.Trim(),
+        Url: command.Url,
         MaxPages: Pages(command.MaxPages),
         Locale: ParseLocale(command.Locale),
         DryRun: command.DryRun,
-        MemberEmail: command.MemberEmail?.Trim() ?? "",
-        MemberPassword: command.MemberPassword?.Trim() ?? "",
-        ClientId: command.ClientId?.Trim() ?? "");
+        MemberEmail: command.MemberEmail ?? "",
+        MemberPassword: command.MemberPassword ?? "",
+        ClientId: command.ClientId ?? "");
 
     /// <remarks>
     /// Swedish for anything unrecognised, which is the rule the console tool applies to --locale.

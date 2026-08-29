@@ -174,9 +174,13 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
         {
             // Losing the remembered settings is a nuisance, not a reason to fail a scan. Broad for
             // the same reason as Load, and for one more: the caller invokes this outside its own
-            // try, so anything that escapes here would reach the message loop unhandled. DPAPI's own
-            // failures land here too - a profile that cannot be encrypted is not written rather than
-            // written in the clear.
+            // try, so anything that escapes here would reach the message loop unhandled.
+            //
+            // DPAPI's own failures land here too, and the whole write is what they cost: Protected
+            // runs over every profile before a byte is written, so one field that will not encrypt
+            // abandons the save and leaves the file exactly as it was. That is the right end of the
+            // trade - the alternative to an unchanged file is a half-written one - but it does mean
+            // a profile is never quietly written in the clear, and never quietly written alone.
         }
     }
 
@@ -190,10 +194,23 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
     /// reading - copying a set of options from staging to production is the common case, and a
     /// window that silently renamed the original would have destroyed the profile it was copied from.
     /// </para>
+    /// <para>
+    /// Every stored string is trimmed HERE rather than by the callers. There are two of them - the
+    /// Save site button and a run saving what it ran with - and while the URL had to be normalised at
+    /// this end anyway, since it is what the match above compares, the credentials did not: they were
+    /// trimmed on one path and not the other, so the same form produced two different files depending
+    /// on which button had been pressed. One place, both callers, no way for them to disagree.
+    /// </para>
     /// </remarks>
     public void Upsert(SiteProfile profile)
     {
-        SiteProfile stored = profile with { Url = profile.Url.Trim() };
+        SiteProfile stored = profile with
+        {
+            Url = Trimmed(profile.Url),
+            MemberEmail = Trimmed(profile.MemberEmail),
+            MemberPassword = Trimmed(profile.MemberPassword),
+            ClientId = Trimmed(profile.ClientId),
+        };
 
         List<SiteProfile> next = [.. Sites];
 
@@ -226,9 +243,28 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
     /// this is a value the operator typed and gets shown back rather than one Uri produced.
     /// </remarks>
     private static bool IsSameSite(string? left, string? right)
-        => string.Equals((left ?? "").Trim(), (right ?? "").Trim(), StringComparison.OrdinalIgnoreCase);
+        => string.Equals(Trimmed(left), Trimmed(right), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// One stored string, normalised: never null, never padded.
+    /// </summary>
+    /// <remarks>
+    /// The null half is not paranoia about this project's own code - the records say these are not
+    /// nullable - but about the page's: System.Text.Json fills a member a message omits with the
+    /// parameter's default, and an explicit <c>"memberEmail": null</c> arrives as a null the type
+    /// says cannot be there.
+    /// </remarks>
+    private static string Trimmed(string? value) => (value ?? "").Trim();
 
     /// <summary>The new shape: profiles as stored, with the three blobs opened.</summary>
+    /// <remarks>
+    /// A profile with a blank URL is dropped before anything else happens to it. The URL is the
+    /// identity, the label and the delete key all at once, so a blank one is a row the dropdown
+    /// renders with the same empty value as its "New site" option: picking it does nothing, Delete
+    /// stays disabled because nothing is selected, and it survives every save. Unreachable and
+    /// unremovable is worse than absent, and there is nothing in such a profile worth keeping - it
+    /// cannot name a site to scan. Filtered before the decrypt so it does not spend warnings either.
+    /// </remarks>
     private static DashboardSettings Opened(string json)
     {
         DashboardSettings stored = JsonSerializer.Deserialize<DashboardSettings>(json, Options) ?? Empty;
@@ -237,7 +273,7 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
 
         stored.Sites =
         [
-            .. stored.Sites.Select(profile => profile with
+            .. stored.Sites.Where(profile => Trimmed(profile.Url).Length > 0).Select(profile => profile with
             {
                 MemberEmail = Revealed(profile.Url, "member email", profile.MemberEmail, warnings),
                 MemberPassword = Revealed(profile.Url, "member password", profile.MemberPassword, warnings),
@@ -285,14 +321,26 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
     {
         Flat flat = JsonSerializer.Deserialize<Flat>(json, Options) ?? new Flat();
 
+        string url = Trimmed(flat.Url);
+
+        // A blank URL migrates to nothing at all, rather than to a profile that cannot be picked,
+        // scanned or deleted - see the remark on Opened for what such a row does to the dropdown.
+        // The old file allowed one: its Url was whatever had last been typed, and clearing the field
+        // and running a scan that was then refused left it empty. There is nothing to migrate there;
+        // the page count and locale it would carry are the defaults a new site starts with anyway.
+        if (url.Length == 0)
+        {
+            return Empty;
+        }
+
         SiteProfile profile = new(
-            Url: (flat.Url ?? "").Trim(),
+            Url: url,
             MaxPages: flat.MaxPages,
             Locale: flat.Locale,
             DryRun: flat.DryRun,
-            MemberEmail: flat.MemberEmail ?? "",
+            MemberEmail: Trimmed(flat.MemberEmail),
             MemberPassword: "",
-            ClientId: flat.ClientId ?? "");
+            ClientId: Trimmed(flat.ClientId));
 
         // Selected, not merely present: the whole point of the old file was to reopen on the site it
         // named, and a migrated profile sitting unselected behind "New site" would look like the

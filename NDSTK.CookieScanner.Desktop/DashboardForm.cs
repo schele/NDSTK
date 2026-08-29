@@ -288,8 +288,9 @@ public sealed class DashboardForm : Form
     {
         // The page count goes through the same rule a run applies, so Save site and Run store the
         // same number for the same form: a blank field arrives as zero, and a profile holding a zero
-        // would put one in the spinner at every later launch - see ScanSession.Pages. Nothing else
-        // is normalised here; Upsert trims the URL because that is the identity it matches on.
+        // would put one in the spinner at every later launch - see ScanSession.Pages. It is the one
+        // thing normalised out here, because it is the only one whose rule belongs to the scanner
+        // rather than to the file; Upsert trims the URL and the three credentials for both callers.
         settings.Upsert(profile with { MaxPages = ScanSession.Pages(profile.MaxPages) });
         settings.SelectedUrl = profile.Url.Trim();
         settings.Save();
