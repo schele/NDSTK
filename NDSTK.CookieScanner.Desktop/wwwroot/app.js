@@ -21,6 +21,7 @@ import { HistoryList } from '/components/cs-history-list.js';
 import { LogPanel } from '/components/cs-log-panel.js';
 import { StatTile } from '/components/cs-stat-tile.js';
 import { TrendChart } from '/components/cs-trend-chart.js';
+import { DEFAULT_LOG_THEME, LOG_THEMES, logTheme } from '/log-themes.js';
 
 const FALLBACK = 'scan';
 
@@ -131,6 +132,51 @@ const secretStatus = document.querySelector('#secret-status');
 
 /** @type {LogPanel} */
 const logPanel = document.querySelector('#scan-log');
+const logThemeSelect = document.querySelector('#scan-log-theme');
+
+// The log's colour scheme: three custom properties set on the panel itself, which is where its
+// styles read them, so the choice reaches the placeholder and the warning tint as well as the lines.
+// Remembered in localStorage rather than in the profiles file - a preference about this screen on
+// this machine, not a fact about a site - and the page has a real origin to keep it under.
+const LOG_THEME_KEY = 'logTheme';
+
+function applyLogTheme(id) {
+  const theme = logTheme(id);
+
+  logPanel.style.setProperty('--log-bg', theme.bg);
+  logPanel.style.setProperty('--log-ink', theme.ink);
+  logPanel.style.setProperty('--log-warn', theme.warn);
+  logThemeSelect.value = theme.id;
+}
+
+function rememberedLogTheme() {
+  // Storage can be absent or refused; the default is the answer either way.
+  try {
+    return localStorage.getItem(LOG_THEME_KEY) ?? DEFAULT_LOG_THEME;
+  } catch {
+    return DEFAULT_LOG_THEME;
+  }
+}
+
+for (const theme of LOG_THEMES) {
+  const option = document.createElement('option');
+
+  option.value = theme.id;
+  option.textContent = theme.name;
+  logThemeSelect.append(option);
+}
+
+applyLogTheme(rememberedLogTheme());
+
+logThemeSelect.addEventListener('change', () => {
+  applyLogTheme(logThemeSelect.value);
+
+  try {
+    localStorage.setItem(LOG_THEME_KEY, logThemeSelect.value);
+  } catch {
+    // Not remembered, still applied: the operator keeps the colours they picked for this session.
+  }
+});
 
 const findings = document.querySelector('#scan-findings');
 

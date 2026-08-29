@@ -24,7 +24,8 @@
   --teal-600: #0F8B7A;    --teal-800: #0A6357;     --teal-50: #E3F5F1;
   --amber-700: #9A6300;   --amber-50: #FFF6E3;
   --red-600: #C2334B;     --red-50: #FDECEF;
-  --log-bg: #0F1826;      --log-ink: #C6D2E4;      --log-warn: #FFC978;
+  /* The log at rest is the Charcoal scheme from log-themes.js; a chosen scheme overrides these on the panel. */
+  --log-bg: #23272E;      --log-ink: #D7DCE3;      --log-warn: #FFC978;
 
   --r-sm: 6px; --r-md: 10px; --r-lg: 12px; --r-xl: 14px; --r-pill: 999px;
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
@@ -331,6 +332,19 @@ svg {
 .card-title {
   font-size: 14px;
   font-weight: 600;
+}
+
+/* A small control in a card's header - the log's colour picker - label and select on one line. */
+.card-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.input--compact {
+  height: 28px;
+  padding: 0 var(--s-2);
+  font-size: 12px;
 }
 
 .eyebrow {

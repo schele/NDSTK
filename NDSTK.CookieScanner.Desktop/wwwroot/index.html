@@ -293,6 +293,17 @@
       <div class="card">
         <div class="card-head">
           <h2 class="card-title">Scan log</h2>
+          <!--
+            The log's colours, chosen where they are looked at. A real select with a real label:
+            twenty named schemes are a one-of-many choice, and the browser's own control already
+            answers to the keyboard and to a screen reader. Filled by app.js from log-themes.js and
+            remembered per machine in localStorage - a preference about this screen, not a fact about
+            any site, so it has no place in the profiles file.
+          -->
+          <div class="card-tools">
+            <label class="label" for="scan-log-theme">Colours</label>
+            <select class="input input--compact" id="scan-log-theme"></select>
+          </div>
         </div>
         <cs-log-panel id="scan-log"></cs-log-panel>
       </div>
