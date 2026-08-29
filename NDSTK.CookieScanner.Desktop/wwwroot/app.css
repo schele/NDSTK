@@ -449,6 +449,14 @@ svg {
   cursor: default;
 }
 
+/*
+    The display above outranks [hidden]'s own rule, exactly as .page[hidden] does higher up, so a
+    button hidden by the page stayed on screen - Run and Cancel were both showing at once.
+*/
+.button[hidden] {
+  display: none;
+}
+
 .field {
   display: grid;
   gap: var(--s-2);
@@ -486,6 +494,85 @@ svg {
 
 .input::placeholder {
   color: var(--ink-400);
+}
+
+/*
+    A running scan disables every field, and a field with an explicit background of its own does not
+    grey out on its own: without this the form looks live for the fifty seconds it is not.
+*/
+.input:disabled {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--ink-500);
+}
+
+/* ---------------------------------------------------------------- scan form
+
+    Layout only. Every control in here is one of the primitives above; what this section adds is the
+    spacing between them and the disclosure that holds the five options nobody changes twice.
+*/
+
+.scan-form {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.options-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: fit-content;
+  color: var(--ink-600);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  /* Both are needed: Chromium draws its marker through a pseudo-element list-style cannot reach. */
+  list-style: none;
+}
+
+.options-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Drawn rather than borrowed, so it turns with the state instead of sitting under the browser's. */
+.options-summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform .12s ease;
+}
+
+.options[open] > .options-summary::before {
+  transform: rotate(90deg);
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+}
+
+.field-note {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: fit-content;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
 }
 
 /* ---------------------------------------------------------------- data table */

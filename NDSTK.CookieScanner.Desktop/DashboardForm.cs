@@ -14,6 +14,25 @@ public sealed class DashboardForm : Form
         Dock = DockStyle.Fill,
     };
 
+    /// <remarks>
+    /// Read once, at construction. The variable is fixed for the life of the process, and a page that
+    /// re-read it would suggest it could be changed without restarting. Reported as a plain fact
+    /// rather than as a fault: report-only is a supported mode.
+    /// </remarks>
+    private readonly bool secretIsSet =
+        string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ScanOptions.SecretVariable)) is false;
+
+    /// <remarks>
+    /// Loaded here rather than on <c>ready</c>: a settings file that cannot be read costs the window
+    /// its remembered options, and finding that out while the page waits for its first message is
+    /// worse than finding it out before the page exists.
+    /// </remarks>
+    private readonly DashboardSettings settings = DashboardSettings.Load();
+
+    private DashboardBridge? bridge;
+
+    private ScanSession? session;
+
     public DashboardForm()
     {
         Text = "NDSTK cookie scanner";
@@ -113,6 +132,14 @@ public sealed class DashboardForm : Form
 
             core.WebResourceRequested += OnWebResourceRequested;
 
+            // Before the navigation, not after: the page announces itself the moment its module runs,
+            // and a bridge subscribed a millisecond later would miss that message and every envelope
+            // it releases.
+            bridge = new DashboardBridge(webView);
+            bridge.CommandReceived += OnCommandReceived;
+
+            session = new ScanSession(bridge);
+
             core.Navigate("https://app.localhost/index.html");
         }
         catch (Exception error)
@@ -136,6 +163,47 @@ public sealed class DashboardForm : Form
                 MessageBoxIcon.Error);
 
             Close();
+        }
+    }
+
+    /// <summary>Routes one message from the page to whatever answers it.</summary>
+    /// <remarks>
+    /// A switch rather than a dictionary of handlers: the later pages add message types here, and a
+    /// missing arm should be a compiler-visible gap in one method rather than a registration someone
+    /// forgot. The types this build does not answer yet fall through deliberately - the page they
+    /// belong to does not exist, so nothing can send them.
+    /// </remarks>
+    private void OnCommandReceived(DashboardCommand command)
+    {
+        switch (command)
+        {
+            case ReadyCommand:
+                // The first thing the page hears: what it may not persist, and what it remembered
+                // last time. Posted on ready rather than baked into index.html, because the page is
+                // an embedded resource and the settings are not.
+                bridge?.Post(new
+                {
+                    type = "state",
+                    running = false,
+                    secretIsSet,
+                    secretVariable = ScanOptions.SecretVariable,
+                    settings,
+                });
+
+                break;
+
+            case RunCommand run:
+                // Not awaited: this handler is on the message loop, and a scan takes the best part
+                // of a minute. StartAsync throws nothing - every failure inside it becomes a warning
+                // line and a running state the page can trust.
+                _ = session?.StartAsync(run);
+
+                break;
+
+            case CancelCommand:
+                session?.Cancel();
+
+                break;
         }
     }
 
