@@ -109,9 +109,14 @@ public sealed class ManagementApiClient(ScanOptions options, IScanLog log)
 
         if (response.IsSuccessStatusCode is false)
         {
+            // Names both places the secret can come from: the dashboard sends the profile's own, and
+            // only the console tool - or a profile with none - reads the environment variable. A
+            // message that named the variable alone sent a dashboard user to a setting they were not using.
             throw new InvalidOperationException(
-                $"Could not get a token (HTTP {(int)response.StatusCode}). Check the client id, and "
-                + $"that {ScanOptions.SecretVariable} holds the matching secret. Response: {body}");
+                $"Could not get a token (HTTP {(int)response.StatusCode}). Check that the client id and "
+                + "secret the scan was given are the pair the site registered - the profile's API "
+                + $"credentials in the dashboard, --client-id and {ScanOptions.SecretVariable} for the "
+                + $"console tool. Response: {body}");
         }
 
         TokenResponse? token = JsonSerializer.Deserialize<TokenResponse>(body, Json);

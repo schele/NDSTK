@@ -753,11 +753,12 @@ is the added top-level `options`. No existing key changed name, type or value.
 
 ## Troubleshooting
 
-- **A 401 on the token request, and the message says to check `NDSTK_COOKIESCAN_CLIENT_SECRET`.**
-  That message is the engine's and was written when the variable was the only source. In the
-  dashboard the secret that was actually sent is the profile's **API client secret** field; the
-  variable is only the fallback for a profile that has none. Check the field first, then the site's
-  `appsettings.Secrets.json` for the value it registered, and only then the variable.
+- **A 401 on the token request.** The id and secret the scan sent are not the pair the site
+  registered. In the dashboard the secret that was sent is the profile's **API client secret**
+  field, or `NDSTK_COOKIESCAN_CLIENT_SECRET` only if that field is empty; for the console tool it is
+  always the variable. Check the source that applies against the site's `appsettings.Secrets.json`,
+  and remember the seeder re-registers the pair on every site boot - a secret rotated there needs
+  rotating in the profile too.
 
 **"WebView2 runtime not found" when the dashboard starts.**
 The WebView2 Evergreen runtime is missing. Install it from
