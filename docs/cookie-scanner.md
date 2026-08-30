@@ -56,8 +56,9 @@ and the host talk in one JSON envelope both ways (`PostWebMessageAsJson` out of 
 `chrome.webview.postMessage` in), so `ScanSession` runs the same engine the CLI does and reports
 progress as messages rather than as console lines.
 
-The dashboard has two pages. **Scan** takes the same options as the CLI's flags — site URL, max
-pages, locale, member email and password, client id — picked in one go from the site dropdown above
+The dashboard has two pages. **Scan** takes the CLI's options as fields — site URL, max pages,
+locale, member email and password, client id — plus the client secret, which the CLI takes from the
+environment instead; all of them picked in one go from the site dropdown above
 them (see Site profiles, below), runs the scan with live progress in a log
 panel (warnings called out), and fills four stat tiles plus a findings table where violations are
 tinted red and `NeedsReview` candidates amber (`cs-findings-table`). A trend chart beside the run
@@ -82,11 +83,11 @@ see Overriding the catalogue, below.
 ### Site profiles
 
 The run card's dropdown holds one **profile per site**: the URL, max pages, locale, the dry-run
-flag, the member email, the member password and the API client id. Picking one fills every field
-below it, including the password; **New site…** clears them to the defaults (25 pages, SV, dry run
-on). **Save site** writes what the form currently holds, **Delete** forgets the selected profile,
-and running a scan saves the profile for the URL it ran against — so a site scanned once is a site
-you can pick next time without having typed anything extra.
+flag, the member email, the member password, the API client id and the API client secret. Picking
+one fills every field below it, including both masked credentials; **New site…** clears them to the
+defaults (25 pages, SV, dry run on). **Save site** writes what the form currently holds, **Delete**
+forgets the selected profile, and running a scan saves the profile for the URL it ran against — so a
+site scanned once is a site you can pick next time without having typed anything extra.
 
 Picking a profile from the dropdown is not itself remembered: browsing the saved sites changes
 nothing on disk, and the window reopens on whichever site was last **saved or scanned** rather than
@@ -101,7 +102,7 @@ staging to production is the common case, and a window that silently renamed the
 have destroyed what it was copied from.
 
 Profiles live in `%LOCALAPPDATA%\NDSTK.CookieScanner\settings.json`, and **the member email, the
-member password and the API client id are encrypted at rest** with DPAPI
+member password, the API client id and the API client secret are encrypted at rest** with DPAPI
 (`System.Security.Cryptography.ProtectedData`, `DataProtectionScope.CurrentUser`, plus a fixed
 application entropy that is a namespace rather than a secret — see `ProtectedText`). Each is stored
 as `"dpapi:<base64>"`, so a reader can tell ciphertext from a value the pre-profiles build wrote in
@@ -120,12 +121,15 @@ A blob that will not open costs its own field and nothing else: it loads as empt
 profile is kept, and the log gets one line on startup naming the site and the field to retype.
 Neither the whole profile nor the whole file is discarded.
 
-**The client secret is still never written there** — see The client secret environment variable,
-below, for why that one is different.
+**The client secret is written there too**, and used not to be — see Where the client secret comes
+from, below, for why the pair now travels together and what that costs.
 
 An old flat `settings.json` from before profiles **migrates automatically**: its fields become one
-profile, selected, with an empty password (the old file never stored one). Nothing is rewritten on
-read — the new shape is written the next time anything saves.
+profile, selected, with an empty password and an empty client secret (the old file stored neither).
+Nothing is rewritten on read — the new shape is written the next time anything saves. A file written
+by the profiles build that shipped *before* the secret opens the same way: the missing
+`ClientSecret` key loads as an empty field, with no warning, because a key that was never written is
+not a credential that was lost.
 
 ### The WebView2 runtime, and where its user-data folder lives
 
@@ -280,6 +284,11 @@ would have — with two deliberate omissions: no field for `--target` (the dashb
 against the host it scanned) and none for `--headed` (the dashboard always runs headless; `--headed`
 exists to watch the engine while debugging it, which is not what a window is for).
 
+It has one field the CLI has no flag for: **the API client secret**, saved per site with the client
+id it belongs to. That is not the same omission read backwards — the reason the CLI has no flag is
+that a flag ends up in shell history and in process listings, which a masked field in a window does
+not. See Where the client secret comes from, below.
+
 ## The API user
 
 The write-back endpoint (`CookieScanController.Merge`, at
@@ -330,47 +339,79 @@ repeat — on the next boot it re-registers the client id with the new secret ag
 application store, with no manual step in the backoffice. Update the copy the scanner uses
 (`NDSTK_COOKIESCAN_CLIENT_SECRET`, below) to match, or the next scan's token request fails with 401.
 
-## The client secret environment variable
+## Where the client secret comes from
 
 ```
 NDSTK_COOKIESCAN_CLIENT_SECRET=<secret>
-NDSTK_COOKIESCAN_CLIENT_ID=<client id>      # optional, dashboard only - see below
 ```
 
-Read once, in `ScanOptions.Parse`, straight from `Environment.GetEnvironmentVariable`. This is
-deliberately not a `--client-secret` flag: an argument passed on the command line ends up in shell
-history and in any process listing (`ps`, Task Manager, a CI log that echoes its invocation) for as
-long as either persists. An environment variable set for one shell session, or injected by a CI
-secret store directly into the process environment, does not have either problem.
+The variable is **the console tool's only source** and **the dashboard's fallback**. The dashboard's
+own source is the site profile, where the secret is stored beside the client id and encrypted at
+rest exactly like the member password.
 
-`NDSTK_COOKIESCAN_CLIENT_ID` is the secret's optional companion, and the dashboard alone reads it.
-The id is not a secret - it is the name the site registers the API user under, `cookie-scanner` in
-this repository's development configuration - so it can live in a profile, encrypted like the rest;
-the variable is for the machine that has the secret set once and should not need the id typed into
-every profile as well. When a profile has no client id of its own, the dashboard fills the masked
-client-id box from the variable, and the note under the box falls silent because the pair is
-complete. A profile's saved id always wins over the variable. The console tool does not read it:
-`--client-id` stays a flag there.
+For the console tool it is read once, in `ScanOptions.Parse`, straight from
+`Environment.GetEnvironmentVariable`. This is deliberately not a `--client-secret` flag: an argument
+passed on the command line ends up in shell history and in any process listing (`ps`, Task Manager, a
+CI log that echoes its invocation) for as long as either persists. An environment variable set for
+one shell session, or injected by a CI secret store directly into the process environment, does not
+have either problem. Nothing about that changes.
 
-The dashboard applies the same rule to itself. `DashboardSettings` persists everything else the
-Scan page holds — including, since site profiles, the member password and the client id, encrypted
-at rest — but has **no member for the client secret**. It still only ever comes from
-`NDSTK_COOKIESCAN_CLIENT_SECRET`, read straight into `ScanSession.BuildOptions` and shown nowhere,
-and the note beside the client-id field says plainly whether that variable is currently set rather
-than offering a field that would let a secret reach `settings.json`.
+### Why the dashboard stores one per site
 
-The member password used to be in the same category and no longer is, which is a deliberate change
-rather than an erosion of the rule. The two are not alike: the secret has a working alternative that
-costs the operator nothing per run — a variable set once in the shell or injected by a CI secret
-store — while the member password had none, and was retyped for every scan of a member area. The
-secret is also the credential that can write to the live policy page, and it is the one shared with
-CI. So the password is stored under DPAPI for one Windows user on one machine, and the secret is
-not stored at all.
+The client id and the client secret are **one pair**, and each site registers its own API user — see
+The API user, above. The pair is therefore a property of the *site*, not of the machine scanning it.
+One machine-wide variable can only be right while one machine scans one site: a dashboard with a
+staging profile and a production profile has two secrets and one place to put them, and the second
+site simply cannot be written back to.
 
-Nothing about that changes what reaches the page: `saveSite` carries the credentials the operator
-just typed, and the host sends a profile's own fields back so the form can be filled from it. Both
+So the secret lives in the profile now, and the argument that used to keep it out no longer applies.
+That argument was that the secret had a working alternative the member password did not — a variable
+set once, costing the operator nothing per run — so storing it bought nothing but risk. The pair
+argument overrides it: with several sites the variable is not an alternative at all. The two
+credentials are now treated alike because they now *are* alike.
+
+**The trade-off, exactly.** The secret is on disk where it was not before. It is protected the same
+way the member password is — DPAPI, one Windows account, one machine, plus the application entropy —
+which means safe against another account, another machine and a copied file, and **not** safe
+against anything running as this Windows user. That is a real reduction, and it is the price of
+scanning more than one site from one dashboard. Three things bound it: the console tool and CI still
+take the secret from the environment and never from a file; nothing writes a secret to a *log*, a
+report or a command line; and a profile never absorbs the machine's secret behind the operator's
+back — see below.
+
+### The fallback, and what must not happen to it
+
+`ScanSession.BuildOptions` prefers the profile's own secret and falls back to
+`NDSTK_COOKIESCAN_CLIENT_SECRET` only when the field is blank. A machine that scans one site and has
+the variable set already keeps working with an empty box.
+
+`ScanSession.Remembered` stores **what was typed**, never the effective secret. The two differ
+precisely when the box was empty and the variable filled in, and writing that value into the profile
+would have the profile quietly absorb the machine's secret on its first run: the box would refill
+with dots at the next launch, the site would look as though it had a secret of its own, and moving
+the file — or the operator — to a machine with a different variable would fail with a credential
+nobody remembers typing. A blank box stays blank on disk.
+
+The note under the credential pair on the Scan page says which half is missing, and nothing more.
+It is computed from the two boxes plus two facts the host sends on `ready` — whether the variable is
+set, and what it is called. **The value itself never reaches the page.** Its states, quietest first:
+
+| What the form holds | The note says |
+| --- | --- |
+| An id, and a secret or the fallback | *(nothing — the pair can sign in)* |
+| An id, no secret, no fallback | No client secret - write-back will be skipped |
+| Neither, but the fallback is set | `NDSTK_COOKIESCAN_CLIENT_SECRET` is set - a client id completes the pair |
+| Neither, and no fallback | No API credentials - the scan runs report-only |
+| A secret, no id | A client id is needed with the secret |
+
+It stays muted in every state: a scan with no credentials at all still finds every cookie, it just
+does not write the policy page. Report-only is a supported mode, not a fault.
+
+Nothing about any of this changes what reaches the page: `saveSite` carries the credentials the
+operator just typed, and the host sends a profile's own fields back so the form can be filled from
+it. The client secret is now in both of those directions, alongside the member password, and both
 directions stay inside the process — WebView2 hands the envelope to a renderer in the same exe, over
-no socket and no origin anything else can reach. The client secret is not in either direction.
+no socket and no origin anything else can reach.
 
 ## Publishing the portable exes
 
@@ -643,7 +684,8 @@ tiles and findings table filling to match the report JSON, including the rule th
 violation if it appears in `violations` even when its own `flag` is not `Violation`; a cancelled run
 leaving neither a report file nor a history entry behind; settings persisting across a restart with
 no credential ever written to `settings.json` — that pass predates site profiles, and the file now
-holds three of them encrypted, which the site-profiles item below covers; the trend chart plotting
+holds four of them encrypted, checked again when the client secret joined them: all four fields
+`dpapi:`-prefixed and none of the four typed plaintexts anywhere in the raw text; the trend chart plotting
 entries and violations
 across kept scans; History listing, opening and comparing scans; and the compare showing exactly
 the one cookie that differs between a member scan and a public scan, placed in the same group
@@ -661,9 +703,9 @@ lengths), one was edited and saved, and one deleted — after which the dropdown
 themselves. Closing the window and relaunching brought the survivors back with the edit intact and
 every credential still filled.
 
-The file was read at each step. All three credential fields were `dpapi:`-prefixed base64 with no
-plaintext anywhere in it — checked by searching the raw text for each of the six values that had
-been typed, none of which appeared. All six blobs were then decrypted out-of-process with
+The file was read at each step. All three credential fields that build wrote were `dpapi:`-prefixed
+base64 with no plaintext anywhere in it — checked by searching the raw text for each of the six
+values that had been typed, none of which appeared. All six blobs were then decrypted out-of-process with
 `ProtectedData.Unprotect` under the same user and entropy and matched what had been typed exactly;
 the same blob handed the same call with a different entropy was refused with a
 `CryptographicException`, which is what the application entropy is there to do.
@@ -682,6 +724,10 @@ is the added top-level `options`. No existing key changed name, type or value.
 
 ## What has not been verified
 
+- **A per-site client secret in a live token request.** The secret moved into the profile while the
+  development site was down, so every note state, the four-field encryption and the relaunch refill
+  were verified, but no run has yet exchanged a profile-sourced secret for a token. The first
+  write-back with a saved secret settles it.
 - **A full scan against production.** `ndstk.se` is currently running a build without the cookie
   banner: no policy page, no `/api/cookie-consent`, and the package's own `consent.js` returns 404.
   A scan there reaches pass 2 and stops. That is a fact about what is deployed, not a defect — the
@@ -706,6 +752,12 @@ is the added top-level `options`. No existing key changed name, type or value.
   reasoning, not a run.
 
 ## Troubleshooting
+
+- **A 401 on the token request, and the message says to check `NDSTK_COOKIESCAN_CLIENT_SECRET`.**
+  That message is the engine's and was written when the variable was the only source. In the
+  dashboard the secret that was actually sent is the profile's **API client secret** field; the
+  variable is only the fallback for a profile that has none. Check the field first, then the site's
+  `appsettings.Secrets.json` for the value it registered, and only then the variable.
 
 **"WebView2 runtime not found" when the dashboard starts.**
 The WebView2 Evergreen runtime is missing. Install it from

@@ -188,25 +188,42 @@
                 </div>
 
                 <!--
-                  Masked for the same reason as the password beside it, and stored the same way. It
-                  is half of a credential pair - an id with the secret in the environment is a login
-                  - so leaving it in the clear on screen while masking its other half would be
-                  drawing the line in the wrong place.
+                  The credential pair, side by side like the member email and password above it,
+                  because that is what they are: one API user's name and one API user's secret,
+                  registered by the site this profile names. They were not always a pair on screen -
+                  the secret used to be a machine-wide environment variable with no field at all -
+                  and splitting them across a row boundary would hide the one thing an operator
+                  needs to see about them, which is whether both are filled in.
+
+                  Masked for the same reason as the password above, and stored the same way. The id
+                  is not itself a secret, but half a login shown in the clear beside a masked half
+                  would be drawing the line in the wrong place.
                 -->
                 <div class="field">
                   <label class="label" for="scan-client-id">API client id</label>
-                  <input class="input" id="scan-client-id" type="password" autocomplete="off">
-                  <!--
-                    Beside the client id, because it is the other half of the same answer: an id with
-                    no secret cannot reach the endpoint. Filled from the host on ready - the variable
-                    is read once at startup, so a page that re-read it would be claiming it could
-                    change without a restart. Silent once an id is typed and the secret is present:
-                    the dots in the box say the pair is complete. It speaks up only when something
-                    is missing - see showSecretStatus in app.js.
-                  -->
-                  <p class="field-note muted" id="secret-status"></p>
+                  <input class="input" id="scan-client-id" type="password" autocomplete="off"
+                         aria-describedby="secret-status">
                 </div>
 
+                <div class="field">
+                  <label class="label" for="scan-client-secret">API client secret</label>
+                  <input class="input" id="scan-client-secret" type="password" autocomplete="off"
+                         aria-describedby="secret-status">
+                </div>
+
+                <!--
+                  Under the pair and spanning both columns, because it speaks for both boxes: every
+                  state it has is about the two of them together, and a note under one of them would
+                  have to be read as being about that one. Its facts come from the host on ready -
+                  whether the machine has a secret to fall back on, and what that variable is
+                  called - read once at startup, so a page that re-read them would be claiming they
+                  could change without a restart.
+
+                  Silent when the pair can actually sign in: dots in both boxes, or an id with the
+                  fallback behind it. It speaks up only when something is missing, and never as a
+                  fault - report-only is a supported mode. See showSecretStatus in app.js.
+                -->
+                <p class="field-note muted" id="secret-status"></p>
               </div>
             </details>
 

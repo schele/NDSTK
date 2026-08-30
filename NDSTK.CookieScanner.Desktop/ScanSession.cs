@@ -77,7 +77,8 @@ public sealed class ScanSession(DashboardBridge bridge, DashboardSettings settin
         // This is the same upsert the Save site button performs, from the same values, so running a
         // scan against a URL with no profile yet creates one: "remember what was typed" and "save
         // this site" were always the same act, and now they are the same code. The client secret is
-        // still not among the values - see DashboardSettings.
+        // among the values now, but only ever the typed one - see Remembered for why the
+        // environment's must not be written here.
         settings.Upsert(Remembered(command));
         settings.SelectedUrl = command.Url.Trim();
         settings.Save();
@@ -216,9 +217,18 @@ public sealed class ScanSession(DashboardBridge bridge, DashboardSettings settin
             MemberEmail: Supplied(command.MemberEmail),
             MemberPassword: Supplied(command.MemberPassword),
             ClientId: Supplied(command.ClientId),
-            // From the environment, never from a field: the same reason the console tool refuses a
-            // --client-secret flag.
-            ClientSecret: Environment.GetEnvironmentVariable(ScanOptions.SecretVariable),
+            // The profile's own secret wins; the environment fills in when the box is empty. That
+            // order is the whole point of the change: each site registers its own API user, so the
+            // secret that belongs to the site being scanned must beat the one that happens to be set
+            // on this machine. The variable is still read - a machine that scans one site and has it
+            // set keeps working with an empty box - but it is now the fallback rather than the
+            // source.
+            //
+            // Blank counts as absent, exactly as it does for the three above: an operator who
+            // cleared the box is asking for whatever the machine has, not for "no secret".
+            ClientSecret: string.IsNullOrWhiteSpace(command.ClientSecret)
+                ? Environment.GetEnvironmentVariable(ScanOptions.SecretVariable)
+                : command.ClientSecret.Trim(),
             DryRun: command.DryRun,
             ReportDir: ReportDirectory,
             // Headless, always. --headed exists to debug the engine; a window that opened a second
@@ -254,12 +264,22 @@ public sealed class ScanSession(DashboardBridge bridge, DashboardSettings settin
     /// runs 25, and a profile that stored the zero would put it back in the spinner at every later
     /// launch, which <see cref="Pages"/>'s own remark is about.
     /// <para>
-    /// The URL and the three credentials are handed over untrimmed, because
+    /// The URL and the four credentials are handed over untrimmed, because
     /// <see cref="DashboardSettings.Upsert"/> trims every stored string itself. That is deliberate
     /// and not an omission: trimming on this path and not on the Save site button's was how the same
     /// form came to produce two different files depending on which one was pressed.
     /// <see cref="BuildOptions"/> trims what it signs in with independently, so what is stored is
     /// still exactly what the scan used.
+    /// </para>
+    /// <para>
+    /// The client secret stored is <see cref="RunCommand.ClientSecret"/> - what the operator typed -
+    /// and NEVER the effective secret <see cref="BuildOptions"/> computed. The two differ precisely
+    /// when the box was empty and the machine's NDSTK_COOKIESCAN_CLIENT_SECRET filled in, and
+    /// writing that value here would have the profile quietly absorb the machine's secret on the
+    /// first run: the box would refill with dots at the next launch, the operator would believe the
+    /// site had its own secret, and copying the file or moving to a machine with a different
+    /// variable would then fail with a credential nobody remembers typing. A blank box stays blank
+    /// on disk, and the fallback stays a fallback.
     /// </para>
     /// </remarks>
     private static SiteProfile Remembered(RunCommand command) => new(
@@ -269,7 +289,8 @@ public sealed class ScanSession(DashboardBridge bridge, DashboardSettings settin
         DryRun: command.DryRun,
         MemberEmail: command.MemberEmail ?? "",
         MemberPassword: command.MemberPassword ?? "",
-        ClientId: command.ClientId ?? "");
+        ClientId: command.ClientId ?? "",
+        ClientSecret: command.ClientSecret ?? "");
 
     /// <remarks>
     /// Swedish for anything unrecognised, which is the rule the console tool applies to --locale.

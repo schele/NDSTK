@@ -16,26 +16,25 @@ public sealed class DashboardForm : Form
         Dock = DockStyle.Fill,
     };
 
+    /// <summary>Whether this machine has a client secret to fall back on.</summary>
     /// <remarks>
+    /// A fact about the FALLBACK, not about the credentials a scan will use: the secret lives in the
+    /// profile now, and this says only whether a run started with an empty secret box would still
+    /// find one. The page needs it to phrase the note under the credential pair - "no secret at all"
+    /// and "no secret typed, but the machine has one" are different things to tell an operator - and
+    /// it needs the variable's name to say which one it means.
+    /// <para>
+    /// The VALUE never leaves the host. A flag and a name are enough for every state the note has,
+    /// and posting the secret itself would put it in the page for no purpose the page can serve.
+    /// </para>
+    /// <para>
     /// Read once, at construction. The variable is fixed for the life of the process, and a page that
     /// re-read it would suggest it could be changed without restarting. Reported as a plain fact
     /// rather than as a fault: report-only is a supported mode.
+    /// </para>
     /// </remarks>
     private readonly bool secretIsSet =
         string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ScanOptions.SecretVariable)) is false;
-
-    /// <summary>The secret's companion: the client id the environment pairs with it.</summary>
-    /// <remarks>
-    /// Dashboard-only, and optional. The id is not a secret - it is the name the site registers the
-    /// API user under - so it could live in a profile, and it still can; this is for the machine that
-    /// has the secret set once and should not need the id typed into every profile as well. Read
-    /// once, like the secret, and for the same reason. Sent to the page as a value, not a flag: the
-    /// page fills the client-id box with it when a profile has none of its own.
-    /// </remarks>
-    private const string ClientIdVariable = "NDSTK_COOKIESCAN_CLIENT_ID";
-
-    private readonly string clientIdDefault =
-        Environment.GetEnvironmentVariable(ClientIdVariable)?.Trim() ?? "";
 
     /// <remarks>
     /// Loaded here rather than on <c>ready</c>: a settings file that cannot be read costs the window
@@ -236,18 +235,20 @@ public sealed class DashboardForm : Form
                 // last time. Posted on ready rather than baked into index.html, because the page is
                 // an embedded resource and the settings are not.
                 //
-                // The sites go out decrypted, passwords included. That is the point of storing them:
-                // the page fills its own password field from a saved profile, and a run posts back
-                // what the field holds. The envelope never leaves the process - WebView2 hands it to
-                // a renderer inside this exe, over no socket and no origin anything else can reach.
+                // The sites go out decrypted, passwords and client secrets included. That is the
+                // point of storing them: the page fills its own masked fields from a saved profile,
+                // and a run posts back what those fields hold. The envelope never leaves the
+                // process - WebView2 hands it to a renderer inside this exe, over no socket and no
+                // origin anything else can reach.
+                //
+                // secretIsSet and secretVariable describe the FALLBACK only, and carry no value with
+                // them: the note under the credential pair is the one thing the page needs them for.
                 bridge?.Post(new
                 {
                     type = "state",
                     running = false,
                     secretIsSet,
                     secretVariable = ScanOptions.SecretVariable,
-                    clientIdDefault,
-                    clientIdVariable = ClientIdVariable,
                     sites = settings.Sites,
                     selectedUrl = settings.SelectedUrl,
                     // Load's decrypt failures, carried on the one message that is guaranteed to
@@ -316,7 +317,7 @@ public sealed class DashboardForm : Form
         // same number for the same form: a blank field arrives as zero, and a profile holding a zero
         // would put one in the spinner at every later launch - see ScanSession.Pages. It is the one
         // thing normalised out here, because it is the only one whose rule belongs to the scanner
-        // rather than to the file; Upsert trims the URL and the three credentials for both callers.
+        // rather than to the file; Upsert trims the URL and the four credentials for both callers.
         settings.Upsert(profile with { MaxPages = ScanSession.Pages(profile.MaxPages) });
         settings.SelectedUrl = profile.Url.Trim();
         settings.Save();

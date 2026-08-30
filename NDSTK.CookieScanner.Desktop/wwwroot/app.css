@@ -792,10 +792,12 @@ cs-stat-tile {
   display: grid;
   /*
       start, not the default stretch: fields sit in a grid row that is as tall as its tallest member,
-      and the client-id field is taller than its neighbours because of the secret note under it.
-      Stretched, the shorter field's own auto rows absorb that difference and its input drifts a
-      label's height down the card - the member password and the client id were visibly out of line
-      with each other. Pinning the rows to the top of the box lines every input in a row up again.
+      and stretched, a shorter field's own auto rows absorb the difference and its input drifts a
+      label's height down the card. It was the secret note hanging under the client id that made
+      that visible - the member password and the client id were out of line with each other - and
+      the note has its own row now, but the rule is not about that note. Any field that ever grows a
+      second line, a hint or a longer label reintroduces it; pinning the rows to the top of the box
+      keeps every input in a row lined up whatever they hold.
   */
   align-content: start;
   gap: var(--s-2);
@@ -891,8 +893,9 @@ cs-stat-tile {
 .options-grid {
   display: grid;
   /*
-      Two equal columns, fixed: max pages beside locale, member email beside member password, and
-      the client id alone on the third row under max pages. auto-fit used to pack three to a row at
+      Two equal columns, fixed: max pages beside locale, member email beside member password, the
+      API client id beside the API client secret. Three rows of pairs, and each pair is a pair -
+      which is why the count is fixed rather than fitted. auto-fit used to pack three to a row at
       this width, which put the email next to the locale and let its box run past the card's edge;
       minmax(0, 1fr) rather than 1fr so a long value cannot widen its column past its twin.
   */
@@ -901,7 +904,7 @@ cs-stat-tile {
   margin-top: var(--s-3);
 }
 
-/* Every box in the grid fills its cell, so the five paired ones read as the same size. */
+/* Every box in the grid fills its cell, so the six paired ones read as the same size. */
 .options-grid .input {
   width: 100%;
   min-width: 0;
@@ -915,6 +918,21 @@ cs-stat-tile {
 .field-note {
   font-size: 11px;
   line-height: 1.35;
+}
+
+/*
+    The note under the credential pair gets a row of its own across both columns: it is about the
+    client id and the client secret together, and a note sitting under one of them reads as being
+    about that one.
+
+    Pulled back up by the difference between the grid's gap and a label's, because those two gaps
+    say different things - the grid's separates one field from the next, and a line explaining the
+    row above it is not the next field. Composed from the tokens rather than a literal, so it
+    follows if either spacing step is ever retuned.
+*/
+.options-grid > .field-note {
+  grid-column: 1 / -1;
+  margin-top: calc(var(--s-2) - var(--s-4));
 }
 
 .check {

@@ -82,14 +82,21 @@ public abstract record DashboardCommand
 /// The profile is written FROM the run afterwards - see <see cref="ScanSession"/> - never the other
 /// way round.
 /// </para>
+/// <para>
+/// <c>ClientSecret</c> is nullable like the credentials beside it, and the distinction costs more
+/// here than for any of them: <see cref="ScanSession.StartAsync"/> lets the machine's environment
+/// variable fill in exactly when this is blank. "The page sent no field" and "the page sent an empty
+/// secret" therefore have to mean the same thing - and they do, because both are what a run started
+/// with an empty box looks like, and both are the case the fallback exists for.
+/// </para>
 /// </remarks>
 public sealed record RunCommand(
     string Url, int MaxPages, string Locale, string? MemberEmail,
-    string? MemberPassword, string? ClientId, bool DryRun) : DashboardCommand;
+    string? MemberPassword, string? ClientId, string? ClientSecret, bool DryRun) : DashboardCommand;
 
 /// <summary>Save the run card's current values as the profile for the URL they name.</summary>
 /// <remarks>
-/// The whole profile travels in one member rather than as seven loose fields, so the record the page
+/// The whole profile travels in one member rather than as eight loose fields, so the record the page
 /// sends and the record the file stores are the same type - a field added to
 /// <see cref="SiteProfile"/> later reaches the page's message without a second declaration to keep
 /// in step. Its <c>Locale</c> is therefore the enum itself, unlike <see cref="RunCommand"/>'s: a

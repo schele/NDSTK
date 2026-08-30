@@ -13,7 +13,7 @@ namespace NDSTK.CookieScanner.Desktop;
 /// called "staging" is two things to keep in step with the URLs they actually scan, and the URL is
 /// the only one of the two that can be wrong in a way that matters.
 /// <para>
-/// The three credential fields are plaintext HERE and ciphertext on disk - see
+/// The four credential fields are plaintext HERE and ciphertext on disk - see
 /// <see cref="DashboardSettings.Save(string)"/>. Nothing in the window works with the encrypted form;
 /// it exists between one write and the next read and nowhere else.
 /// </para>
@@ -26,27 +26,47 @@ public sealed record SiteProfile(
     // Defaulted so a message from the page that omits one arrives as an empty field rather than as a
     // null the non-nullable type above says cannot be there. System.Text.Json fills a missing
     // constructor parameter with its default rather than failing.
+    //
+    // That default is also what makes a settings file written by an earlier build readable: such a
+    // file has no ClientSecret key at all, and without the default here every profile in it would
+    // fail to construct and the whole file would load as no sites. Removing any of these four
+    // defaults breaks a file nobody has touched, on a machine nobody is testing on - there is a test
+    // for exactly that.
     string MemberEmail = "",
     string MemberPassword = "",
-    string ClientId = "");
+    string ClientId = "",
+    // Last, and last on purpose: the positional order is the order the file's keys are written in,
+    // and appending rather than inserting keeps a hand-read settings.json comparable across builds.
+    string ClientSecret = "");
 
 /// <summary>
 /// What the window remembers between runs: the saved sites, and which one is showing.
 /// </summary>
 /// <remarks>
-/// The member email, the member password and the API client id ARE persisted, and are encrypted at
-/// rest with DPAPI under the Windows account that saved them (see <see cref="ProtectedText"/>). That
-/// protects the file against another user on this machine, against another machine, and against the
-/// file being copied somewhere else - all three produce a value that will not decrypt. It protects
-/// nothing against code running as this user, which can ask DPAPI to open the blobs exactly as this
-/// class does. It is at-rest protection for a convenience file, and it is worth having for that.
+/// The member email, the member password, the API client id AND the API client secret are all
+/// persisted, and all four are encrypted at rest with DPAPI under the Windows account that saved
+/// them (see <see cref="ProtectedText"/>). That protects the file against another user on this
+/// machine, against another machine, and against the file being copied somewhere else - all three
+/// produce a value that will not decrypt. It protects nothing against code running as this user,
+/// which can ask DPAPI to open the blobs exactly as this class does. It is at-rest protection for a
+/// convenience file, and it is worth having for that.
 /// <para>
-/// The client secret is still absent and must stay absent. The console tool refuses a
-/// --client-secret flag so a secret cannot reach shell history; a settings file storing one would
-/// undo that to save a paste, and unlike the three fields above there is a working alternative -
-/// NDSTK_COOKIESCAN_CLIENT_SECRET - that costs the operator nothing per run. The member password had
-/// no such alternative: it was retyped for every scan of a member area, which is the trade this
-/// change reverses.
+/// The client secret is in that list, and used not to be. The argument for keeping it out was that
+/// it had a working alternative the other credentials did not - NDSTK_COOKIESCAN_CLIENT_SECRET, set
+/// once per machine - so storing it bought nothing but risk. That argument holds only while one
+/// machine scans one site: the id and the secret are ONE pair, each site registers its own API user,
+/// and a machine scanning two sites has two secrets and one variable to put them in. So the secret
+/// sits beside the id it belongs to, in the profile for the site that issued it.
+/// </para>
+/// <para>
+/// The trade that buys is exact and worth naming. The secret is now on disk where it was not before,
+/// under the same DPAPI protection as the password - which is to say: safe from another account,
+/// another machine and a copied file, and not safe from anything running as this user. The variable
+/// is unchanged for the console tool, which still refuses a --client-secret flag so a secret cannot
+/// reach shell history, and it remains the dashboard's fallback for a machine that scans one site
+/// and has it set already. The one thing that must not happen is a profile absorbing the machine's
+/// secret behind the operator's back - see <see cref="ScanSession"/>, which stores what was typed
+/// and never what the environment supplied.
 /// </para>
 /// <para>
 /// This is the one piece of shared mutable state in the window. <see cref="DashboardForm"/> holds a
@@ -210,6 +230,7 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
             MemberEmail = Trimmed(profile.MemberEmail),
             MemberPassword = Trimmed(profile.MemberPassword),
             ClientId = Trimmed(profile.ClientId),
+            ClientSecret = Trimmed(profile.ClientSecret),
         };
 
         List<SiteProfile> next = [.. Sites];
@@ -256,7 +277,7 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
     /// </remarks>
     private static string Trimmed(string? value) => (value ?? "").Trim();
 
-    /// <summary>The new shape: profiles as stored, with the three blobs opened.</summary>
+    /// <summary>The new shape: profiles as stored, with the four blobs opened.</summary>
     /// <remarks>
     /// A profile with a blank URL is dropped before anything else happens to it. The URL is the
     /// identity, the label and the delete key all at once, so a blank one is a row the dropdown
@@ -278,6 +299,10 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
                 MemberEmail = Revealed(profile.Url, "member email", profile.MemberEmail, warnings),
                 MemberPassword = Revealed(profile.Url, "member password", profile.MemberPassword, warnings),
                 ClientId = Revealed(profile.Url, "API client id", profile.ClientId, warnings),
+                // "client secret" in full, because the warning has to be actionable: a profile now
+                // holds four credentials, and "the saved credential could not be read" would leave
+                // the operator retyping the wrong one.
+                ClientSecret = Revealed(profile.Url, "API client secret", profile.ClientSecret, warnings),
             }),
         ];
 
@@ -313,8 +338,10 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
     /// turn a read-only settings folder into a window that fails to open.
     /// <para>
     /// The password is empty because the old file never held one - it was typed per run, which is
-    /// exactly the behaviour profiles replace. Nothing is warned about: an empty field is the truth
-    /// about what that file contained, not a value that was lost.
+    /// exactly the behaviour profiles replace. The client secret is empty for a stronger reason
+    /// still: no build before this one stored a secret anywhere but the environment, so there is
+    /// nothing to migrate rather than merely nothing recorded. Nothing is warned about for either:
+    /// an empty field is the truth about what that file contained, not a value that was lost.
     /// </para>
     /// </remarks>
     private static DashboardSettings Migrated(string json)
@@ -340,7 +367,11 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
             DryRun: flat.DryRun,
             MemberEmail: Trimmed(flat.MemberEmail),
             MemberPassword: "",
-            ClientId: Trimmed(flat.ClientId));
+            ClientId: Trimmed(flat.ClientId),
+            // Spelled out rather than left to the parameter's default, for the same reason the
+            // password above is: a reader of this method should be able to see what a migrated
+            // profile holds without going back to the record to find out what was omitted.
+            ClientSecret: "");
 
         // Selected, not merely present: the whole point of the old file was to reopen on the site it
         // named, and a migrated profile sitting unselected behind "New site" would look like the
@@ -348,12 +379,13 @@ public sealed record DashboardSettings(IReadOnlyList<SiteProfile> Sites, string?
         return new DashboardSettings([profile], profile.Url);
     }
 
-    /// <summary>A copy with the three credential fields turned into blobs.</summary>
+    /// <summary>A copy with the four credential fields turned into blobs.</summary>
     private static SiteProfile Protected(SiteProfile profile) => profile with
     {
         MemberEmail = ProtectedText.Protect(profile.MemberEmail),
         MemberPassword = ProtectedText.Protect(profile.MemberPassword),
         ClientId = ProtectedText.Protect(profile.ClientId),
+        ClientSecret = ProtectedText.Protect(profile.ClientSecret),
     };
 
     /// <summary>
