@@ -141,9 +141,15 @@ public static class ScanReportWriter
 
         if (result.Outcome is not null)
         {
+            // "added" is only true when the page was saved. In a dry run the endpoint computes the
+            // merge and writes nothing, and a line that said "2 added" sent an operator to the
+            // backoffice to look for blocks that were never created. The markdown heading already
+            // made this distinction; the console and the dashboard log read this line instead.
+            string added = options.DryRun ? "would be added" : "added";
+
             lines.Add("");
             lines.Add(
-                $"  {result.Outcome.Added.Count} added, {result.Outcome.AlreadyDeclared.Count} already declared, "
+                $"  {result.Outcome.Added.Count} {added}, {result.Outcome.AlreadyDeclared.Count} already declared, "
                 + $"{result.Outcome.DeclaredButNotFound.Count} declared but not found.");
 
             if (result.Outcome.Saved)
@@ -151,6 +157,16 @@ public static class ScanReportWriter
                 lines.Add(
                     $"  The policy page ({result.Outcome.PolicyPageKey}) was saved as a DRAFT. Review the "
                     + "new blocks in the backoffice and publish when you are happy with the wording.");
+            }
+            else if (options.DryRun)
+            {
+                lines.Add(
+                    "  Dry run - the policy page was not changed. Run again without dry run to save the "
+                    + "new blocks as a draft.");
+            }
+            else
+            {
+                lines.Add("  Nothing new to write - the policy page already declares everything that was found.");
             }
         }
 
