@@ -66,10 +66,13 @@ public static class ScanReportWriter
         {
             markdown.AppendLine("## Comparison against the policy page");
             markdown.AppendLine();
+            // The same report is written by the console tool and the dashboard, so it names the
+            // credentials without saying where they come from - that differs between the two.
             markdown.AppendLine(
-                "Not performed. Pass `--client-id` and set "
-                + $"`{ScanOptions.SecretVariable}` to compare the scan against what the page "
-                + "already declares. Add `--dry-run` to compare without writing anything.");
+                "Not performed. Give the scan the site's API client id and secret - the profile's API "
+                + $"credentials in the dashboard, `--client-id` and `{ScanOptions.SecretVariable}` for "
+                + "the console tool - to compare the scan against what the page already declares. "
+                + "Add `--dry-run` to compare without writing anything.");
             markdown.AppendLine();
         }
 
