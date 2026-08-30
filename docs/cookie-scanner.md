@@ -684,7 +684,8 @@ tiles and findings table filling to match the report JSON, including the rule th
 violation if it appears in `violations` even when its own `flag` is not `Violation`; a cancelled run
 leaving neither a report file nor a history entry behind; settings persisting across a restart with
 no credential ever written to `settings.json` — that pass predates site profiles, and the file now
-holds four of them encrypted, which the site-profiles item below covers; the trend chart plotting
+holds four of them encrypted, checked again when the client secret joined them: all four fields
+`dpapi:`-prefixed and none of the four typed plaintexts anywhere in the raw text; the trend chart plotting
 entries and violations
 across kept scans; History listing, opening and comparing scans; and the compare showing exactly
 the one cookie that differs between a member scan and a public scan, placed in the same group
@@ -723,6 +724,10 @@ is the added top-level `options`. No existing key changed name, type or value.
 
 ## What has not been verified
 
+- **A per-site client secret in a live token request.** The secret moved into the profile while the
+  development site was down, so every note state, the four-field encryption and the relaunch refill
+  were verified, but no run has yet exchanged a profile-sourced secret for a token. The first
+  write-back with a saved secret settles it.
 - **A full scan against production.** `ndstk.se` is currently running a build without the cookie
   banner: no policy page, no `/api/cookie-consent`, and the package's own `consent.js` returns 404.
   A scan there reaches pass 2 and stops. That is a fact about what is deployed, not a defect — the
@@ -747,6 +752,12 @@ is the added top-level `options`. No existing key changed name, type or value.
   reasoning, not a run.
 
 ## Troubleshooting
+
+- **A 401 on the token request, and the message says to check `NDSTK_COOKIESCAN_CLIENT_SECRET`.**
+  That message is the engine's and was written when the variable was the only source. In the
+  dashboard the secret that was actually sent is the profile's **API client secret** field; the
+  variable is only the fallback for a profile that has none. Check the field first, then the site's
+  `appsettings.Secrets.json` for the value it registered, and only then the variable.
 
 **"WebView2 runtime not found" when the dashboard starts.**
 The WebView2 Evergreen runtime is missing. Install it from

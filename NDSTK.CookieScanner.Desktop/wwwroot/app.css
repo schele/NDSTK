@@ -904,7 +904,7 @@ cs-stat-tile {
   margin-top: var(--s-3);
 }
 
-/* Every box in the grid fills its cell, so the five paired ones read as the same size. */
+/* Every box in the grid fills its cell, so the six paired ones read as the same size. */
 .options-grid .input {
   width: 100%;
   min-width: 0;

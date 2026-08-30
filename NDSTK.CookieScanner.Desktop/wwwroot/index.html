@@ -201,12 +201,14 @@
                 -->
                 <div class="field">
                   <label class="label" for="scan-client-id">API client id</label>
-                  <input class="input" id="scan-client-id" type="password" autocomplete="off">
+                  <input class="input" id="scan-client-id" type="password" autocomplete="off"
+                         aria-describedby="secret-status">
                 </div>
 
                 <div class="field">
                   <label class="label" for="scan-client-secret">API client secret</label>
-                  <input class="input" id="scan-client-secret" type="password" autocomplete="off">
+                  <input class="input" id="scan-client-secret" type="password" autocomplete="off"
+                         aria-describedby="secret-status">
                 </div>
 
                 <!--
@@ -222,7 +224,6 @@
                   fault - report-only is a supported mode. See showSecretStatus in app.js.
                 -->
                 <p class="field-note muted" id="secret-status"></p>
-
               </div>
             </details>
 
