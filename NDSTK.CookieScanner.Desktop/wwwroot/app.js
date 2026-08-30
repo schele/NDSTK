@@ -122,6 +122,7 @@ const localeInput = document.querySelector('#scan-locale');
 const memberEmailInput = document.querySelector('#scan-member-email');
 const memberPasswordInput = document.querySelector('#scan-member-password');
 const clientIdInput = document.querySelector('#scan-client-id');
+const clientSecretInput = document.querySelector('#scan-client-secret');
 const dryRunInput = document.querySelector('#scan-dry-run');
 const runButton = document.querySelector('#scan-run');
 const cancelButton = document.querySelector('#scan-cancel');
@@ -131,17 +132,13 @@ const optionsDetails = document.querySelector('#scan-options');
 const secretStatus = document.querySelector('#secret-status');
 
 /**
- * What the host said about the client secret on ready - whether the variable is set, and its name -
- * kept so the line under the client id can be recomputed whenever the box changes.
+ * What the host said on ready about the client secret FALLBACK - whether the machine's variable is
+ * set, and what it is called. Not the secret itself and not the secret a scan will use: the secret
+ * lives in the profile now, and this is only what a run started with an empty box would fall back
+ * on. Kept so the note under the credential pair can be recomputed whenever either box changes.
  * @type {{ isSet: boolean, variable: string } | null}
  */
 let secret = null;
-
-/**
- * The client id the host found in NDSTK_COOKIESCAN_CLIENT_ID, or "" - what the client-id box shows
- * when a profile has no id of its own. A profile's saved id always wins over it.
- */
-let clientIdDefault = '';
 
 const siteToast = document.querySelector('#site-toast');
 
@@ -175,13 +172,25 @@ function showToast(text) {
 }
 
 /**
- * The line under the API client id. Three states, the quietest first: an id typed and the secret
- * present says nothing at all - the dots in the box are the signal that the pair is complete, and a
- * line repeating it was noise. An empty box with the secret present says the secret is waiting for an
- * id. The secret missing is said regardless of the box, because that is the one case where dots
- * would mislead: an id with no secret cannot reach the endpoint, and the scan runs report-only.
+ * The line under the credential pair: what is missing, if anything, from the two boxes plus the
+ * machine's fallback.
+ *
+ * Silent whenever the pair can actually sign in - an id with a secret beside it, or an id with the
+ * environment variable behind it. The dots in the boxes are already the signal that something is
+ * filled in, and a line repeating that was noise.
+ *
+ * When it does speak, it names the ONE thing that is missing, which is why the empty-id branch is
+ * three answers rather than one: an operator who has typed a secret and no id has a different next
+ * move from one who has typed neither, and telling the first of them "no API credentials" would be
+ * false as well as useless. A typed secret is checked before the fallback for the same reason - the
+ * fallback is irrelevant to someone who has just typed a secret of their own.
+ *
+ * Muted in every state, and phrased as a fact rather than an error. Report-only is a supported mode:
+ * a scan with no credentials at all still finds every cookie, it just does not write the policy page.
  */
 function showSecretStatus() {
+  // Before `ready`: nothing is known about the fallback yet, so any line here would be a guess -
+  // and the one guess available ("no fallback") is the alarming one.
   if (secret === null) {
     secretStatus.hidden = true;
 
@@ -189,8 +198,11 @@ function showSecretStatus() {
   }
 
   const idGiven = clientIdInput.value.trim().length > 0;
+  const secretGiven = clientSecretInput.value.trim().length > 0;
 
-  if (secret.isSet && idGiven) {
+  // Read through the box rather than through the profile, because the box is what a run posts: a
+  // saved secret the operator has just cleared is not a secret this scan will use.
+  if (idGiven && (secretGiven || secret.isSet)) {
     secretStatus.hidden = true;
     secretStatus.textContent = '';
 
@@ -198,9 +210,22 @@ function showSecretStatus() {
   }
 
   secretStatus.hidden = false;
+
+  if (idGiven) {
+    secretStatus.textContent = 'No client secret - write-back will be skipped';
+
+    return;
+  }
+
+  if (secretGiven) {
+    secretStatus.textContent = 'A client id is needed with the secret';
+
+    return;
+  }
+
   secretStatus.textContent = secret.isSet
-    ? `${secret.variable} is set`
-    : `${secret.variable} is not set - write-back will be skipped`;
+    ? `${secret.variable} is set - a client id completes the pair`
+    : 'No API credentials - the scan runs report-only';
 }
 
 /** @type {LogPanel} */
@@ -297,7 +322,7 @@ const keptScansValue = document.querySelector('#kept-scans');
  */
 const inputs = [
   siteSelect, urlInput, maxPagesInput, localeInput, memberEmailInput,
-  memberPasswordInput, clientIdInput, dryRunInput, runButton,
+  memberPasswordInput, clientIdInput, clientSecretInput, dryRunInput, runButton,
 ];
 
 /** Whether a scan is running, as the host last reported it. */
@@ -322,6 +347,7 @@ const NEW_SITE = {
   memberEmail: '',
   memberPassword: '',
   clientId: '',
+  clientSecret: '',
 };
 
 /** Every kept scan the host has told us about, newest first, for every site. */
@@ -459,11 +485,12 @@ function describeScan(entry) {
 }
 
 /**
- * Puts one profile's options into the fields - all of them, password included.
+ * Puts one profile's options into the fields - all of them, both masked credentials included.
  *
- * The password IS filled, unlike every earlier version of this window: the host stores it encrypted
- * under the Windows user and sends it back decrypted, so a saved member scan is one click rather
- * than one retyped credential. See DashboardSettings for what that protects and what it does not.
+ * The password and the client secret ARE filled, unlike every earlier version of this window: the
+ * host stores them encrypted under the Windows user and sends them back decrypted, so a saved
+ * member scan with write-back is one click rather than two retyped credentials. See
+ * DashboardSettings for what that protects and what it does not.
  *
  * A locale the profile names but this page does not offer is left alone rather than assigned,
  * because assigning it would clear the select instead of choosing something.
@@ -473,12 +500,14 @@ function fillForm(profile) {
   maxPagesInput.value = profile.maxPages ?? NEW_SITE.maxPages;
   memberEmailInput.value = profile.memberEmail ?? '';
   memberPasswordInput.value = profile.memberPassword ?? '';
-  // The profile's own id when it has one; otherwise the environment's, so a machine that carries the
-  // secret and its id shows the pair complete without the id being typed into every profile.
-  clientIdInput.value = profile.clientId || clientIdDefault || '';
+  clientIdInput.value = profile.clientId ?? '';
+  // Empty for a profile saved without one, rather than falling back to anything: an empty box is
+  // exactly what makes the host use the machine's variable, and prefilling the box with a secret
+  // this site never registered would have the next Save write it into the profile for good.
+  clientSecretInput.value = profile.clientSecret ?? '';
   dryRunInput.checked = profile.dryRun ?? true;
 
-  // Setting .value fires no input event, so the line under the client id is recomputed by hand.
+  // Setting .value fires no input event, so the note under the pair is recomputed by hand.
   showSecretStatus();
 
   if (Array.from(localeInput.options).some((option) => option.value === profile.locale)) {
@@ -506,6 +535,7 @@ function currentProfile() {
     memberEmail: memberEmailInput.value,
     memberPassword: memberPasswordInput.value,
     clientId: clientIdInput.value,
+    clientSecret: clientSecretInput.value,
   };
 }
 
@@ -569,17 +599,14 @@ function applyState(message) {
 
   if ('secretIsSet' in message) {
     // The variable's name comes from the host so it is spelled in one place - the same constant the
-    // engine reads it with. Left in the ordinary muted colour deliberately: report-only is a
+    // engine reads it with. A flag and a name, never the value: the note has five states and none of
+    // them needs the secret itself. Left in the ordinary muted colour deliberately: report-only is a
     // supported mode, not a fault.
     secret = { isSet: message.secretIsSet === true, variable: message.secretVariable };
-    clientIdDefault = typeof message.clientIdDefault === 'string' ? message.clientIdDefault.trim() : '';
 
-    // Before showSites below fills the form, so the first fill already sees the default; and for the
-    // box itself, in case this state arrives with the form already showing a profile without an id.
-    if (clientIdInput.value.trim() === '' && clientIdDefault !== '') {
-      clientIdInput.value = clientIdDefault;
-    }
-
+    // Assigned before showSites below refills the form, so the fill that follows already knows
+    // whether there is a fallback to be quiet about; called here as well for the case where this
+    // state arrives with the form already showing something.
     showSecretStatus();
   }
 
@@ -743,8 +770,10 @@ urlInput.addEventListener('input', () => {
   syncSiteButtons();
 });
 
-// Typing or clearing the client id changes what the line under it should say.
+// Either box changes what the note under the pair should say, so both are watched: the note is
+// about the two of them together, and one listener would leave it a keystroke stale half the time.
 clientIdInput.addEventListener('input', showSecretStatus);
+clientSecretInput.addEventListener('input', showSecretStatus);
 
 // Ctrl+Enter runs and Escape cancels, but only while the Scan page is the one on screen: a shortcut
 // that fires from another page would act on a form the operator cannot see.

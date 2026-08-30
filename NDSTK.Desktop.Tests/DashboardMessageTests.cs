@@ -13,7 +13,8 @@ public class DashboardMessageTests
     {
         const string json = """
             {"type":"run","url":"https://localhost:44351","maxPages":7,"locale":"En",
-             "memberEmail":"a@b.c","memberPassword":"secret","clientId":"cookie-scanner","dryRun":false}
+             "memberEmail":"a@b.c","memberPassword":"secret","clientId":"cookie-scanner",
+             "clientSecret":"client-secret-alpha-1","dryRun":false}
             """;
 
         DashboardCommand? command = DashboardCommand.Parse(json);
@@ -24,7 +25,32 @@ public class DashboardMessageTests
         Assert.Equal(7, run.MaxPages);
         Assert.Equal("En", run.Locale);
         Assert.Equal("secret", run.MemberPassword);
+        Assert.Equal("cookie-scanner", run.ClientId);
+        Assert.Equal("client-secret-alpha-1", run.ClientSecret);
         Assert.False(run.DryRun);
+    }
+
+    /// <summary>
+    /// A run whose secret box was empty carries no secret at all, which is what lets the environment
+    /// fill in.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than "": <see cref="ScanSession"/> reads the environment variable exactly when
+    /// this member is blank, so a page that stopped sending the field has to arrive as "the profile
+    /// has nothing to say" rather than as "the profile says: no secret". The two would look the same
+    /// on screen and differ on every machine that has the variable set.
+    /// </remarks>
+    [Fact]
+    public void A_run_command_without_a_client_secret_parses_with_none()
+    {
+        const string json = """
+            {"type":"run","url":"https://localhost:44351","maxPages":7,"locale":"En",
+             "memberEmail":"a@b.c","memberPassword":"secret","clientId":"cookie-scanner","dryRun":false}
+            """;
+
+        RunCommand run = Assert.IsType<RunCommand>(DashboardCommand.Parse(json));
+
+        Assert.Null(run.ClientSecret);
     }
 
     [Fact]
@@ -79,7 +105,8 @@ public class DashboardMessageTests
     {
         const string json = """
             {"type":"saveSite","profile":{"url":"https://localhost:44351","maxPages":7,"locale":"En",
-             "dryRun":false,"memberEmail":"a@b.c","memberPassword":"secret","clientId":"cookie-scanner"}}
+             "dryRun":false,"memberEmail":"a@b.c","memberPassword":"secret","clientId":"cookie-scanner",
+             "clientSecret":"client-secret-alpha-1"}}
             """;
 
         DashboardCommand? command = DashboardCommand.Parse(json);
@@ -93,6 +120,7 @@ public class DashboardMessageTests
         Assert.Equal("a@b.c", save.Profile.MemberEmail);
         Assert.Equal("secret", save.Profile.MemberPassword);
         Assert.Equal("cookie-scanner", save.Profile.ClientId);
+        Assert.Equal("client-secret-alpha-1", save.Profile.ClientSecret);
     }
 
     [Fact]

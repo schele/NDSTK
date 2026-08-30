@@ -62,7 +62,8 @@ public class DashboardSettingsTests
         DryRun: false,
         MemberEmail: "member@ndstk.se",
         MemberPassword: "hunter2-but-longer",
-        ClientId: "cookie-scanner-ndstk");
+        ClientId: "cookie-scanner-ndstk",
+        ClientSecret: "client-secret-alpha-1");
 
     /// <summary>
     /// The exact file the pre-profiles build wrote, down to the integer locale.
@@ -101,9 +102,11 @@ public class DashboardSettingsTests
         Assert.Equal("old-client", profile.ClientId);
         Assert.False(profile.DryRun);
 
-        // The old file never held one, so there is nothing to migrate into it and nothing to warn
-        // about: an empty password is the truth about what that file contained.
+        // The old file never held either, so there is nothing to migrate into them and nothing to
+        // warn about: an empty password and an empty secret are the truth about what that file
+        // contained. The secret was not merely absent from that shape - no build had ever stored one.
         Assert.Equal("", profile.MemberPassword);
+        Assert.Equal("", profile.ClientSecret);
         Assert.Empty(settings.Warnings);
 
         // The one profile is the selected one. A migrated file whose only site was not selected
@@ -192,16 +195,120 @@ public class DashboardSettingsTests
         Assert.DoesNotContain(profile.MemberPassword, text, StringComparison.Ordinal);
         Assert.DoesNotContain(profile.ClientId, text, StringComparison.Ordinal);
 
+        // The one this file did not hold at all until the secret moved into the profile. It is the
+        // credential that can write to a live policy page, so "legible nowhere in the file" is the
+        // promise that had to be re-made rather than assumed from the three above it.
+        Assert.DoesNotContain(profile.ClientSecret, text, StringComparison.Ordinal);
+
         // The URL is not a credential and stays legible: it is what a human needs to recognise the
         // profile whose blobs these are, and hiding it would make the file unreadable for nothing.
         Assert.Contains(profile.Url, text, StringComparison.Ordinal);
 
         JsonNode stored = JsonNode.Parse(text)!["Sites"]![0]!;
 
-        foreach (string field in new[] { "MemberEmail", "MemberPassword", "ClientId" })
+        foreach (string field in new[] { "MemberEmail", "MemberPassword", "ClientId", "ClientSecret" })
         {
             Assert.StartsWith(ProtectedText.Prefix, stored[field]!.GetValue<string>(), StringComparison.Ordinal);
         }
+    }
+
+    /// <summary>
+    /// A file the previous build wrote - new shape, but no <c>ClientSecret</c> key - opens with an
+    /// empty secret rather than failing.
+    /// </summary>
+    /// <remarks>
+    /// Written by hand rather than produced by an older build, because there is no older build to
+    /// run here: the shape below is exactly what one wrote, four keys per profile and a
+    /// <c>Sites</c> array to send Load down the new-shape path. The behaviour it pins is
+    /// System.Text.Json's - a constructor parameter the document omits is filled with the
+    /// parameter's default, which only works while <see cref="SiteProfile"/> keeps a default on it.
+    /// Dropping that default would make every settings file on every machine load as no sites at
+    /// all, which is the kind of thing that is only noticed once it has happened.
+    /// <para>
+    /// The three credentials are real blobs, protected here rather than pasted, so this is a file
+    /// missing one key rather than a file that also fails to decrypt - see the class remark.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_file_from_before_the_secret_loads_with_an_empty_secret()
+    {
+        using TempSettings file = new();
+
+        string email = ProtectedText.Protect("old@ndstk.se");
+        string password = ProtectedText.Protect("old-password");
+        string clientId = ProtectedText.Protect("old-client");
+
+        file.Write(
+            $$"""
+            {
+              "Sites": [
+                {
+                  "Url": "https://localhost:44351",
+                  "MaxPages": 12,
+                  "Locale": "Sv",
+                  "DryRun": false,
+                  "MemberEmail": "{{email}}",
+                  "MemberPassword": "{{password}}",
+                  "ClientId": "{{clientId}}"
+                }
+              ],
+              "SelectedUrl": "https://localhost:44351"
+            }
+            """);
+
+        DashboardSettings settings = DashboardSettings.Load(file.Path);
+
+        SiteProfile profile = Assert.Single(settings.Sites);
+
+        Assert.Equal("", profile.ClientSecret);
+
+        // Everything the older build did write is still exactly what it wrote: a missing key is a
+        // field nobody filled in, not a file that failed to read.
+        Assert.Equal("https://localhost:44351", profile.Url);
+        Assert.Equal(12, profile.MaxPages);
+        Assert.Equal("old@ndstk.se", profile.MemberEmail);
+        Assert.Equal("old-password", profile.MemberPassword);
+        Assert.Equal("old-client", profile.ClientId);
+
+        // And nothing is warned about. An absent key is not a credential that was lost - warning
+        // here would tell every operator upgrading to this build to retype something they never had.
+        Assert.Empty(settings.Warnings);
+    }
+
+    /// <summary>
+    /// The secret's blob follows the same rule as the three beside it: unreadable costs that field
+    /// and says which one.
+    /// </summary>
+    /// <remarks>
+    /// Its own test rather than a second case on
+    /// <see cref="A_corrupted_blob_clears_its_field_and_warns"/>, because the wording is what is
+    /// being checked as much as the clearing: the warning has to name the client secret specifically,
+    /// or an operator with four credentials in one profile is told to retype an unnamed one.
+    /// </remarks>
+    [Fact]
+    public void A_corrupted_client_secret_clears_that_field_and_names_it()
+    {
+        using TempSettings file = new();
+
+        SiteProfile damaged = Profile("https://localhost:44351");
+
+        new DashboardSettings([damaged], damaged.Url).Save(file.Path);
+
+        JsonNode document = JsonNode.Parse(file.Text)!;
+
+        document["Sites"]![0]!["ClientSecret"] = ProtectedText.Prefix + "AAAA";
+
+        file.Write(document.ToJsonString());
+
+        DashboardSettings loaded = DashboardSettings.Load(file.Path);
+
+        // The rest of the profile - the other three credentials included - is untouched.
+        Assert.Equal(damaged with { ClientSecret = "" }, Assert.Single(loaded.Sites));
+
+        string warning = Assert.Single(loaded.Warnings);
+
+        Assert.Contains(damaged.Url, warning, StringComparison.Ordinal);
+        Assert.Contains("client secret", warning, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -342,6 +449,7 @@ public class DashboardSettingsTests
         {
             MaxPages = 99,
             MemberPassword = "  padded-password  ",
+            ClientSecret = "  padded-secret  ",
         });
 
         SiteProfile profile = Assert.Single(settings.Sites);
@@ -353,8 +461,11 @@ public class DashboardSettingsTests
         Assert.Equal("HTTPS://LocalHost:44351", profile.Url);
 
         // And so are the credentials, here rather than at the two callers: trimmed on the run path
-        // and not on the Save site path was how the same form produced two different files.
+        // and not on the Save site path was how the same form produced two different files. The
+        // secret is in the list for a reason of its own as well - a trailing space pasted with it
+        // is the difference between a token request that works and a 401 nobody can see the cause of.
         Assert.Equal("padded-password", profile.MemberPassword);
+        Assert.Equal("padded-secret", profile.ClientSecret);
 
         // A different site is a different entry, which is the other half of the same rule.
         settings.Upsert(Profile("https://ndstk.se"));
