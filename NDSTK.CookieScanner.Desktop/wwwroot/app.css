@@ -1066,6 +1066,36 @@ cs-history-list {
   white-space: nowrap;
 }
 
+/* Same shrink-to-content trick as the checkbox column, at the other end of the row. */
+.history-remove {
+  width: 1px;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/*
+    Quiet until it is wanted. A row of loud red crosses down the page would read as a list of
+    problems rather than a list of scans, so this carries the muted ink at rest and only takes the
+    red pair - the same one Delete uses - under the pointer or on focus.
+*/
+.row-remove {
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  /* --ink-600, the same ink .muted carries, for the same contrast reason recorded there. */
+  color: var(--ink-600);
+  font-size: 16px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.row-remove:hover,
+.row-remove:focus-visible {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+
 .data-table tbody tr.is-selected td,
 .data-table tbody tr.is-selected:hover td {
   background: var(--blue-50);

@@ -158,4 +158,68 @@ public class ScanHistoryTests : IDisposable
         Assert.Equal(1, entry.ViolationCount);
         Assert.Equal(1, entry.ExitCode);
     }
+
+    [Fact]
+    public void One_kept_scan_can_be_deleted_and_the_rest_stay()
+    {
+        var history = new ScanHistory(folder);
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 27, 10, 0, 0, TimeSpan.Zero)));
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 28, 10, 0, 0, TimeSpan.Zero)));
+
+        ScanHistoryEntry newest = history.List()[0];
+
+        Assert.True(history.Delete(newest.Path));
+        Assert.False(File.Exists(newest.Path));
+
+        ScanHistoryEntry remaining = Assert.Single(history.List());
+
+        Assert.Equal(new DateTimeOffset(2026, 8, 27, 10, 0, 0, TimeSpan.Zero), remaining.CompletedAt);
+    }
+
+    // The path arrives from script inside a WebView. Delete matches it against the folder's own
+    // listing first, so this is the assertion that keeps it from being a file-delete primitive the
+    // page can aim anywhere - the one thing a later refactor of Delete must not quietly drop.
+    [Fact]
+    public void A_path_outside_the_history_folder_is_refused_and_left_alone()
+    {
+        var history = new ScanHistory(folder);
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 28, 10, 0, 0, TimeSpan.Zero)));
+
+        string outsider = Path.Combine(Path.GetTempPath(), "ndstk-not-history-" + Guid.NewGuid().ToString("N") + ".json");
+
+        File.WriteAllText(outsider, "{}");
+
+        try
+        {
+            Assert.False(history.Delete(outsider));
+            Assert.True(File.Exists(outsider));
+            Assert.Single(history.List());
+        }
+        finally
+        {
+            File.Delete(outsider);
+        }
+    }
+
+    [Fact]
+    public void Clearing_deletes_every_kept_scan()
+    {
+        var history = new ScanHistory(folder);
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 26, 10, 0, 0, TimeSpan.Zero)));
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 27, 10, 0, 0, TimeSpan.Zero)));
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 28, 10, 0, 0, TimeSpan.Zero)));
+
+        Assert.Equal(3, history.DeleteAll());
+        Assert.Empty(history.List());
+    }
+
+    [Fact]
+    public void Deleting_a_path_that_was_never_kept_reports_false()
+    {
+        var history = new ScanHistory(folder);
+        history.SaveResult(Result(new DateTimeOffset(2026, 8, 28, 10, 0, 0, TimeSpan.Zero)));
+
+        Assert.False(history.Delete(Path.Combine(folder, "20260828-100000-deadbeef.json")));
+        Assert.Single(history.List());
+    }
 }

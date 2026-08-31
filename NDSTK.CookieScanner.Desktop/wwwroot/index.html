@@ -363,6 +363,17 @@
       <div class="card">
         <div class="card-head">
           <h2 class="card-title">Scans</h2>
+
+          <!--
+            Empties the folder the list is a view of. Hidden while there is nothing to clear, so the
+            card at rest offers no button that would do nothing - the same reasoning as the pager,
+            which only appears once there is a second page.
+          -->
+          <div class="card-tools">
+            <button class="button button--danger" type="button" id="history-clear" hidden>
+              Clear all
+            </button>
+          </div>
         </div>
         <cs-history-list id="history-list"></cs-history-list>
       </div>

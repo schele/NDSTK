@@ -86,6 +86,27 @@ public sealed class ScanHistory(string folder)
 
     public ScanResult? Load(ScanHistoryEntry entry) => Read(entry.Path);
 
+    /// <summary>
+    /// Deletes one kept scan, identified by a path that must appear in <see cref="List"/>. Returns
+    /// false when it does not, or when the file could not be removed.
+    /// </summary>
+    /// <remarks>
+    /// The path is checked against the folder's own listing rather than used as given. The caller
+    /// is the dashboard, and the dashboard's caller is script inside a WebView: a delete that acted
+    /// on any path handed to it would be a file-delete primitive reachable from the page, which is
+    /// not something this class should offer however carefully the page is written today.
+    /// </remarks>
+    public bool Delete(string path)
+    {
+        ScanHistoryEntry? entry = List().FirstOrDefault(
+            kept => string.Equals(kept.Path, path, StringComparison.OrdinalIgnoreCase));
+
+        return entry is not null && TryDelete(entry.Path);
+    }
+
+    /// <summary>Deletes every kept scan and returns how many went.</summary>
+    public int DeleteAll() => List().Count(entry => TryDelete(entry.Path));
+
     private static ScanResult? Read(string path)
     {
         try
@@ -102,27 +123,40 @@ public sealed class ScanHistory(string folder)
         }
     }
 
+    /// <summary>
+    /// Removes one file, reporting rather than throwing when it will not go.
+    /// </summary>
+    /// <remarks>
+    /// A file someone has open, a read-only attribute, an ACL denial or an antivirus quarantine
+    /// flag must not cost the scan that just finished (<see cref="Prune"/> runs after the write) and
+    /// must not take down the window (<see cref="Delete"/> is called from the message loop). The
+    /// next prune, or the operator's next attempt, tries again.
+    /// </remarks>
+    private static bool TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     private void Prune()
     {
         List<ScanHistoryEntry> entries = [.. List()];
 
         foreach (ScanHistoryEntry stale in entries.Skip(Keep))
         {
-            try
-            {
-                File.Delete(stale.Path);
-            }
-            catch (IOException)
-            {
-                // A file someone has open is not worth failing a completed scan over; the next
-                // run prunes it.
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // Same intent as the IOException case above: a read-only attribute, an ACL
-                // denial, or an antivirus quarantine flag on a stale file must not cost the scan
-                // that just finished.
-            }
+            TryDelete(stale.Path);
         }
     }
 }
