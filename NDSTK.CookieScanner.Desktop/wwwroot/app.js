@@ -334,13 +334,6 @@ let running = false;
 let sites = [];
 
 /**
- * Whether the form has yet been filled in this session. Dry run is forced on for that first fill
- * only: a window that has just opened must never be one keypress away from writing to a live site,
- * however the last session left the profile.
- */
-let firstFill = true;
-
-/**
  * What "New site" means: the fields a profile that does not exist yet would have.
  *
  * The same defaults the window has always opened with - 25 pages, Swedish, dry run ON so the
@@ -514,7 +507,16 @@ function fillForm(profile) {
   // exactly what makes the host use the machine's variable, and prefilling the box with a secret
   // this site never registered would have the next Save write it into the profile for good.
   clientSecretInput.value = profile.clientSecret ?? '';
-  dryRunInput.checked = profile.dryRun ?? true;
+
+  // Always on, whatever the profile stored - the one field a fill does not restore. Every other box
+  // describes the site; this one decides whether a run writes to it, and the safe answer is the only
+  // one worth defaulting to. The profile's own value still travels with a run and is still saved, so
+  // the record of what a scan did is intact; it just never arrives pre-armed on screen.
+  //
+  // The bias is deliberate and one-directional: a box that reads checked when the run turns out to
+  // write is the dangerous mistake, and this makes it impossible - the only cost is unticking it
+  // again when a real write-back is what you want.
+  dryRunInput.checked = true;
 
   // Setting .value fires no input event, so the note under the pair is recomputed by hand.
   showSecretStatus();
@@ -582,14 +584,6 @@ function showSites(nextSites, selectedUrl) {
   siteSelect.value = sites.some((profile) => profile.url === wanted) ? wanted : '';
 
   fillForm(profileFor(siteSelect.value) ?? NEW_SITE);
-
-  // Only the session's first fill. Choosing a site afterwards applies whatever that profile saved -
-  // its dry-run setting is the operator's, and overriding it on every fill would make the box
-  // impossible to turn off, since a save comes straight back through here.
-  if (firstFill) {
-    firstFill = false;
-    dryRunInput.checked = true;
-  }
 
   // The URL field decides which scans the chart is about, and it has just been rewritten.
   showTrend();
@@ -792,14 +786,15 @@ urlInput.addEventListener('input', () => {
 clientIdInput.addEventListener('input', showSecretStatus);
 clientSecretInput.addEventListener('input', showSecretStatus);
 
-// All three at once. The three of them are one credential set in practice - the member's password
-// and the API pair - and the reason to reveal any of them is the same: checking that what is in the
-// box is what the operator meant to put there. Nothing is re-read or re-sent; only the input's own
-// type changes, so a revealed box behaves exactly like a masked one.
+// The two masked boxes together: the member password and the client secret. The client id is not in
+// the list because it is not masked - it is a name, not a credential. The reason to reveal either of
+// these is the same, which is why one control serves both: checking that what is in the box is what
+// the operator meant to put there. Nothing is re-read or re-sent; only the input's own type changes,
+// so a revealed box behaves exactly like a masked one.
 showMaskedInput.addEventListener('change', () => {
   const type = showMaskedInput.checked ? 'text' : 'password';
 
-  for (const input of [memberPasswordInput, clientIdInput, clientSecretInput]) {
+  for (const input of [memberPasswordInput, clientSecretInput]) {
     input.type = type;
   }
 });

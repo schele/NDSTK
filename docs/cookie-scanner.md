@@ -85,7 +85,14 @@ see Overriding the catalogue, below.
 The run card's dropdown holds one **profile per site**: the URL, max pages, locale, the dry-run
 flag, the member email, the member password, the API client id and the API client secret. Picking
 one fills every field below it, including both masked credentials; **New site…** clears them to the
-defaults (25 pages, SV, dry run on). **Save site** writes what the form currently holds, **Delete**
+defaults (25 pages, SV, dry run on).
+
+**Dry run is the one field a profile does not restore.** It arrives checked on every fill — startup,
+a different site picked, a save coming back — whatever the profile stored. The stored value still
+travels with a run and is still written, so the record of what a scan did is intact; it simply never
+appears pre-armed. The bias is one-directional on purpose: a box reading checked while the run
+writes is the dangerous mistake, and this makes it unreachable. The cost is unticking it each time a
+real write-back is what you want. **Save site** writes what the form currently holds, **Delete**
 forgets the selected profile, and running a scan saves the profile for the URL it ran against — so a
 site scanned once is a site you can pick next time without having typed anything extra.
 

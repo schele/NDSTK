@@ -195,13 +195,16 @@
                   and splitting them across a row boundary would hide the one thing an operator
                   needs to see about them, which is whether both are filled in.
 
-                  Masked for the same reason as the password above, and stored the same way. The id
-                  is not itself a secret, but half a login shown in the clear beside a masked half
-                  would be drawing the line in the wrong place.
+                  The id is shown in the clear; only the secret is masked. It was masked too at
+                  first, on the argument that half a login in plain sight beside a masked half draws
+                  the line in the wrong place - but the id is not a credential, it is a name, and
+                  hiding it cost the one thing the operator most often needs to check at a glance:
+                  whether the profile is pointed at the right API user. It is still encrypted at
+                  rest with the rest of the profile.
                 -->
                 <div class="field">
                   <label class="label" for="scan-client-id">API client id</label>
-                  <input class="input" id="scan-client-id" type="password" autocomplete="off"
+                  <input class="input" id="scan-client-id" type="text" autocomplete="off"
                          aria-describedby="secret-status">
                 </div>
 
@@ -226,11 +229,11 @@
                 <p class="field-note muted" id="secret-status"></p>
 
                 <!--
-                  One toggle for all three masked boxes rather than a reveal button inside each: the
-                  five boxes in this grid are deliberately the same size, and a control sitting
-                  inside one of them would break that. Unchecked on every launch and never
-                  remembered - a reveal that outlived the window would put a secret on screen that
-                  nobody had asked to see.
+                  One toggle for both masked boxes - the member password and the client secret -
+                  rather than a reveal button inside each: the five boxes in this grid are
+                  deliberately the same size, and a control sitting inside one of them would break
+                  that. Unchecked on every launch and never remembered - a reveal that outlived the
+                  window would put a secret on screen that nobody had asked to see.
                 -->
                 <label class="check field--wide">
                   <input type="checkbox" id="scan-show-masked">
