@@ -380,6 +380,16 @@
             which only appears once there is a second page.
           -->
           <div class="card-tools">
+            <!--
+              Drops the ticks; deletes nothing. Left of Clear all and in the neutral style, so the
+              harmless one is the one nearest the list and the destructive one is the one that looks
+              destructive. Hidden until something is actually ticked, for the same reason Clear all
+              is hidden on an empty list.
+            -->
+            <button class="button" type="button" id="history-unselect" hidden>
+              Uncheck all
+            </button>
+
             <button class="button button--danger" type="button" id="history-clear" hidden>
               Clear all
             </button>
