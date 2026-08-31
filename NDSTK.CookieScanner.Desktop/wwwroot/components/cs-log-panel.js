@@ -75,6 +75,15 @@ export class LogPanel extends LitElement {
     }
 
     /*
+        The time each line arrived. Dimmed off currentColor rather than off --log-ink, so a warning's
+        stamp dims against the warning colour instead of turning back into ordinary ink - and, like
+        the empty state, by mixing rather than by opacity so it stays legible on all twenty schemes.
+    */
+    .time {
+      color: color-mix(in srgb, currentColor 60%, var(--log-bg));
+    }
+
+    /*
         At rest: shorter, and centred on one quiet line. The panel keeps its dark surface so the
         page does not rearrange itself when the scan starts - the box simply grows and the line goes.
     */
@@ -140,7 +149,9 @@ export class LogPanel extends LitElement {
    * Queues one line. Levels other than "warning" render as ordinary output.
    */
   append(level, message) {
-    this.queued.push({ level, message });
+    // Stamped on arrival, not in flush: flush runs on the next animation frame and can carry a
+    // burst of lines, which would then all claim the same moment.
+    this.queued.push({ level, message, at: new Date() });
 
     if (this.frame !== 0) {
       return;
@@ -173,8 +184,31 @@ export class LogPanel extends LitElement {
 
     const batch = document.createDocumentFragment();
 
-    for (const { level, message } of this.queued) {
+    for (const { level, message, at } of this.queued) {
+      // The summary arrives as one multi-line string that opens with a blank line, and a stamp
+      // stranded alone above its text reads as a rendering fault. The blank line is kept as an
+      // unstamped <li> so the grouping survives, and the stamp goes on the first line that says
+      // something.
+      const text = message.replace(/^\n+/, '');
+
+      if (text !== message) {
+        batch.append(document.createElement('li'));
+      }
+
+      if (text === '') {
+        continue;
+      }
+
       const line = document.createElement('li');
+      const stamp = document.createElement('span');
+
+      stamp.className = 'time';
+      // toTimeString, not toLocaleTimeString: a 12-hour locale renders "11:14:07 PM", which is both
+      // wider and a different width than the 24-hour form, so the message column stops lining up.
+      stamp.textContent = at.toTimeString().slice(0, 8);
+      // The line's own text carries everything a listener needs. Announcing a time before every
+      // entry turns the live region into a clock.
+      stamp.setAttribute('aria-hidden', 'true');
 
       if (level === 'warning') {
         line.className = 'warn';
@@ -184,9 +218,9 @@ export class LogPanel extends LitElement {
         word.className = 'level';
         word.textContent = 'Warning';
 
-        line.append(word, ` ${message}`);
+        line.append(stamp, ' ', word, ` ${text}`);
       } else {
-        line.textContent = message;
+        line.append(stamp, ` ${text}`);
       }
 
       batch.append(line);
