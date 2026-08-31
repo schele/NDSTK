@@ -298,6 +298,7 @@ const tiles = {
 /** @type {HistoryList} */
 const historyList = document.querySelector('#history-list');
 const historyClearButton = document.querySelector('#history-clear');
+const historyUnselectButton = document.querySelector('#history-unselect');
 
 const historyDetail = document.querySelector('#history-detail');
 const historyError = document.querySelector('#history-error');
@@ -913,6 +914,12 @@ historyList?.addEventListener('selection-changed', (event) => {
 
   historyList.note = describeSelection(paths);
 
+  // Nothing ticked, nothing to untick. This is also what clears the button after the list prunes a
+  // selection itself - a deleted row, or the fifty-scan prune - because that announces too.
+  if (historyUnselectButton) {
+    historyUnselectButton.hidden = paths.length === 0;
+  }
+
   if (paths.length !== 1) {
     historyDetail.hidden = true;
   }
@@ -954,6 +961,11 @@ historyList?.addEventListener('remove-scan', (event) => {
   historyDiff.hidden = true;
 
   post({ type: 'deleteScan', path });
+});
+
+// No confirmation: it destroys nothing, and the ticks are two clicks to put back.
+historyUnselectButton?.addEventListener('click', () => {
+  historyList?.clearSelection();
 });
 
 historyClearButton?.addEventListener('click', () => {

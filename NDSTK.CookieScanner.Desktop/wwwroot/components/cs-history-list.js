@@ -149,6 +149,20 @@ export class HistoryList extends LitElement {
     }));
   }
 
+  /**
+   * Drops every tick, wherever in the list it is. Announced like any other selection change, so the
+   * note and the panes below follow without the caller having to tidy up after it.
+   */
+  clearSelection() {
+    if (this.selected.size === 0) {
+      return;
+    }
+
+    this.selected = new Set();
+
+    this.announce();
+  }
+
   /** Previous or Next. Paging is a view of the same list: the selection is not consulted or changed. */
   turnPage(delta) {
     const entries = Array.isArray(this.entries) ? this.entries : [];
