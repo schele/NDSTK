@@ -243,10 +243,11 @@
             </details>
 
             <!--
-              Checked here, in the markup, because this is the only place that decides it: the
-              window opens dry whichever site the dropdown restores, and from then on the box is the
-              operator's alone - fillForm deliberately never writes to it, so turning it off and
-              browsing the saved sites leaves it off.
+              Checked in the markup so the box is already dry in the moment before the host's first
+              answer arrives - fillDryRun then forces it on for that first fill too, whatever the
+              restored profile saved. After that it follows the URL, remembering a tick that was
+              never saved, so turning it off and browsing the saved sites leaves it off where it was
+              left off. See dryRunByUrl in app.js.
             -->
             <label class="check">
               <input type="checkbox" id="scan-dry-run" checked>
