@@ -87,17 +87,17 @@ flag, the member email, the member password, the API client id and the API clien
 one fills every field below it, including both masked credentials; **New site…** clears them to the
 defaults (25 pages, SV, dry run on).
 
-**Dry run follows the URL, and is the one field an unsaved change survives on.** The window always
-opens with it checked, whichever site the dropdown restores — at that moment the operator has
-expressed no preference, and the safe answer is the only one worth assuming. After that each URL
-remembers what its box last showed, saved or not, so unticking it for one site and glancing at
-another leaves it unticked on the way back. A URL's saved value is what it shows the first time it
-is filled.
+**Dry run is the one field no profile restores.** Every URL starts every session checked — including
+a site whose profile was saved right after a real write-back, which is exactly the case where
+restoring the stored value would hand back an unticked box and arm a write nobody asked for. From
+then on the box is the operator's, remembered **per URL** for the rest of the session: untick it for
+one site, glance at another, come back, and it is still unticked, with no save needed.
 
-Every other field is refilled from the profile, unsaved edits discarded. Dry run is the exception
-because it is the one field whose stale value is dangerous rather than merely wrong: a box that
-re-armed itself between a glance and a click could not be trusted to still say what it had been left
-saying. **Save site** writes what the form currently holds, **Delete**
+Every other field is refilled from the profile with unsaved edits discarded. Dry run is the
+exception in both directions because it is the one field whose stale value is dangerous rather than
+merely wrong — restoring a stored `false` arms a write, and re-arming a deliberate `false` between a
+glance and a click makes the box untrustworthy. The value is still sent with every run and still
+written to the profile, so the record of what a scan did stays accurate. **Save site** writes what the form currently holds, **Delete**
 forgets the selected profile, and running a scan saves the profile for the URL it ran against — so a
 site scanned once is a site you can pick next time without having typed anything extra.
 
