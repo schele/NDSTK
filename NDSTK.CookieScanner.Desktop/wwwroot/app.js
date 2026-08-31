@@ -334,21 +334,40 @@ let running = false;
 let sites = [];
 
 /**
+ * What the dry-run box shows, per site URL, for the rest of this session - including a tick the
+ * operator never saved.
+ *
+ * The one field in the form that survives a site switch. Every other box is refilled from the
+ * profile, discarding unsaved edits, and dry run was too until that proved wrong at the chair:
+ * turning it off, glancing at another site and coming back found it back on, so the box could not
+ * be trusted to still say what it had been left saying. A profile's saved value is what a URL shows
+ * the FIRST time it is filled; after that this map is the answer.
+ */
+const dryRunByUrl = new Map();
+
+/**
+ * Whether the form has yet been filled in this session. The first fill forces dry run on whatever
+ * the profile stored, so a window that has just opened is never one keypress from writing to a live
+ * site - the one moment the operator has expressed no preference at all.
+ */
+let firstFill = true;
+
+/**
  * What "New site" means: the fields a profile that does not exist yet would have.
  *
- * The same defaults the window has always opened with - 25 pages, Swedish. Kept here rather than as
- * `value` attributes in the markup because this is also what Delete and a failed lookup fall back
- * to, and three places reading a form's initial state out of the DOM would drift.
+ * The same defaults the window has always opened with - 25 pages, Swedish, dry run ON so the
+ * obvious button to press cannot write to a live policy page. Kept here rather than as `value`
+ * attributes in the markup because this is also what Delete and a failed lookup fall back to, and
+ * three places reading a form's initial state out of the DOM would drift.
  *
- * No `dryRun`: the checkbox is not filled from a profile at all - see fillForm - so a value here
- * would be one nothing reads. Its startup state is the `checked` attribute in the markup, which is
- * the one place that still needs to say "dry run ON so the obvious button to press cannot write to
- * a live policy page".
+ * `dryRun` here is only the value a never-yet-filled "New site" starts from; once the operator
+ * touches the box, dryRunByUrl is what answers. See fillDryRun.
  */
 const NEW_SITE = {
   url: '',
   maxPages: 25,
   locale: 'Sv',
+  dryRun: true,
   memberEmail: '',
   memberPassword: '',
   clientId: '',
@@ -511,12 +530,7 @@ function fillForm(profile) {
   // this site never registered would have the next Save write it into the profile for good.
   clientSecretInput.value = profile.clientSecret ?? '';
 
-  // Dry run is deliberately absent from this function. It is the operator's switch, not the
-  // profile's: the window opens with it checked (the `checked` attribute in the markup) and nothing
-  // touches it again for the rest of the session. Filling it from the profile - or forcing it back
-  // on with every fill - both had the same fault from the chair: turning it off, glancing at
-  // another site and coming back re-armed it, so the box could not be trusted to still say what it
-  // was left saying. It is still read on every run and still saved with the profile.
+  fillDryRun(profile.url ?? '', profile.dryRun ?? true);
 
   // Setting .value fires no input event, so the note under the pair is recomputed by hand.
   showSecretStatus();
@@ -524,6 +538,27 @@ function fillForm(profile) {
   if (Array.from(localeInput.options).some((option) => option.value === profile.locale)) {
     localeInput.value = profile.locale;
   }
+}
+
+/**
+ * Sets the dry-run box for one URL, in order of authority: the session's first fill is always on,
+ * then whatever this URL last showed, then what the profile saved.
+ *
+ * Records what it applied, so the next fill of the same URL repeats it rather than falling back to
+ * the profile again - that record is what makes an unsaved tick survive a trip to another site, and
+ * it is also why the startup fill does not leave the initially selected URL free to come back
+ * unticked from its profile a moment later.
+ */
+function fillDryRun(url, saved) {
+  if (firstFill) {
+    firstFill = false;
+
+    dryRunInput.checked = true;
+  } else {
+    dryRunInput.checked = dryRunByUrl.has(url) ? dryRunByUrl.get(url) : saved;
+  }
+
+  dryRunByUrl.set(url, dryRunInput.checked);
 }
 
 /** The saved profile a dropdown value names, or null for "New site" and for anything unknown. */
@@ -779,6 +814,13 @@ siteSelect.addEventListener('change', () => {
 urlInput.addEventListener('input', () => {
   showTrend();
   syncSiteButtons();
+});
+
+// Keyed on the dropdown rather than on the URL box: the dropdown is which profile is being edited,
+// and a half-typed address in the field above is not yet a site. '' - "New site" - is a key like any
+// other, so a tick set while composing a new profile is still there after a glance elsewhere.
+dryRunInput.addEventListener('change', () => {
+  dryRunByUrl.set(siteSelect.value, dryRunInput.checked);
 });
 
 // Either box changes what the note under the pair should say, so both are watched: the note is
