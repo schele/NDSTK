@@ -52,6 +52,17 @@
     <ProjectReference Include="NDSTK.CookieScan.Core\NDSTK.CookieScan.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      The Web SDK treats every root .json file as Content, and Content is published - .gitignore has
+      no say in what a publish copies. This file holds the development scanner secret and the
+      unattended-install admin credentials, so a default publish put both on the production server
+      and could overwrite a secrets file that server already had. Still copied to the output
+      directory, which is where a local run reads it from; only the publish is blocked.
+    -->
+    <Content Update="appsettings.Secrets.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
 
   <PropertyGroup>
     <!-- Razor files are needed for the backoffice to work correctly -->
