@@ -124,6 +124,7 @@ const memberPasswordInput = document.querySelector('#scan-member-password');
 const clientIdInput = document.querySelector('#scan-client-id');
 const clientSecretInput = document.querySelector('#scan-client-secret');
 const dryRunInput = document.querySelector('#scan-dry-run');
+const showMaskedInput = document.querySelector('#scan-show-masked');
 const runButton = document.querySelector('#scan-run');
 const cancelButton = document.querySelector('#scan-cancel');
 const saveSiteButton = document.querySelector('#scan-save-site');
@@ -774,6 +775,18 @@ urlInput.addEventListener('input', () => {
 // about the two of them together, and one listener would leave it a keystroke stale half the time.
 clientIdInput.addEventListener('input', showSecretStatus);
 clientSecretInput.addEventListener('input', showSecretStatus);
+
+// All three at once. The three of them are one credential set in practice - the member's password
+// and the API pair - and the reason to reveal any of them is the same: checking that what is in the
+// box is what the operator meant to put there. Nothing is re-read or re-sent; only the input's own
+// type changes, so a revealed box behaves exactly like a masked one.
+showMaskedInput.addEventListener('change', () => {
+  const type = showMaskedInput.checked ? 'text' : 'password';
+
+  for (const input of [memberPasswordInput, clientIdInput, clientSecretInput]) {
+    input.type = type;
+  }
+});
 
 // Ctrl+Enter runs and Escape cancels, but only while the Scan page is the one on screen: a shortcut
 // that fires from another page would act on a form the operator cannot see.
