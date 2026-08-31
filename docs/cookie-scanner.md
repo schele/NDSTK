@@ -294,8 +294,9 @@ not. See Where the client secret comes from, below.
 The write-back endpoint (`CookieScanController.Merge`, at
 `/umbraco/management/api/v1/cookie-scan/merge`) is authorised with
 `[Authorize(Policy = AuthorizationPolicies.BackOfficeAccess)]`, unchanged from how Task 13 left it.
-**Whether an API-user token actually satisfies that policy has not been exercised end to end** —
-see Not yet verified, below.
+An API-user token does satisfy that policy: a non-dry-run scan against the local site returned
+`saved: true` and drafted three blocks onto the policy page (2026-08-30). The same has **not** been
+exercised against production yet — see Production, below.
 
 `CookieScanApiUserSeeder` creates the user in code, on every boot, and is entirely opt-in:
 
@@ -322,10 +323,10 @@ see Not yet verified, below.
 }
 ```
 
-**This creates a real credential with content access.** `NDSTK:CookieScanApiUser:Enabled` belongs
-in development configuration only — `appsettings.Development.json` and
-`appsettings.Secrets.json` — and must never be set in `appsettings.json`, which ships to every
-environment. With `Enabled` false, or with `Enabled` true but no secret configured, the seeder does
+**This creates a real credential with content access.** `NDSTK:CookieScanApiUser:Enabled` is set
+per environment — `appsettings.Development.json` and `appsettings.Production.json` — and must never
+be set in `appsettings.json`, which ships to every environment including any future one that has no
+secret to pair with it. With `Enabled` false, or with `Enabled` true but no secret configured, the seeder does
 nothing at all: it logs a warning and returns, and boot is never blocked by it (every failure path
 in `CookieScanApiUserSeeder.SeedAsync` is caught and logged, not thrown).
 
@@ -338,6 +339,31 @@ seeder's `applicationManager.EnsureBackOfficeClientCredentialsApplicationAsync` 
 repeat — on the next boot it re-registers the client id with the new secret against the OpenIddict
 application store, with no manual step in the backoffice. Update the copy the scanner uses
 (`NDSTK_COOKIESCAN_CLIENT_SECRET`, below) to match, or the next scan's token request fails with 401.
+
+### Production
+
+`appsettings.Production.json` ships `Enabled` and `ClientId`; the secret does not travel in the
+repository. Set it on the server, either way round:
+
+```
+NDSTK__CookieScanApiUser__ClientSecret = …
+```
+
+or the same `NDSTK:CookieScanApiUser:ClientSecret` key in an untracked `appsettings.Secrets.json`
+beside the deployed app. Restart, then look for `The cookie scanner's API user is ready with client
+id cookie-scanner` in the log. Until the secret is set, every boot logs the warning naming it and
+changes nothing, so the config file is safe to deploy first.
+
+**Use a different secret per environment.** The scanner stores one per site profile precisely so
+production's credential never has to be the development one, and a leaked development secret must
+not open the live site's content.
+
+Environment variables alone are enough if the deployment's environment name is not `Production`, or
+if a redeploy is inconvenient: setting both `NDSTK__CookieScanApiUser__Enabled=true` and the secret
+needs no new files. The 401 this fixes reads
+`invalid_client` / `The specified 'client_id' is invalid` — OpenIddict has no application
+registered under that id, which is what the seeder's
+`EnsureBackOfficeClientCredentialsApplicationAsync` call creates.
 
 ## Where the client secret comes from
 
@@ -726,12 +752,18 @@ is the added top-level `options`. No existing key changed name, type or value.
 
 - **A per-site client secret in a live token request.** The secret moved into the profile while the
   development site was down, so every note state, the four-field encryption and the relaunch refill
-  were verified, but no run has yet exchanged a profile-sourced secret for a token. The first
-  write-back with a saved secret settles it.
-- **A full scan against production.** `ndstk.se` is currently running a build without the cookie
-  banner: no policy page, no `/api/cookie-consent`, and the package's own `consent.js` returns 404.
-  A scan there reaches pass 2 and stops. That is a fact about what is deployed, not a defect — the
-  same command against a site that has the banner completes. Re-run it once production is updated.
+  were verified. A profile-sourced secret has since reached the wire — the 2026-08-31 production run
+  sent one and was refused with `invalid_client`, which is the site having no such application
+  rather than the secret failing to travel. A *successful* profile-sourced token exchange is what
+  remains open; the first production write-back settles it.
+- **Write-back against production.** A full scan of `ndstk.se` now completes (2026-08-31): the
+  banner is deployed, all six passes and the member dimension run, three cookies are found, no
+  violations and no third-party hosts. Only the merge is untested there, because production had no
+  API user until `appsettings.Production.json` — the token request returned
+  `invalid_client`. Settled by the first non-dry-run scan after the secret is set on the server.
+  (An earlier version of this note said production lacked the banner entirely. That stopped being
+  true when the site was updated; `consent.js` and `consent.css` both serve, and the GET 404s that
+  suggested otherwise were ASP.NET answering a GET on a POST-only route.)
 - **A site with real third-party tags.** This site loads none, so the categorisation of a genuine
   statistics or marketing cookie, and the violation rule firing on a real tracker in a browser,
   have not been seen end to end. The logic is unit-tested and the mechanism is proven; the input
@@ -754,7 +786,11 @@ is the added top-level `options`. No existing key changed name, type or value.
 ## Troubleshooting
 
 - **A 401 on the token request.** The id and secret the scan sent are not the pair the site
-  registered. In the dashboard the secret that was sent is the profile's **API client secret**
+  registered. Read the `error` in the response body first: `invalid_client` with *"The specified
+  'client_id' is invalid"* means the environment has **no API user at all** — the seeder never ran
+  there, so check `NDSTK:CookieScanApiUser:Enabled` and the secret on that server (see Production,
+  above) before suspecting the pair. Any other 401 is a genuine mismatch.
+  In the dashboard the secret that was sent is the profile's **API client secret**
   field, or `NDSTK_COOKIESCAN_CLIENT_SECRET` only if that field is empty; for the console tool it is
   always the variable. Check the source that applies against the site's `appsettings.Secrets.json`,
   and remember the seeder re-registers the pair on every site boot - a secret rotated there needs
