@@ -297,6 +297,7 @@ const tiles = {
 
 /** @type {HistoryList} */
 const historyList = document.querySelector('#history-list');
+const historyClearButton = document.querySelector('#history-clear');
 
 const historyDetail = document.querySelector('#history-detail');
 const historyError = document.querySelector('#history-error');
@@ -331,6 +332,13 @@ let running = false;
 
 /** Every saved profile, as the host last reported it, in the order the dropdown shows them. */
 let sites = [];
+
+/**
+ * Whether the form has yet been filled in this session. Dry run is forced on for that first fill
+ * only: a window that has just opened must never be one keypress away from writing to a live site,
+ * however the last session left the profile.
+ */
+let firstFill = true;
 
 /**
  * What "New site" means: the fields a profile that does not exist yet would have.
@@ -574,6 +582,14 @@ function showSites(nextSites, selectedUrl) {
   siteSelect.value = sites.some((profile) => profile.url === wanted) ? wanted : '';
 
   fillForm(profileFor(siteSelect.value) ?? NEW_SITE);
+
+  // Only the session's first fill. Choosing a site afterwards applies whatever that profile saved -
+  // its dry-run setting is the operator's, and overriding it on every fill would make the box
+  // impossible to turn off, since a save comes straight back through here.
+  if (firstFill) {
+    firstFill = false;
+    dryRunInput.checked = true;
+  }
 
   // The URL field decides which scans the chart is about, and it has just been rewritten.
   showTrend();
@@ -892,6 +908,48 @@ historyList?.addEventListener('selection-changed', (event) => {
   }
 });
 
+// Deleting a kept scan removes its file. Asked before it happens rather than offered back as an
+// undo: there is nothing to undo with - the JSON is the scan, and the host does not keep a copy of
+// what it deleted.
+historyList?.addEventListener('remove-scan', (event) => {
+  const { path, when } = event.detail ?? {};
+
+  if (typeof path !== 'string' || path === '') {
+    return;
+  }
+
+  if (window.confirm(`Delete the scan completed ${when}? This cannot be undone.`) === false) {
+    return;
+  }
+
+  // The panes are about a selection that is about to stop existing. Hidden here rather than waiting
+  // for the fresh list, so a pane cannot linger over a row that has gone.
+  historyDetail.hidden = true;
+  historyDiff.hidden = true;
+
+  post({ type: 'deleteScan', path });
+});
+
+historyClearButton?.addEventListener('click', () => {
+  // Counted from what the page was last told, which is what the operator can see. The host clears
+  // whatever is actually in the folder, so a scan that landed in between goes too - worth naming a
+  // number anyway, because "all of them" is the thing being agreed to.
+  const count = history.length;
+
+  if (count === 0) {
+    return;
+  }
+
+  if (window.confirm(`Delete all ${count} saved scan${count === 1 ? '' : 's'}? This cannot be undone.`) === false) {
+    return;
+  }
+
+  historyDetail.hidden = true;
+  historyDiff.hidden = true;
+
+  post({ type: 'clearScans' });
+});
+
 /**
  * What the current selection is about to do, in one line for the list to show.
  *
@@ -961,6 +1019,12 @@ host?.addEventListener('message', (event) => {
 
       historyList.entries = history;
       historyList.note = describeSelection(selectedHistoryPaths);
+
+      // Nothing kept, nothing to clear. Also the reset after Clear all: the button that emptied the
+      // list is the first thing that should stop offering to.
+      if (historyClearButton) {
+        historyClearButton.hidden = history.length === 0;
+      }
 
       break;
 

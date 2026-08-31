@@ -134,19 +134,38 @@ public class DashboardMessageTests
         Assert.Equal("https://localhost:44351", delete.Url);
     }
 
+    [Fact]
+    public void A_delete_scan_command_parses_with_its_path()
+    {
+        DashboardCommand? command = DashboardCommand.Parse(
+            """{"type":"deleteScan","path":"C:\\scans\\20260831-145800-abcd1234.json"}""");
+
+        DeleteScanCommand delete = Assert.IsType<DeleteScanCommand>(command);
+
+        Assert.Equal(@"C:\scans\20260831-145800-abcd1234.json", delete.Path);
+    }
+
+    [Fact]
+    public void A_clear_scans_command_parses_with_no_payload()
+    {
+        Assert.IsType<ClearScansCommand>(DashboardCommand.Parse("""{"type":"clearScans"}"""));
+    }
+
     /// <summary>
-    /// The two commands that end in a write are the two whose payload is checked at the parse.
+    /// The commands that end in a write are the ones whose payload is checked at the parse.
     /// </summary>
     /// <remarks>
     /// System.Text.Json fills a constructor parameter the message does not carry with default, so
-    /// both of these deserialise into a command holding a null the record's own type says cannot be
+    /// each of these deserialises into a command holding a null the record's own type says cannot be
     /// there. A dropped message is the right answer: a saveSite with no profile would fault the
-    /// settings write, and a deleteSite with no URL would match nothing, remove nothing, drop the
-    /// selection and rewrite the file to say so - a silent edit nobody asked for.
+    /// settings write, a deleteSite with no URL would match nothing, remove nothing, drop the
+    /// selection and rewrite the file to say so - a silent edit nobody asked for - and a deleteScan
+    /// with no path reaches File.Delete by way of a listing check it cannot satisfy.
     /// </remarks>
     [Theory]
     [InlineData("""{"type":"saveSite"}""")]
     [InlineData("""{"type":"deleteSite"}""")]
+    [InlineData("""{"type":"deleteScan"}""")]
     public void A_site_command_missing_its_payload_is_dropped(string json)
     {
         Assert.Null(DashboardCommand.Parse(json));

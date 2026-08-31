@@ -46,6 +46,8 @@ public abstract record DashboardCommand
                 "compare" => JsonSerializer.Deserialize<CompareCommand>(json, ScanJson.Options),
                 "saveSite" => CompleteSave(JsonSerializer.Deserialize<SaveSiteCommand>(json, ScanJson.Options)),
                 "deleteSite" => CompleteDelete(JsonSerializer.Deserialize<DeleteSiteCommand>(json, ScanJson.Options)),
+                "deleteScan" => CompleteDeleteScan(JsonSerializer.Deserialize<DeleteScanCommand>(json, ScanJson.Options)),
+                "clearScans" => new ClearScansCommand(),
                 _ => null,
             };
         }
@@ -57,16 +59,23 @@ public abstract record DashboardCommand
         // System.Text.Json fills a constructor parameter the message does not carry with default, so
         // a saveSite with no `profile` - or a deleteSite with no `url` - deserialises into a command
         // holding a null the record's own type says cannot be there. Checked here rather than at the
-        // handlers because these are the two commands that end in a write: every other command's
+        // handlers because these are the commands that end in a write: every other command's
         // missing member costs a scan, and a deleteSite with no URL would match no profile, remove
         // nothing, drop the selection and rewrite the file to say so.
         //
-        // Two names rather than one overloaded pair, because local functions cannot be overloaded.
+        // deleteScan is here for the same reason and a sharper one: it ends in File.Delete. A null
+        // path matches nothing in ScanHistory.Delete's own listing check, so both guards would have
+        // to fail before anything happened - which is the point of having both.
+        //
+        // Separate names rather than one overloaded set, because local functions cannot be overloaded.
         static SaveSiteCommand? CompleteSave(SaveSiteCommand? command)
             => command is { Profile: not null } ? command : null;
 
         static DeleteSiteCommand? CompleteDelete(DeleteSiteCommand? command)
             => command is { Url: not null } ? command : null;
+
+        static DeleteScanCommand? CompleteDeleteScan(DeleteScanCommand? command)
+            => command is { Path: not null } ? command : null;
     }
 }
 
@@ -107,6 +116,16 @@ public sealed record SaveSiteCommand(SiteProfile Profile) : DashboardCommand;
 
 /// <summary>Forget the profile saved for one URL.</summary>
 public sealed record DeleteSiteCommand(string Url) : DashboardCommand;
+
+/// <summary>Delete one kept scan, by the path a history answer gave the page.</summary>
+/// <remarks>
+/// The path is not trusted on arrival: <see cref="ScanHistory.Delete"/> matches it against the
+/// folder's own listing first, so the only paths this can reach are ones the host itself reported.
+/// </remarks>
+public sealed record DeleteScanCommand(string Path) : DashboardCommand;
+
+/// <summary>Delete every kept scan. The page asks the operator first; the host does not.</summary>
+public sealed record ClearScansCommand : DashboardCommand;
 
 public sealed record CancelCommand : DashboardCommand;
 public sealed record ListHistoryCommand : DashboardCommand;

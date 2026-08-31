@@ -275,6 +275,21 @@ public sealed class DashboardForm : Form
 
                 break;
 
+            case DeleteScanCommand deleteScan:
+                // Answered with the history that remains rather than with a result of its own: the
+                // list the page is looking at IS the answer, and a file that would not go is then
+                // still on screen instead of being reported as gone.
+                ScanHistory.Default().Delete(deleteScan.Path);
+                PostHistory();
+
+                break;
+
+            case ClearScansCommand:
+                ScanHistory.Default().DeleteAll();
+                PostHistory();
+
+                break;
+
             case LoadScanCommand load:
                 PostScan(load);
 

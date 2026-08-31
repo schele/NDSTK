@@ -125,11 +125,28 @@ export class HistoryList extends LitElement {
    * and land back where it started.
    */
   rowClick(event, path, checked) {
-    if (event.target.closest('input')) {
+    // Buttons as well as the checkbox: the remove button stops the event itself, and this guard is
+    // what keeps that from being the only thing standing between a mis-aimed click and a selection
+    // change nobody asked for.
+    if (event.target.closest('input, button')) {
       return;
     }
 
     this.toggle(path, !checked);
+  }
+
+  /**
+   * Asks to remove one scan. The element does not delete anything itself: deletion is a host round
+   * trip, and the confirmation belongs to whoever knows how this page talks to the host.
+   */
+  requestRemove(event, entry, when) {
+    event.stopPropagation();
+
+    this.dispatchEvent(new CustomEvent('remove-scan', {
+      detail: { path: entry.path, when },
+      bubbles: true,
+      composed: true,
+    }));
   }
 
   /** Previous or Next. Paging is a view of the same list: the selection is not consulted or changed. */
@@ -175,6 +192,7 @@ export class HistoryList extends LitElement {
             <th scope="col">Site</th>
             <th scope="col" class="num">Entries</th>
             <th scope="col">Result</th>
+            <th scope="col" class="history-remove"><span class="sr-only">Remove</span></th>
           </tr>
         </thead>
         <tbody>
@@ -228,6 +246,14 @@ function row(entry, checked, host) {
       <td>${site(entry)}</td>
       <td class="num">${whole(entry.entryCount)}</td>
       <td>${resultPill(entry)}</td>
+      <td class="history-remove">
+        <button
+          class="row-remove"
+          type="button"
+          title="Delete this scan"
+          aria-label="Delete the scan completed ${when}"
+          @click=${(event) => host.requestRemove(event, entry, when)}>&times;</button>
+      </td>
     </tr>
   `;
 }
