@@ -31,7 +31,20 @@ public sealed record ScanResult(
     bool DryRun,
     DateTimeOffset CompletedAt,
     string Site,
-    ScanOptionsSummary? Options = null)
+    ScanOptionsSummary? Options = null,
+    /// <summary>
+    /// The declarations sent on the catalogue's word rather than on a sighting - see
+    /// <c>MergePlanner.UnobservedExpected</c>. Null for a history file written before this existed,
+    /// and for a run that had nothing to add from the catalogue; read it as empty either way.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately NOT folded into <see cref="Candidates"/>, which is the scan's observations and
+    /// the basis of every comparison between two runs. A catalogue row is present in every run
+    /// whether the site changed or not, so adding one there would make it appear in a diff as
+    /// something that happened. Both front ends merge the two lists when they draw their table -
+    /// that is a rendering decision, and it belongs where the table is built.
+    /// </remarks>
+    IReadOnlyList<CookieDeclaration>? DeclaredFromCatalogue = null)
 {
     /// <summary>
     /// The process exit code. Findings outrank plumbing, and configuration is never an error on

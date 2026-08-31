@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using NDSTK.CookieScan.Core;
 using NDSTK.CookieScanner;
 
@@ -153,15 +154,57 @@ public class ScanJsonTests
 
         Assert.Contains("\"options\": null", json);
 
-        // Options is the last constructor parameter, so it is also the last property written: this
-        // strips both its line and the now-trailing comma on the property before it, leaving exactly
-        // what a file predating the field would look like - no "options" key at all.
-        string preBranchJson = json.Replace(",\n  \"options\": null\n}", "\n}");
+        // The trailing nulls, stripped to leave exactly what a file predating both fields looks like:
+        // no "options" key and no "declaredFromCatalogue" key at all.
+        //
+        // Asserted rather than assumed. This surgery used to name "options" as the last property and
+        // silently stopped matching the day a field was added after it - the test still passed, and
+        // tested nothing. The inequality below is what makes that failure loud.
+        // Matched loosely on purpose. Pinning the exact indentation and line endings is what let the
+        // previous version rot into a no-op; the assertion below is what proves the strip happened.
+        string preBranchJson = Regex.Replace(json, @",\s*""options""\s*:\s*null", "");
+
+        preBranchJson = Regex.Replace(preBranchJson, @",\s*""declaredFromCatalogue""\s*:\s*null", "");
+
+        Assert.DoesNotContain("\"options\"", preBranchJson);
+        Assert.DoesNotContain("\"declaredFromCatalogue\"", preBranchJson);
 
         ScanResult? back = ScanJson.Deserialize(preBranchJson);
 
         Assert.NotNull(back);
         Assert.Null(back.Options);
+        Assert.Null(back.DeclaredFromCatalogue);
         Assert.Single(back.Candidates);
+    }
+
+    // The catalogue-sourced declarations, which the report and the window's table both draw as rows
+    // of their own. A renamed member here would leave the table silently one row short of what the
+    // scan actually declared - which is the failure this whole field exists to prevent.
+    [Fact]
+    public void The_catalogue_declarations_survive_a_round_trip_by_name()
+    {
+        ScanResult sample = Sample() with
+        {
+            DeclaredFromCatalogue =
+            [
+                new CookieDeclaration(
+                    ".AspNetCore.Mvc.CookieTempDataProvider", "Denna webbplats", "necessary",
+                    "Bär ett meddelande.", "Session", "Cookie"),
+            ],
+        };
+
+        string json = ScanJson.Serialize(sample);
+
+        Assert.Contains("\"declaredFromCatalogue\"", json);
+        Assert.Contains("\"name\": \".AspNetCore.Mvc.CookieTempDataProvider\"", json);
+        Assert.Contains("\"storageType\": \"Cookie\"", json);
+
+        ScanResult? back = ScanJson.Deserialize(json);
+
+        CookieDeclaration declaration = Assert.Single(back?.DeclaredFromCatalogue ?? []);
+
+        Assert.Equal(".AspNetCore.Mvc.CookieTempDataProvider", declaration.Name);
+        Assert.Equal("Bär ett meddelande.", declaration.Purpose);
+        Assert.Equal("Session", declaration.Duration);
     }
 }

@@ -138,11 +138,10 @@ public sealed class ScanRunner(ScanOptions options, Func<CookieCatalogue> loadCa
         // leaving it out means a policy page that is permanently missing a cookie its visitors do
         // get. The report keeps the two apart - "All entries found" stays observations only - so
         // which is which remains auditable.
-        List<CookieDeclaration> declarations =
-        [
-            .. candidates.Select(CookieDeclaration.From),
-            .. unobservedExpected.Select(entry => CookieDeclaration.From(entry, now, options.Locale)),
-        ];
+        IReadOnlyList<CookieDeclaration> fromCatalogue =
+            [.. unobservedExpected.Select(entry => CookieDeclaration.From(entry, now, options.Locale))];
+
+        List<CookieDeclaration> declarations = [.. candidates.Select(CookieDeclaration.From), .. fromCatalogue];
 
         MergeOutcome? outcome = null;
 
@@ -166,6 +165,9 @@ public sealed class ScanRunner(ScanOptions options, Func<CookieCatalogue> loadCa
         return new ScanResult(
             candidates, violations, expectedButNotObserved, hostsByPass, outcome,
             options.CanReachApi, options.DryRun, now, options.Url.ToString(),
-            new ScanOptionsSummary(options.MaxPages, options.Locale, options.MemberScanEnabled, options.DryRun));
+            new ScanOptionsSummary(options.MaxPages, options.Locale, options.MemberScanEnabled, options.DryRun),
+            // Recorded whether or not the write-back ran: what the scan WOULD declare is the same
+            // either way, and a report-only run should still show the whole list it is proposing.
+            fromCatalogue);
     }
 }
