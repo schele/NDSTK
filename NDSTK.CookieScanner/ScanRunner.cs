@@ -26,7 +26,11 @@ public sealed class ScanRunner(ScanOptions options, Func<CookieCatalogue> loadCa
     /// </summary>
     public async Task<ScanResult?> RunAsync(CancellationToken cancellationToken)
     {
-        log.Info($"Scanning {options.Url} - up to {options.MaxPages} pages per pass, locale {options.Locale}.");
+        // Upper-cased rather than printed as the enum's name: the dashboard's own Locale control
+        // reads SV and EN, and a log line saying "Sv" beside it looks like a different value.
+        log.Info(
+            $"Scanning {options.Url} - up to {options.MaxPages} pages per pass, "
+            + $"locale {options.Locale.ToString().ToUpperInvariant()}.");
 
         BrowserBootstrap.EnsureChromium(log);
 
