@@ -1,6 +1,7 @@
 
 using System.Threading.RateLimiting;
 using Esatto.Umbraco.Backoffice.CookieBanner;
+using Esatto.Umbraco.Backoffice.CookieScan;
 using NDSTK.Booking.Admin;
 using NDSTK.Booking.Web;
 using Umbraco.Community.BlockPreview.Extensions;
@@ -123,12 +124,17 @@ builder.CreateUmbracoBuilder()
     })
     .Build();
 
-// The cookie scanner's merge endpoint. Scoped, because it uses IContentService.
-builder.Services.AddScoped<NDSTK.CookieScan.CookieScanWriter>();
-
-builder.Services.Configure<NDSTK.CookieScan.CookieScanApiUserOptions>(
-    builder.Configuration.GetSection(NDSTK.CookieScan.CookieScanApiUserOptions.SectionName));
-builder.Services.AddScoped<NDSTK.CookieScan.CookieScanApiUserSeeder>();
+// The cookie scanner's merge endpoint arrives with Esatto.Umbraco.Backoffice.CookieScan and
+// registers itself through that package's composer, so there is nothing to add for it here.
+//
+// This one line is the exception: the package binds its options from Esatto:CookieScan:ApiUser,
+// and this site's settings have lived under NDSTK:CookieScanApiUser since before the package
+// existed - in an untracked appsettings.Secrets.json and, in production, in a User-scope
+// NDSTK__CookieScanApiUser__ClientSecret. Renaming those is a deployment change on a live site;
+// this is a line of code. Configure is additive and runs in registration order, so binding the old
+// section here, after the composer, is what makes it win.
+builder.Services.ConfigureCookieScanApiUser(
+    builder.Configuration.GetSection("NDSTK:CookieScanApiUser"));
 
 WebApplication app = builder.Build();
 
@@ -145,18 +151,11 @@ if (app.Services.GetRequiredService<TestDataResetGate>().IsEnabled)
         + "booking, payment, credit, child and membership. Development only.");
 }
 
-// Creates the cookie scanner's API user when configured to. After BootUmbracoAsync because it
-// needs the user service, and awaited rather than fire-and-forget so a failure is logged in order
-// rather than interleaved with the first request. An async scope, not a sync one: if anything
-// resolved into it is IAsyncDisposable-only, a sync Dispose() throws AFTER the seeder's own catch
-// has already done its job - taking down boot, the one outcome the never-fatal posture exists to
-// prevent.
-await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
-{
-    await scope.ServiceProvider
-        .GetRequiredService<NDSTK.CookieScan.CookieScanApiUserSeeder>()
-        .SeedAsync(CancellationToken.None);
-}
+// Creates the cookie scanner's API user when configured to. After BootUmbracoAsync because it needs
+// the user service, and awaited rather than fire-and-forget so a failure is logged in order rather
+// than interleaved with the first request. The async scope this used to open by hand - and the
+// reason it has to be an async one - now lives inside the extension, in the package.
+await app.Services.SeedCookieScanApiUserAsync();
 
 // Maps the endpoint the consent dialog posts decisions to. Must sit after BootUmbracoAsync()
 // and before UseUmbraco(); without it the dialog renders but Accept and Reject do nothing.

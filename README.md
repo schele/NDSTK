@@ -23,6 +23,16 @@ have to stop the site to run are tests you stop running.
 `DefaultItemExcludes`. Otherwise the SDK's default globs pull that project's sources into the web
 assembly and the build fails with duplicate assembly attributes.
 
+The same trap fires in reverse when a sibling project is **removed**. Taking it out of
+`DefaultItemExcludes` while its untracked `bin\` and `obj\` are still on disk lets the globs pull
+those in instead, and the build fails with the identical duplicate-attribute wall — over generated
+files belonging to a project that no longer exists. `git rm` does not touch them, because
+`.gitignore` means they were never tracked. Delete the folder outright.
+
+The cookie scanner used to live here as four such projects. It is now
+[`Esatto.CookieScan.*` in the Esatto.Packages mono-repo](docs/cookie-scanner.md), and reaches this
+site as one `PackageReference`.
+
 While the site is running, `dotnet build` cannot overwrite the output. Use
 
 ```
