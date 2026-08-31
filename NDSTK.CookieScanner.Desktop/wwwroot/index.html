@@ -224,6 +224,18 @@
                   fault - report-only is a supported mode. See showSecretStatus in app.js.
                 -->
                 <p class="field-note muted" id="secret-status"></p>
+
+                <!--
+                  One toggle for all three masked boxes rather than a reveal button inside each: the
+                  five boxes in this grid are deliberately the same size, and a control sitting
+                  inside one of them would break that. Unchecked on every launch and never
+                  remembered - a reveal that outlived the window would put a secret on screen that
+                  nobody had asked to see.
+                -->
+                <label class="check field--wide">
+                  <input type="checkbox" id="scan-show-masked">
+                  Show the masked values
+                </label>
               </div>
             </details>
 
