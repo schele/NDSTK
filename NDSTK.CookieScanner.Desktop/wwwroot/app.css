@@ -949,6 +949,25 @@ cs-stat-tile {
   gap: var(--s-3);
 }
 
+/*
+    Save site and Delete, inside Options and under the fields they write. The grid above supplies no
+    gap below itself, so the separation is set here - one step, the same one the grid uses between its
+    own rows, because these buttons are the end of that block rather than a new one.
+*/
+.actions--profile {
+  margin-top: var(--s-4);
+}
+
+/*
+    The line between the profile and the run. A plain hr, reset to one hairline: the browser's own
+    has a 3D border and margins of its own, and the form is a grid whose gap already spaces it.
+*/
+.rule {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
 /* Run and Cancel, pushed to the row's far right; whichever is visible occupies the same spot. */
 .actions-primary {
   display: flex;

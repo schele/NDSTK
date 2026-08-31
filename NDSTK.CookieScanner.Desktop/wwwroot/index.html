@@ -240,6 +240,33 @@
                   Show the masked values
                 </label>
               </div>
+
+              <!--
+                Save site and Delete belong to the fields above them, so they sit under those fields
+                rather than out beside Run. They read as part of starting a scan when all three share
+                a row, and they are not: two of them write settings.json and never touch the site.
+
+                type="button" on both: they are inside a form whose submit runs a scan, and a button
+                without it would run one.
+              -->
+              <div class="actions actions--profile">
+                <button class="button button--success" id="scan-save-site" type="button">Save site</button>
+                <!--
+                  aria-label, because "Delete" alone is what a screen reader announces out of context -
+                  in a list of this page's controls, say - and it does not say what is deleted. The
+                  visible word stays "Delete": beside a site dropdown it is unambiguous to anyone who
+                  can see the row it is in, and the longer label would crowd it.
+                -->
+                <button class="button button--danger" id="scan-delete-site" type="button"
+                        aria-label="Delete saved site">Delete</button>
+                <!--
+                  What just happened, said once. Save and Delete otherwise succeed in silence - the
+                  dropdown changes, a button greys out - and silence reads as "did that work?". A
+                  status region, so a screen reader hears it without it stealing focus; it fades on
+                  its own because a confirmation that has to be dismissed is a chore.
+                -->
+                <p class="toast" id="site-toast" role="status" aria-live="polite" hidden></p>
+              </div>
             </details>
 
             <!--
@@ -249,40 +276,25 @@
               their own tick from then on, remembered per URL so turning it off and browsing the
               saved sites leaves it off where it was left off. See dryRunByUrl in app.js.
             -->
+            <!--
+              A grey line, and it earns its place: above it is the profile - the fields and the two
+              buttons that write them - and below it is the run. With Options open the card used to
+              be one undivided column from Site URL to Run, which is what made Save site look like
+              part of starting a scan and Dry run look like part of the profile.
+            -->
+            <hr class="rule">
+
             <label class="check">
               <input type="checkbox" id="scan-dry-run" checked>
               Dry run (write nothing)
             </label>
 
             <!--
-              type="button" on both of the new ones: they are inside a form whose submit runs a
-              scan, and a button without it would run one.
-
-              Save and Delete sit beside Run rather than up beside the dropdown, because all three
-              act on the form below them - the dropdown only chooses what fills it.
+              Run and Cancel, and nothing else: the two buttons that used to share this row now live
+              inside Options with the fields they write. Cancel takes Run's exact place while a scan
+              runs. Ctrl+Enter still submits from anywhere.
             -->
             <div class="actions">
-              <button class="button button--success" id="scan-save-site" type="button">Save site</button>
-              <!--
-                aria-label, because "Delete" alone is what a screen reader announces out of context -
-                in a list of this page's controls, say - and it does not say what is deleted. The
-                visible word stays "Delete": beside a site dropdown it is unambiguous to anyone who
-                can see the row it is in, and the longer label would crowd it.
-              -->
-              <button class="button button--danger" id="scan-delete-site" type="button"
-                      aria-label="Delete saved site">Delete</button>
-              <!--
-                What just happened, said once. Save and Delete otherwise succeed in silence - the
-                dropdown changes, a button greys out - and silence reads as "did that work?". A
-                status region, so a screen reader hears it without it stealing focus; it fades on its
-                own because a confirmation that has to be dismissed is a chore.
-              -->
-              <p class="toast" id="site-toast" role="status" aria-live="polite" hidden></p>
-              <!--
-                Run sits at the far right, apart from the two that edit the profile, and Cancel takes
-                its exact place while a scan runs. Last in the DOM as well as on screen, so the tab
-                order reads the row the way the eye does; Ctrl+Enter still submits from anywhere.
-              -->
               <div class="actions-primary">
                 <button class="button button--primary" id="scan-run" type="submit">Run</button>
                 <button class="button" id="scan-cancel" type="button" hidden>Cancel</button>
