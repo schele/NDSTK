@@ -46,7 +46,11 @@ export class FindingsTable extends LitElement {
       return html`<p class="muted">No scan loaded.</p>`;
     }
 
-    if (result.candidates.length === 0) {
+    // Declared on the catalogue's word rather than seen. Absent from a scan recorded before the
+    // field existed, and from any run with nothing to add that way, so it is read as empty.
+    const fromCatalogue = Array.isArray(result.declaredFromCatalogue) ? result.declaredFromCatalogue : [];
+
+    if (result.candidates.length === 0 && fromCatalogue.length === 0) {
       return html`<p class="muted">This scan found no cookies or storage entries.</p>`;
     }
 
@@ -64,7 +68,10 @@ export class FindingsTable extends LitElement {
     // there is. Visually hidden, because the heading above already says it to everyone else.
     return html`
       <table class="data-table">
-        <caption class="sr-only">All entries found - ${result.candidates.length} in total.</caption>
+        <caption class="sr-only">
+          All entries declared - ${result.candidates.length + fromCatalogue.length} in total,
+          ${fromCatalogue.length} of them from the catalogue rather than observed.
+        </caption>
         <thead>
           <tr>
             <th scope="col">Name</th>
@@ -77,6 +84,7 @@ export class FindingsTable extends LitElement {
         </thead>
         <tbody>
           ${result.candidates.map(candidate => row(candidate, isViolation(candidate)))}
+          ${fromCatalogue.map(catalogueRow)}
         </tbody>
       </table>
     `;
@@ -108,6 +116,28 @@ function row(candidate, violation) {
       <td>${candidate.firstSeenPass}</td>
       <td>${candidate.duration}</td>
       <td>${pill(violation, review)}</td>
+    </tr>
+  `;
+}
+
+/**
+ * One declaration the catalogue supplied because the crawl cannot reach it - a cookie the site
+ * writes from a POST the scan refuses to make.
+ *
+ * Listed in the same table as the sightings because the question this table answers is "what will
+ * the policy page say", and two tables made the answer read as the observed count alone. No tint:
+ * it is neither a violation nor a doubtful categorisation, and the provenance is spelled out in the
+ * pass column and again in its own pill rather than left to a colour.
+ */
+function catalogueRow(declaration) {
+  return html`
+    <tr>
+      <td class="mono">${declaration.name}</td>
+      <td>${declaration.storageType}</td>
+      <td>${declaration.category}</td>
+      <td>not observed</td>
+      <td>${declaration.duration}</td>
+      <td><span class="pill">From catalogue</span></td>
     </tr>
   `;
 }

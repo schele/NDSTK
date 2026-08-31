@@ -94,7 +94,13 @@ public static class ScanReportWriter
             markdown.AppendLine();
         }
 
-        markdown.AppendLine("## All entries found");
+        // Every declaration this scan proposes, in one table, because "what is going on the page"
+        // is the question this section answers and splitting it in two made the answer look like the
+        // observed count alone. The First seen in column carries the provenance instead: a pass name
+        // for a sighting, "not observed" for a catalogue row.
+        IReadOnlyList<CookieDeclaration> fromCatalogue = result.DeclaredFromCatalogue ?? [];
+
+        markdown.AppendLine("## All entries declared");
         markdown.AppendLine();
         markdown.AppendLine("| Name | Storage | Category | First seen in | Duration |");
         markdown.AppendLine("| --- | --- | --- | --- | --- |");
@@ -106,7 +112,22 @@ public static class ScanReportWriter
                 + $"| {candidate.FirstSeenPass} | {candidate.Duration} |");
         }
 
+        foreach (CookieDeclaration declaration in fromCatalogue)
+        {
+            markdown.AppendLine(
+                $"| `{declaration.Name}` | {declaration.StorageType} | {declaration.Category} "
+                + $"| not observed (catalogue) | {declaration.Duration} |");
+        }
+
         markdown.AppendLine();
+
+        if (fromCatalogue.Count > 0)
+        {
+            markdown.AppendLine(
+                $"{result.Candidates.Count} observed, {fromCatalogue.Count} from the catalogue - "
+                + $"{result.Candidates.Count + fromCatalogue.Count} declared in total.");
+            markdown.AppendLine();
+        }
 
         Section(markdown, "Third-party hosts contacted", result.HostsByPass
             .Where(pass => pass.Value.Count > 0)
@@ -133,10 +154,18 @@ public static class ScanReportWriter
     {
         (string markdownPath, string jsonPath) = ReportPaths(options);
 
+        int fromCatalogue = (result.DeclaredFromCatalogue ?? []).Count;
+
         List<string> lines =
         [
             "",
-            $"{result.Candidates.Count} entr(ies) found.",
+            // The two numbers are different questions - what the crawl saw, and what the page will
+            // say - and printing only the first one made a scan that declares four cookies read as
+            // one that declares three.
+            fromCatalogue == 0
+                ? $"{result.Candidates.Count} entr(ies) found."
+                : $"{result.Candidates.Count} entr(ies) found, {result.Candidates.Count + fromCatalogue} declared "
+                    + $"({fromCatalogue} from the catalogue, unreachable by a crawl).",
         ];
 
         if (result.Violations.Count > 0)

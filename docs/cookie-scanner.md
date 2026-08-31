@@ -289,10 +289,20 @@ is normal, and declaring one would put a cookie on the policy page that nothing 
 stack genuinely does not set an expected entry should drop it from that site's catalogue — see
 Overriding the catalogue.
 
-The report keeps the sources apart. "All entries found" stays observations only, and the
-catalogue-declared entries remain under "Expected but not observed" with a line saying they were
-declared anyway — so the provenance of every block on the page is auditable afterwards. And since a
-merge only ever saves a draft, an over-declaration is something a human sees before it is published.
+Both front ends list all of it in one table — **All entries declared** — because "what will the
+policy page say" is the question that table answers, and a scan proposing four cookies while showing
+three read as a scan proposing three. Provenance is a column rather than a separate section: the
+*First seen in* cell names the pass for a sighting and says `not observed (catalogue)` otherwise, and
+the console summary prints both numbers (`3 entr(ies) found, 4 declared`).
+
+The data model keeps them apart even though the table does not. `Candidates` stays observations
+only, and the catalogue rows travel in `DeclaredFromCatalogue`, because a catalogue row is present in
+every run whether the site changed or not — folding it into `Candidates` would make it show up in a
+comparison between two scans as something that happened. A history file written before that field
+existed simply has no value for it, and both readers treat it as empty.
+
+Since a merge only ever saves a draft, an over-declaration is something a human sees before it is
+published.
 
 ## Flags
 
