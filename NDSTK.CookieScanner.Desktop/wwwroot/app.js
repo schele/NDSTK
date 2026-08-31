@@ -336,16 +336,19 @@ let sites = [];
 /**
  * What "New site" means: the fields a profile that does not exist yet would have.
  *
- * The same defaults the window has always opened with - 25 pages, Swedish, dry run ON so the
- * obvious button to press cannot write to a live policy page. Kept here rather than as `value`
- * attributes in the markup because this is also what Delete and a failed lookup fall back to, and
- * three places reading a form's initial state out of the DOM would drift.
+ * The same defaults the window has always opened with - 25 pages, Swedish. Kept here rather than as
+ * `value` attributes in the markup because this is also what Delete and a failed lookup fall back
+ * to, and three places reading a form's initial state out of the DOM would drift.
+ *
+ * No `dryRun`: the checkbox is not filled from a profile at all - see fillForm - so a value here
+ * would be one nothing reads. Its startup state is the `checked` attribute in the markup, which is
+ * the one place that still needs to say "dry run ON so the obvious button to press cannot write to
+ * a live policy page".
  */
 const NEW_SITE = {
   url: '',
   maxPages: 25,
   locale: 'Sv',
-  dryRun: true,
   memberEmail: '',
   memberPassword: '',
   clientId: '',
@@ -508,15 +511,12 @@ function fillForm(profile) {
   // this site never registered would have the next Save write it into the profile for good.
   clientSecretInput.value = profile.clientSecret ?? '';
 
-  // Always on, whatever the profile stored - the one field a fill does not restore. Every other box
-  // describes the site; this one decides whether a run writes to it, and the safe answer is the only
-  // one worth defaulting to. The profile's own value still travels with a run and is still saved, so
-  // the record of what a scan did is intact; it just never arrives pre-armed on screen.
-  //
-  // The bias is deliberate and one-directional: a box that reads checked when the run turns out to
-  // write is the dangerous mistake, and this makes it impossible - the only cost is unticking it
-  // again when a real write-back is what you want.
-  dryRunInput.checked = true;
+  // Dry run is deliberately absent from this function. It is the operator's switch, not the
+  // profile's: the window opens with it checked (the `checked` attribute in the markup) and nothing
+  // touches it again for the rest of the session. Filling it from the profile - or forcing it back
+  // on with every fill - both had the same fault from the chair: turning it off, glancing at
+  // another site and coming back re-armed it, so the box could not be trusted to still say what it
+  // was left saying. It is still read on every run and still saved with the profile.
 
   // Setting .value fires no input event, so the note under the pair is recomputed by hand.
   showSecretStatus();
