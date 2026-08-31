@@ -187,7 +187,13 @@ export class HistoryList extends LitElement {
         <caption class="sr-only">Every kept scan - ${entries.length} in total.</caption>
         <thead>
           <tr>
-            <th scope="col" class="history-check"><span class="sr-only">Select</span></th>
+            <!--
+              Named rather than hidden behind an sr-only label. Two checkboxes look like two
+              checkboxes: the note under the table says what a selection will do once one is ticked,
+              but until then nothing on screen said what the column was for. The word carries that
+              before the first click.
+            -->
+            <th scope="col" class="history-check">Compare</th>
             <th scope="col">Completed</th>
             <th scope="col">Site</th>
             <th scope="col" class="num">Entries</th>
