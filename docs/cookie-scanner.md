@@ -755,22 +755,24 @@ The pre-dashboard and post-dashboard console tools were run against the same liv
 apart and their `cookie-scan-report.json` files compared key by key: the sole structural difference
 is the added top-level `options`. No existing key changed name, type or value.
 
+**Write-back against production, from a profile's own secret (2026-08-31)**
+
+`ndstk.se` end to end: six passes, the member dimension signing in, no violations, no third-party
+hosts, three cookies found — and the merge saved them onto the policy page, which was then
+published. `https://ndstk.se/cookies` now serves `.AspNetCore.Antiforgery.*`,
+`.AspNetCore.Identity.Application` and `ndstk-consent`.
+
+That settles three things that used to sit under "not verified": an API-user token does satisfy
+`BackOfficeAccess` on the merge endpoint, a profile-sourced secret survives the round trip from
+DPAPI to the wire, and the seeder's client-id prefix handling is right against a real OpenIddict
+store. Two false starts on the way, both worth remembering: production had no API user at all
+(`invalid_client` / *"The specified 'client_id' is invalid"*, `ID2052`), and then the profile was
+still holding the development secret while production had registered its own (`ID2055`, *"The
+specified client credentials are invalid"*). The two error codes tell those apart — see
+Troubleshooting.
+
 ## What has not been verified
 
-- **A per-site client secret in a live token request.** The secret moved into the profile while the
-  development site was down, so every note state, the four-field encryption and the relaunch refill
-  were verified. A profile-sourced secret has since reached the wire — the 2026-08-31 production run
-  sent one and was refused with `invalid_client`, which is the site having no such application
-  rather than the secret failing to travel. A *successful* profile-sourced token exchange is what
-  remains open; the first production write-back settles it.
-- **Write-back against production.** A full scan of `ndstk.se` now completes (2026-08-31): the
-  banner is deployed, all six passes and the member dimension run, three cookies are found, no
-  violations and no third-party hosts. Only the merge is untested there, because production had no
-  API user until `appsettings.Production.json` — the token request returned
-  `invalid_client`. Settled by the first non-dry-run scan after the secret is set on the server.
-  (An earlier version of this note said production lacked the banner entirely. That stopped being
-  true when the site was updated; `consent.js` and `consent.css` both serve, and the GET 404s that
-  suggested otherwise were ASP.NET answering a GET on a POST-only route.)
 - **A site with real third-party tags.** This site loads none, so the categorisation of a genuine
   statistics or marketing cookie, and the violation rule firing on a real tracker in a browser,
   have not been seen end to end. The logic is unit-tested and the mechanism is proven; the input
