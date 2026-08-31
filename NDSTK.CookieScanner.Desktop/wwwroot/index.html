@@ -242,8 +242,14 @@
               </div>
             </details>
 
+            <!--
+              Checked here, in the markup, because this is the only place that decides it: the
+              window opens dry whichever site the dropdown restores, and from then on the box is the
+              operator's alone - fillForm deliberately never writes to it, so turning it off and
+              browsing the saved sites leaves it off.
+            -->
             <label class="check">
-              <input type="checkbox" id="scan-dry-run">
+              <input type="checkbox" id="scan-dry-run" checked>
               Dry run (write nothing)
             </label>
 
