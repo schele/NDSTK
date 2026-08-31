@@ -25,7 +25,13 @@ public sealed class ManagementApiClient(ScanOptions options, IScanLog log)
         PropertyNameCaseInsensitive = true,
     };
 
-    public async Task<MergeOutcome?> MergeAsync(IReadOnlyList<CookieDeclarationCandidate> candidates)
+    /// <param name="declarations">
+    /// What to declare, already reduced to the wire's fields. Both what the scan observed and what
+    /// the catalogue says this stack sets arrive here as the same shape - see
+    /// <see cref="CookieDeclaration"/> - so this method has no way to treat one source differently
+    /// from the other, which is the point: the endpoint merges declarations, not sightings.
+    /// </param>
+    public async Task<MergeOutcome?> MergeAsync(IReadOnlyList<CookieDeclaration> declarations)
     {
         using HttpClient http = CreateClient();
 
@@ -37,14 +43,14 @@ public sealed class ManagementApiClient(ScanOptions options, IScanLog log)
 
             var request = new
             {
-                declarations = candidates.Select(candidate => new
+                declarations = declarations.Select(declaration => new
                 {
-                    name = candidate.Name,
-                    provider = candidate.Provider,
-                    category = candidate.Category,
-                    purpose = candidate.Purpose,
-                    duration = candidate.Duration,
-                    storageType = candidate.StorageType,
+                    name = declaration.Name,
+                    provider = declaration.Provider,
+                    category = declaration.Category,
+                    purpose = declaration.Purpose,
+                    duration = declaration.Duration,
+                    storageType = declaration.StorageType,
                 }),
                 dryRun = options.DryRun,
             };

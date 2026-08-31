@@ -63,13 +63,8 @@ public static class MergePlanner
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToList();
 
-        // Only entries the catalogue flags as belonging to this site's own stack. An absent Google
-        // cookie is normal; an absent antiforgery cookie means the crawl missed something.
-        List<string> expectedButNotObserved = catalogue.Expected
-            .Select(entry => entry.Pattern)
-            .Where(pattern => unique.Any(candidate => CookieNameMatcher.EitherMatches(pattern, candidate.Name)) is false)
-            .OrderBy(pattern => pattern, StringComparer.Ordinal)
-            .ToList();
+        List<string> expectedButNotObserved =
+            [.. UnobservedExpected(unique, catalogue).Select(entry => entry.Pattern)];
 
         // Wrapped rather than handed back as the backing List<T>: MergePlan.ExceedsCap and
         // HasWork read ToAdd.Count, and a caller that downcast and mutated a plain List<T> could
@@ -79,5 +74,31 @@ public static class MergePlanner
             alreadyDeclared.AsReadOnly(),
             declaredButNotFound.AsReadOnly(),
             expectedButNotObserved.AsReadOnly());
+    }
+
+    /// <summary>
+    /// The catalogue's own expected entries that these candidates do not account for - the site's
+    /// stack sets them, and this run did not see them.
+    /// </summary>
+    /// <remarks>
+    /// Only entries the catalogue flags as belonging to this site's own stack. An absent Google
+    /// cookie is normal; an absent antiforgery cookie means the crawl missed something.
+    /// <para>
+    /// Returned as entries rather than as names because there are two callers with different needs:
+    /// the report wants the names, and the write-back wants the whole row - a cookie the crawl
+    /// cannot reach is still a cookie the site sets, and the flag is the catalogue's statement that
+    /// it does. That is why "not observed" is a reason to declare one of these rather than a reason
+    /// to leave it out: the crawl issues only GETs, so a cookie written by a booking POST can never
+    /// appear here however many times the scan runs.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<CatalogueEntry> UnobservedExpected(
+        IEnumerable<CookieDeclarationCandidate> candidates, CookieCatalogue catalogue)
+    {
+        List<CookieDeclarationCandidate> seen = [.. candidates];
+
+        return [.. catalogue.Expected
+            .Where(entry => seen.Any(candidate => CookieNameMatcher.EitherMatches(entry.Pattern, candidate.Name)) is false)
+            .OrderBy(entry => entry.Pattern, StringComparer.Ordinal)];
     }
 }

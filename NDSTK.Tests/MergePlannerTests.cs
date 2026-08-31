@@ -204,4 +204,58 @@ public class MergePlannerTests
 
         Assert.Equal(["alpha", "mid", "zebra"], plan.ToAdd.Select(candidate => candidate.Name));
     }
+
+    // The write-back's second source. These entries are the catalogue's statement that this site's
+    // own stack sets them, so a run that could not reach one still declares it - the crawl issues
+    // only GETs, and a cookie written by a booking POST can never appear in the observations.
+    [Fact]
+    public void An_expected_entry_the_scan_missed_is_returned_whole()
+    {
+        IReadOnlyList<CatalogueEntry> unobserved =
+            MergePlanner.UnobservedExpected([Candidate("_ga_1234")], ExpectingUmbMember);
+
+        CatalogueEntry entry = Assert.Single(unobserved);
+
+        Assert.Equal("UMB_MEMBER", entry.Pattern);
+        Assert.Equal("necessary", entry.Category);
+        Assert.Equal("Inloggning.", entry.Purpose.For(Locale.Sv));
+    }
+
+    [Fact]
+    public void An_expected_entry_the_scan_saw_is_not_returned()
+    {
+        Assert.Empty(MergePlanner.UnobservedExpected([Candidate("UMB_MEMBER")], ExpectingUmbMember));
+    }
+
+    // Only the flagged ones. An absent Google cookie is normal - the site may simply not load it any
+    // more - and declaring one on the catalogue's word would put a cookie on the policy page that
+    // nothing sets.
+    [Fact]
+    public void An_unflagged_catalogue_entry_is_never_returned()
+    {
+        IReadOnlyList<CatalogueEntry> unobserved =
+            MergePlanner.UnobservedExpected([], ExpectingUmbMember);
+
+        Assert.Equal(["UMB_MEMBER"], unobserved.Select(entry => entry.Pattern));
+    }
+
+    // Wildcards match here exactly as they do everywhere else: a site that set _ga_G-ABC accounts
+    // for a _ga_* expectation, and must not have it declared a second time.
+    [Fact]
+    public void A_wildcard_expectation_is_accounted_for_by_a_matching_sighting()
+    {
+        CookieCatalogue expectingWildcard = CookieCatalogue.Parse("""
+        {
+          "unknownCategory": "marketing",
+          "entries": [
+            { "pattern": ".AspNetCore.Antiforgery.*", "provider": { "sv": "Denna webbplats", "en": "This website" },
+              "category": "necessary", "expected": true,
+              "purpose": { "sv": "Skyddar formulär.", "en": "Protects forms." } }
+          ]
+        }
+        """);
+
+        Assert.Empty(MergePlanner.UnobservedExpected(
+            [Candidate(".AspNetCore.Antiforgery.WJz1p0")], expectingWildcard));
+    }
 }

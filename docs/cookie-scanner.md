@@ -270,6 +270,30 @@ six passes exist to catch. Reducing to "the earliest sighting per name" before c
 the second violation entirely; that reduction is used for the *declarations* list, never for
 violations.
 
+### Declaring what the crawl cannot reach
+
+The write-back has two sources, not one: everything the passes observed, and every catalogue entry
+flagged `"expected": true` that the run did **not** observe.
+
+That second source exists because the crawl issues only GETs — it submits the login form and nothing
+else, deliberately, so a scan can never create a real record on a live site. A cookie the site
+writes from a booking, cancellation or registration POST therefore cannot appear in the observations
+however many times the scan runs. `.AspNetCore.Mvc.CookieTempDataProvider` is the standing example:
+`BookingSurfaceController` sets `TempData` on every booked class, so a member who books one really
+does get that cookie, and a policy page built from sightings alone would be permanently missing it.
+
+`expected` is the flag that makes this safe. It means "this site's own stack sets this" — a statement
+about the site rather than about one crawl — so for those entries *not observed* is a reason to
+declare, not a reason to omit. An unflagged entry is never declared unseen: an absent Google cookie
+is normal, and declaring one would put a cookie on the policy page that nothing sets. A site whose
+stack genuinely does not set an expected entry should drop it from that site's catalogue — see
+Overriding the catalogue.
+
+The report keeps the sources apart. "All entries found" stays observations only, and the
+catalogue-declared entries remain under "Expected but not observed" with a line saying they were
+declared anyway — so the provenance of every block on the page is auditable afterwards. And since a
+merge only ever saves a draft, an over-declaration is something a human sees before it is published.
+
 ## Flags
 
 All flags are `--name value`, except `--dry-run` and `--headed`, which take no value. Verified
@@ -784,8 +808,9 @@ Troubleshooting.
   has never existed here.
 - **`.AspNetCore.Mvc.CookieTempDataProvider` being observed.** It is only set by a request that
   writes `TempData` — a booking, cancellation, child-management or registration POST — and the
-  crawl issues only GETs. It appears under "expected but not observed" by design; declare it
-  deliberately rather than waiting for a scan to find it.
+  crawl issues only GETs, so no scan will ever witness it. It still gets **declared**: see
+  Declaring what the crawl cannot reach, above. What remains unverified is only the sighting, which
+  is unreachable by design rather than missing.
 - **A machine without the WebView2 Evergreen runtime.** Every machine this has run on already had
   it. The missing-runtime path — `GetAvailableBrowserVersionString` throwing
   `WebView2RuntimeNotFoundException`, the named message box, the window then closing — is read from

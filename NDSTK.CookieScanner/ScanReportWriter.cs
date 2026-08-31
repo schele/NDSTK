@@ -81,6 +81,19 @@ public static class ScanReportWriter
 
         Section(markdown, "Expected but not observed", result.ExpectedButNotObserved);
 
+        // Said here rather than left to the section's title, which reads as a gap. It is not one:
+        // these went to the endpoint with everything else, so the operator should expect to see them
+        // in the draft and should not go looking for a sighting that cannot happen.
+        if (result.Outcome is not null && result.ExpectedButNotObserved.Count > 0)
+        {
+            markdown.AppendLine(
+                "Declared anyway. The catalogue flags these as this site's own, and the crawl issues "
+                + "only GETs - so a cookie written by a booking or registration POST can never be "
+                + "observed here, however often the scan runs. Not observed is a reason to declare "
+                + "one of these, not a reason to leave it out.");
+            markdown.AppendLine();
+        }
+
         markdown.AppendLine("## All entries found");
         markdown.AppendLine();
         markdown.AppendLine("| Name | Storage | Category | First seen in | Duration |");
@@ -173,7 +186,10 @@ public static class ScanReportWriter
         if (result.ExpectedButNotObserved.Count > 0)
         {
             lines.Add("");
-            lines.Add("  Expected but not observed: " + string.Join(", ", result.ExpectedButNotObserved));
+            lines.Add(
+                "  Expected but not observed"
+                + (result.Outcome is null ? "" : ", and declared from the catalogue")
+                + ": " + string.Join(", ", result.ExpectedButNotObserved));
         }
 
         lines.Add("");

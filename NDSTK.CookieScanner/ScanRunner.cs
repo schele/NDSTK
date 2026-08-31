@@ -127,8 +127,22 @@ public sealed class ScanRunner(ScanOptions options, Func<CookieCatalogue> loadCa
 
         // Computed here rather than taken from the endpoint: it depends on THIS run's catalogue,
         // which may be an override file the site knows nothing about.
-        IReadOnlyList<string> expectedButNotObserved =
-            [.. MergePlanner.Plan(candidates, [], catalogue).ExpectedButNotObserved];
+        IReadOnlyList<CatalogueEntry> unobservedExpected =
+            MergePlanner.UnobservedExpected(candidates, catalogue);
+
+        IReadOnlyList<string> expectedButNotObserved = [.. unobservedExpected.Select(entry => entry.Pattern)];
+
+        // Both sources, one list. The catalogue's expected entries are declared even though this run
+        // did not see them: the crawl issues only GETs, so a cookie the site writes from a booking
+        // or registration POST cannot appear in the observations however often the scan runs, and
+        // leaving it out means a policy page that is permanently missing a cookie its visitors do
+        // get. The report keeps the two apart - "All entries found" stays observations only - so
+        // which is which remains auditable.
+        List<CookieDeclaration> declarations =
+        [
+            .. candidates.Select(CookieDeclaration.From),
+            .. unobservedExpected.Select(entry => CookieDeclaration.From(entry, now, options.Locale)),
+        ];
 
         MergeOutcome? outcome = null;
 
@@ -138,13 +152,15 @@ public sealed class ScanRunner(ScanOptions options, Func<CookieCatalogue> loadCa
         // simply not happening.
         cancellationToken.ThrowIfCancellationRequested();
 
-        // An empty candidate list is a legitimate scan outcome, not a failure - but the endpoint's
-        // own validation rejects a declarations-less request with a 400 ("The request contains no
+        // An empty list is a legitimate scan outcome, not a failure - but the endpoint's own
+        // validation rejects a declarations-less request with a 400 ("The request contains no
         // declarations"), which would otherwise surface to the operator as a write-back failure for
-        // a site that simply set no cookies.
-        if (options.CanReachApi && candidates.Count > 0)
+        // a site that simply set no cookies. Counted on the declarations rather than on the
+        // candidates: a run that observed nothing on a site whose catalogue expects something still
+        // has something to say.
+        if (options.CanReachApi && declarations.Count > 0)
         {
-            outcome = await new ManagementApiClient(options, log).MergeAsync(candidates);
+            outcome = await new ManagementApiClient(options, log).MergeAsync(declarations);
         }
 
         return new ScanResult(
