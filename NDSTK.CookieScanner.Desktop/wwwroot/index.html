@@ -244,10 +244,10 @@
 
             <!--
               Checked in the markup so the box is already dry in the moment before the host's first
-              answer arrives - fillDryRun then forces it on for that first fill too, whatever the
-              restored profile saved. After that it follows the URL, remembering a tick that was
-              never saved, so turning it off and browsing the saved sites leaves it off where it was
-              left off. See dryRunByUrl in app.js.
+              answer arrives. From then on fillDryRun decides it: checked for every URL the operator
+              has not ticked in this session - no profile's stored setting reaches this box - and
+              their own tick from then on, remembered per URL so turning it off and browsing the
+              saved sites leaves it off where it was left off. See dryRunByUrl in app.js.
             -->
             <label class="check">
               <input type="checkbox" id="scan-dry-run" checked>

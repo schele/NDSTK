@@ -340,34 +340,28 @@ let sites = [];
  * The one field in the form that survives a site switch. Every other box is refilled from the
  * profile, discarding unsaved edits, and dry run was too until that proved wrong at the chair:
  * turning it off, glancing at another site and coming back found it back on, so the box could not
- * be trusted to still say what it had been left saying. A profile's saved value is what a URL shows
- * the FIRST time it is filled; after that this map is the answer.
+ * be trusted to still say what it had been left saying.
+ *
+ * A URL absent from this map shows a checked box, never the profile's saved value - see fillDryRun
+ * for why the stored setting is not what a fresh session should honour.
  */
 const dryRunByUrl = new Map();
 
 /**
- * Whether the form has yet been filled in this session. The first fill forces dry run on whatever
- * the profile stored, so a window that has just opened is never one keypress from writing to a live
- * site - the one moment the operator has expressed no preference at all.
- */
-let firstFill = true;
-
-/**
  * What "New site" means: the fields a profile that does not exist yet would have.
  *
- * The same defaults the window has always opened with - 25 pages, Swedish, dry run ON so the
- * obvious button to press cannot write to a live policy page. Kept here rather than as `value`
- * attributes in the markup because this is also what Delete and a failed lookup fall back to, and
- * three places reading a form's initial state out of the DOM would drift.
+ * The same defaults the window has always opened with - 25 pages, Swedish. Kept here rather than as
+ * `value` attributes in the markup because this is also what Delete and a failed lookup fall back
+ * to, and three places reading a form's initial state out of the DOM would drift.
  *
- * `dryRun` here is only the value a never-yet-filled "New site" starts from; once the operator
- * touches the box, dryRunByUrl is what answers. See fillDryRun.
+ * No `dryRun`: no profile's stored setting reaches the box, this one included, so a value here
+ * would be one nothing reads. That default lives in fillDryRun, which is the only thing that
+ * decides it.
  */
 const NEW_SITE = {
   url: '',
   maxPages: 25,
   locale: 'Sv',
-  dryRun: true,
   memberEmail: '',
   memberPassword: '',
   clientId: '',
@@ -530,7 +524,7 @@ function fillForm(profile) {
   // this site never registered would have the next Save write it into the profile for good.
   clientSecretInput.value = profile.clientSecret ?? '';
 
-  fillDryRun(profile.url ?? '', profile.dryRun ?? true);
+  fillDryRun(profile.url ?? '');
 
   // Setting .value fires no input event, so the note under the pair is recomputed by hand.
   showSecretStatus();
@@ -541,22 +535,17 @@ function fillForm(profile) {
 }
 
 /**
- * Sets the dry-run box for one URL, in order of authority: the session's first fill is always on,
- * then whatever this URL last showed, then what the profile saved.
+ * Sets the dry-run box for one URL: whatever the operator last set it to for this URL in this
+ * session, and checked for any URL they have not set it on yet.
  *
- * Records what it applied, so the next fill of the same URL repeats it rather than falling back to
- * the profile again - that record is what makes an unsaved tick survive a trip to another site, and
- * it is also why the startup fill does not leave the initially selected URL free to come back
- * unticked from its profile a moment later.
+ * The profile's saved value is deliberately not consulted. It is the one setting where restoring
+ * what was stored is the wrong move: a site saved after a real write-back would then hand back an
+ * unticked box the moment it was selected, arming a write nobody had asked for in this session. So
+ * every URL starts dry, every session, and only the operator's own tick changes that - which is why
+ * the value is recorded here as well as in the change listener.
  */
-function fillDryRun(url, saved) {
-  if (firstFill) {
-    firstFill = false;
-
-    dryRunInput.checked = true;
-  } else {
-    dryRunInput.checked = dryRunByUrl.has(url) ? dryRunByUrl.get(url) : saved;
-  }
+function fillDryRun(url) {
+  dryRunInput.checked = dryRunByUrl.has(url) ? dryRunByUrl.get(url) : true;
 
   dryRunByUrl.set(url, dryRunInput.checked);
 }
