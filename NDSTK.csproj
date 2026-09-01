@@ -19,9 +19,19 @@
     <PackageReference Include="Esatto.Umbraco.Backoffice.CookieBanner" Version="1.1.1" />
     <!--
       The cookie scanner's merge endpoint, which used to be CookieScan\ in this repository. Brings
-      Esatto.CookieScan.Core with it. Not on nuget.org yet - see nuget.config for the local feed
-      this preview version resolves from, and for how to finish the move. -->
-    <PackageReference Include="Esatto.Umbraco.Backoffice.CookieScan" Version="0.0.0-preview.0.36" />
+      Esatto.CookieScan.Core 1.1.0 with it, transitively. Nothing here references Core directly, and
+      nothing should: the endpoint is the whole site-side surface.
+
+      1.1.0 rather than 1.0.0, and not for a feature: 1.0.0 shipped declaring a dependency on
+      Esatto.CookieScan.Core 1.0.0, which was never actually pushed to nuget.org. Restoring it
+      raised NU1603 and silently floated Core up to 1.1.0 - a resolution that worked, but only
+      because NuGet was guessing. 1.1.0 of this package names a Core version that exists.
+
+      The scan itself never runs here. It drives a headless browser on whichever machine runs
+      esatto-cookiescan-ui.exe and posts its findings to this endpoint, which appends them to the
+      cookie policy page as a draft. Emailing a report is likewise a function of that tool and its
+      SMTP settings, not of this site. -->
+    <PackageReference Include="Esatto.Umbraco.Backoffice.CookieScan" Version="1.1.0" />
     <PackageReference Include="Esatto.Umbraco.Backoffice.DictionaryFilterValues" Version="1.0.3" />
     <PackageReference Include="Esatto.Umbraco.Backoffice.MediaTreeDragAndDrop" Version="1.0.1" />
     <PackageReference Include="Umbraco.Cms" Version="18.1.1" />
