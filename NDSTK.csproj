@@ -10,8 +10,22 @@
       which fails with duplicate assembly attributes. DefaultItemExcludes covers every default
       item glob at once (Compile, Content, None, EmbeddedResource), so no individual Remove is
       needed. Any further project added beside this one has to be listed here too.
+
+      The two trailing wildcards are not redundant with the named folders above them, and are the
+      more important half. A named exclusion only protects a project that still EXISTS: when the
+      cookie scanner's four projects were extracted into the Esatto.Packages repository, deleting
+      their sources and dropping them from this list left their bin\ and obj\ behind - untracked,
+      so `git rm` never touched them and .gitignore hid them from `git status` - and the globs
+      promptly pulled those generated AssemblyInfo.cs files in. The build failed with a wall of
+      duplicate-attribute errors naming projects that no longer existed.
+
+      It happened twice, because an IDE holding a stale solution model rebuilds the deleted
+      projects and recreates the folders after they are cleaned. Excluding every sibling bin\ and
+      obj\ by shape rather than by name ends the whole class: no first-level build-output folder
+      can reach this assembly, whether or not a project still owns it. Nothing tracked lives under
+      such a path.
     -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);NDSTK.Tests\**;NDSTK.Domain\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);NDSTK.Tests\**;NDSTK.Domain\**;*\bin\**;*\obj\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
