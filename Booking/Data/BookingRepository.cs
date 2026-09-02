@@ -304,12 +304,153 @@ public sealed class BookingRepository(
         scope.Complete();
     }
 
-    public async Task CompletePaymentAsync(int paymentId, string status, DateTime nowUtc)
+    public async Task<bool> TryCompletePaymentAsync(
+        int paymentId, string status, DateTime nowUtc, string? bankReference, string? errorCode)
+    {
+        using IScope scope = scopeProvider.CreateScope();
+
+        // "Still pending" is in the WHERE clause. Swish retries its callback, the page polls, and
+        // the job reconciles - all three can carry the same PAID within a second. One updates a
+        // row; the others update none and do nothing further.
+        var updated = await scope.Database.ExecuteAsync(
+            $"""
+            UPDATE {BookingTables.Payment}
+            SET Status = @0, CompletedUtc = @1, BankReference = @2, ErrorCode = @3
+            WHERE Id = @4 AND Status = @5
+            """,
+            status, nowUtc, bankReference, errorCode, paymentId, PaymentStatus.Pending);
+
+        scope.Complete();
+        return updated == 1;
+    }
+
+    public async Task<PaymentRecord?> GetPaymentByProviderReferenceAsync(string providerReference)
+    {
+        using IScope scope = scopeProvider.CreateScope(autoComplete: true);
+
+        Sql<ISqlContext> sql = scope.SqlContext.Sql()
+            .Select<PaymentRecord>()
+            .From<PaymentRecord>()
+            .Where<PaymentRecord>(record => record.ProviderReference == providerReference);
+
+        return await scope.Database.FirstOrDefaultAsync<PaymentRecord>(sql);
+    }
+
+    public async Task<bool> TryStartPaymentAsync(
+        int paymentId, string providerReference, string? token, string callbackIdentifier, DateTime nowUtc)
+    {
+        using IScope scope = scopeProvider.CreateScope();
+
+        var updated = await scope.Database.ExecuteAsync(
+            $"""
+            UPDATE {BookingTables.Payment}
+            SET ProviderReference = @0, ProviderToken = @1, CallbackIdentifier = @2, StartedUtc = @3
+            WHERE Id = @4 AND Status = @5 AND ProviderReference IS NULL
+            """,
+            providerReference, token, callbackIdentifier, nowUtc, paymentId, PaymentStatus.Pending);
+
+        scope.Complete();
+        return updated == 1;
+    }
+
+    public async Task<bool> TryRestartHoldAsync(int bookingId, DateTime holdExpiresUtc)
+    {
+        using IScope scope = scopeProvider.CreateScope();
+
+        var updated = await scope.Database.ExecuteAsync(
+            $"""
+            UPDATE {BookingTables.Booking}
+            SET HoldExpiresUtc = @0
+            WHERE Id = @1 AND Status = @2
+            """,
+            holdExpiresUtc, bookingId, Domain.BookingStatus.Pending);
+
+        scope.Complete();
+        return updated == 1;
+    }
+
+    public async Task StampPaymentCheckedAsync(int paymentId, DateTime nowUtc)
     {
         using IScope scope = scopeProvider.CreateScope();
         await scope.Database.ExecuteAsync(
-            $"UPDATE {BookingTables.Payment} SET Status = @0, CompletedUtc = @1 WHERE Id = @2",
-            status, nowUtc, paymentId);
+            $"UPDATE {BookingTables.Payment} SET LastCheckedUtc = @0 WHERE Id = @1", nowUtc, paymentId);
+        scope.Complete();
+    }
+
+    public async Task<IReadOnlyList<PaymentRecord>> GetPaymentsAwaitingReconciliationAsync(
+        DateTime startedBeforeUtc)
+    {
+        using IScope scope = scopeProvider.CreateScope(autoComplete: true);
+
+        Sql<ISqlContext> sql = scope.SqlContext.Sql()
+            .Select<PaymentRecord>()
+            .From<PaymentRecord>()
+            .Where<PaymentRecord>(record =>
+                record.Status == PaymentStatus.Pending
+                && record.ProviderReference != null
+                && record.StartedUtc != null
+                && record.StartedUtc <= startedBeforeUtc)
+            .OrderBy<PaymentRecord>(record => record.Id);
+
+        return await scope.Database.FetchAsync<PaymentRecord>(sql);
+    }
+
+    public async Task<bool> TryReconfirmBookingAsync(int bookingId, int capacity, DateTime nowUtc)
+    {
+        if (capacity <= 0)
+        {
+            return false;
+        }
+
+        using IScope scope = scopeProvider.CreateScope();
+
+        try
+        {
+            // The same counting subquery TryReservePlaceAsync uses, so the two cannot disagree
+            // about what "room" means. The row's own class is read inside the statement rather
+            // than passed in, so a caller cannot hand it the wrong class.
+            var updated = await scope.Database.ExecuteAsync(
+                $"""
+                UPDATE {BookingTables.Booking}
+                SET Status = @0, ConfirmedUtc = @1, HoldExpiresUtc = NULL
+                WHERE Id = @2 AND Status = @3
+                  AND (
+                    SELECT COUNT(*) FROM {BookingTables.Booking} b
+                    WHERE b.ClassKey = (SELECT ClassKey FROM {BookingTables.Booking} WHERE Id = @2)
+                      AND (b.Status = @0 OR (b.Status = @4 AND b.HoldExpiresUtc > @1))
+                  ) < @5
+                """,
+                Domain.BookingStatus.Confirmed, nowUtc, bookingId, Domain.BookingStatus.Expired,
+                Domain.BookingStatus.Pending, capacity);
+
+            scope.Complete();
+            return updated == 1;
+        }
+        catch (DbException exception)
+            when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase))
+        {
+            // The child took another live place on this class while the payment was in flight,
+            // and the one-live-booking index refuses a second. The caller credits them instead.
+            logger.LogWarning(
+                "Booking {BookingId} could not be re-confirmed: the child already holds a live place.",
+                bookingId);
+
+            scope.Complete();
+            return false;
+        }
+    }
+
+    public async Task IssueCreditAsync(Guid memberKey, int sourceBookingId, DateTime nowUtc)
+    {
+        using IScope scope = scopeProvider.CreateScope();
+
+        await scope.Database.InsertAsync(new CreditRecord
+        {
+            MemberKey = memberKey,
+            SourceBookingId = sourceBookingId,
+            IssuedUtc = nowUtc,
+        });
+
         scope.Complete();
     }
 
@@ -334,6 +475,18 @@ public sealed class BookingRepository(
             WHERE SpentOnBookingId = @0
             """,
             bookingId);
+
+        // A payment nobody started at the provider has nowhere to go once its hold is gone. Marked
+        // Cancelled so it stops lingering as Pending in the backoffice. A payment that HAS a
+        // request at Swish is left alone: reconciliation must still be able to settle it if the
+        // member paid and the callback was lost.
+        await scope.Database.ExecuteAsync(
+            $"""
+            UPDATE {BookingTables.Payment}
+            SET Status = @0, CompletedUtc = @1
+            WHERE BookingId = @2 AND Status = @3 AND ProviderReference IS NULL
+            """,
+            PaymentStatus.Cancelled, nowUtc, bookingId, PaymentStatus.Pending);
 
         scope.Complete();
     }

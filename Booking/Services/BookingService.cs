@@ -57,6 +57,25 @@ public sealed record BookingAttempt(
     public bool NeedsPayment => PaymentReference is not null;
 }
 
+/// <summary>What settling a paid payment did about the place it was for.</summary>
+public enum SettlementResult
+{
+    /// <summary>Somebody else settled it first. Nothing was changed.</summary>
+    AlreadySettled,
+
+    /// <summary>The pending booking is now confirmed.</summary>
+    Confirmed,
+
+    /// <summary>The hold had lapsed, but the class still had room, so the place is theirs.</summary>
+    Reconfirmed,
+
+    /// <summary>The hold had lapsed and the class filled. The member has a credit instead.</summary>
+    Credited,
+
+    /// <summary>A purchase with no booking attached: the family upgrade.</summary>
+    NoBooking,
+}
+
 /// <summary>
 /// Turns "I want that class" into a reserved place and, where money is owed, a pending payment.
 /// </summary>
@@ -210,17 +229,32 @@ public sealed class BookingService(
     /// Completes a payment: confirms the booking, extends the membership if the fee was included,
     /// and marks the welcome price used if it was charged.
     /// </summary>
-    public async Task SettlePaymentAsync(PaymentRecord payment)
+    /// <remarks>
+    /// Idempotent. The first statement moves the payment out of Pending conditionally, and every
+    /// side effect below runs only when that statement changed a row. Swish's callback, the
+    /// page's poll and the reminder job can all arrive with the same PAID; one of them wins.
+    /// </remarks>
+    public async Task<SettlementResult> SettlePaymentAsync(PaymentRecord payment, string? bankReference = null)
     {
         DateTime nowUtc = DateTime.UtcNow;
         DateOnly today = DateOnly.FromDateTime(SwedishTime.ToSwedish(nowUtc));
 
-        await repository.CompletePaymentAsync(payment.Id, PaymentStatus.Paid, nowUtc);
+        var won = await repository.TryCompletePaymentAsync(
+            payment.Id, PaymentStatus.Paid, nowUtc, bankReference, errorCode: null);
 
-        if (payment.BookingId is { } bookingId)
+        if (won is false)
         {
-            await repository.ConfirmBookingAsync(bookingId, nowUtc);
+            logger.LogInformation("Payment {Reference} was already settled; nothing to do.", payment.Reference);
+            return SettlementResult.AlreadySettled;
         }
+
+        BookingRecord? booking = payment.BookingId is { } bookingId
+            ? await repository.GetBookingAsync(bookingId)
+            : null;
+
+        SettlementResult result = booking is null
+            ? SettlementResult.NoBooking
+            : await PlaceForPaidBookingAsync(booking, payment.MemberKey, nowUtc);
 
         if (payment.MembershipFeeOre > 0)
         {
@@ -234,16 +268,11 @@ public sealed class BookingService(
         // still null, so a class fee charged to a child whose stamp is null *was* the welcome
         // price, whatever the numbers now say.
         //
-        // The stamp is per child, reached through the booking, and conditional on still being null -
-        // so two classes booked for the same child at the same moment cannot both claim to have
-        // been the first, and a sibling's stamp is never touched.
-        if (payment.ClassFeeOre > 0 && payment.BookingId is { } stampBookingId)
+        // Stamped even when the place became a credit: the welcome price was paid, and the credit
+        // is worth a class.
+        if (payment.ClassFeeOre > 0 && booking?.ParticipantKey is { } participantKey)
         {
-            BookingRecord? booking = await repository.GetBookingAsync(stampBookingId);
-            if (booking?.ParticipantKey is { } participantKey)
-            {
-                await participants.TryStampFirstClassUsedAsync(participantKey, nowUtc);
-            }
+            await participants.TryStampFirstClassUsedAsync(participantKey, nowUtc);
         }
 
         // The supplement is charged either alongside the annual fee on a renewal, or on its own as
@@ -255,7 +284,55 @@ public sealed class BookingService(
             await profiles.SetFamilyAccountAsync(payment.MemberKey);
         }
 
-        logger.LogInformation("Payment {Reference} settled.", payment.Reference);
+        logger.LogInformation("Payment {Reference} settled: {Result}.", payment.Reference, result);
+        return result;
+    }
+
+    /// <summary>
+    /// Gives a paid booking its place. Normally the booking is still Pending. When the hold ran out
+    /// first - a slow BankID, a lost callback - the place is taken back if the class has room, and
+    /// otherwise the member receives a credit, exactly as a cancellation would give them.
+    /// </summary>
+    private async Task<SettlementResult> PlaceForPaidBookingAsync(
+        BookingRecord booking, Guid memberKey, DateTime nowUtc)
+    {
+        switch (booking.Status)
+        {
+            case BookingStatus.Pending:
+                await repository.ConfirmBookingAsync(booking.Id, nowUtc);
+                return SettlementResult.Confirmed;
+
+            case BookingStatus.Confirmed:
+                return SettlementResult.Confirmed;
+
+            case BookingStatus.Expired:
+                TrainingClass? trainingClass = classes.Find(booking.ClassKey);
+
+                if (trainingClass is not null
+                    && trainingClass.StartUtc > nowUtc
+                    && await repository.TryReconfirmBookingAsync(booking.Id, trainingClass.Capacity, nowUtc))
+                {
+                    logger.LogInformation(
+                        "Booking {BookingId} was paid after its hold lapsed; the place was still free.",
+                        booking.Id);
+                    return SettlementResult.Reconfirmed;
+                }
+
+                await repository.IssueCreditAsync(memberKey, booking.Id, nowUtc);
+                logger.LogWarning(
+                    "Booking {BookingId} was paid after its hold lapsed and the class had filled; "
+                    + "a credit was issued instead.", booking.Id);
+                return SettlementResult.Credited;
+
+            default:
+                // Cancelled while pending: an editor withdrew the class. CancelAllForClassAsync
+                // credits only confirmed bookings, so this one got nothing - until now, when it
+                // turns out to have been paid for.
+                await repository.IssueCreditAsync(memberKey, booking.Id, nowUtc);
+                logger.LogWarning(
+                    "Booking {BookingId} was paid after being cancelled; a credit was issued.", booking.Id);
+                return SettlementResult.Credited;
+        }
     }
 
     /// <summary>
@@ -306,18 +383,32 @@ public sealed class BookingService(
         return CancelOutcome.NotCancellable;
     }
 
-    /// <summary>Abandons a payment and releases the place it was holding.</summary>
-    public async Task AbandonPaymentAsync(PaymentRecord payment, string status)
+    /// <summary>
+    /// Abandons a payment and releases the place it was holding. Returns false when the payment
+    /// had already left Pending, in which case nothing changed.
+    /// </summary>
+    public async Task<bool> AbandonPaymentAsync(PaymentRecord payment, string status, string? errorCode = null)
     {
         DateTime nowUtc = DateTime.UtcNow;
 
-        await repository.CompletePaymentAsync(payment.Id, status, nowUtc);
+        var won = await repository.TryCompletePaymentAsync(
+            payment.Id, status, nowUtc, bankReference: null, errorCode);
+
+        if (won is false)
+        {
+            logger.LogInformation(
+                "Payment {Reference} was already settled; not abandoning it.", payment.Reference);
+            return false;
+        }
 
         if (payment.BookingId is { } bookingId)
         {
             await repository.ExpireBookingAsync(bookingId, nowUtc);
         }
 
-        logger.LogInformation("Payment {Reference} abandoned with status {Status}.", payment.Reference, status);
+        logger.LogInformation(
+            "Payment {Reference} abandoned with status {Status}{Code}.",
+            payment.Reference, status, errorCode is null ? string.Empty : $" ({errorCode})");
+        return true;
     }
 }
