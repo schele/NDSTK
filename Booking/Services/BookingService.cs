@@ -514,11 +514,21 @@ public sealed class BookingService(
         {
             start = await paymentProvider.StartAsync(payment, context);
         }
+        catch (PaymentProviderException exception) when (exception.ErrorCode == "RP09")
+        {
+            // The instruction id is the payment's own Guid, so RP09 means a request under it already
+            // exists at Swish: another tab pressed Betala a moment ago and its record is landing now.
+            // Nothing to withdraw; the page shows whichever state the row has when it reloads.
+            logger.LogWarning(
+                "Payment {Reference} already has a request at the provider; a second start was ignored.",
+                payment.Reference);
+            return StartPaymentResult.AlreadyStarted;
+        }
         catch (PaymentProviderException exception)
         {
             logger.LogWarning(
-                "Payment {Reference} could not be started at the provider{Code}.",
-                payment.Reference, exception.ErrorCode is null ? string.Empty : $" ({exception.ErrorCode})");
+                "Payment {Reference} could not be started at the provider: {ErrorCode}.",
+                payment.Reference, exception.ErrorCode ?? "unreachable");
             return StartPaymentResult.ProviderUnavailable;
         }
 
@@ -527,8 +537,19 @@ public sealed class BookingService(
 
         if (recorded is false)
         {
-            // Two tabs pressed Betala at once and the other one won. Swish now holds two requests
-            // for one payment; withdraw ours so the member's app shows one.
+            PaymentRecord? current = await repository.GetPaymentByReferenceAsync(payment.Reference);
+
+            if (current?.Status == PaymentStatus.Pending)
+            {
+                // Another tab recorded first. Under Swish the request just created IS the one the
+                // winner recorded - same instruction id - so there is nothing to withdraw. Under the
+                // mock there is nothing at all.
+                return StartPaymentResult.AlreadyStarted;
+            }
+
+            // The payment left Pending between the check above and the write: swept, cancelled or
+            // settled. The request just created has no row that will ever reconcile it, so it is
+            // withdrawn before the member can pay it in the app.
             try
             {
                 await paymentProvider.CancelAsync(start.ProviderReference);
@@ -536,11 +557,11 @@ public sealed class BookingService(
             catch (PaymentProviderException)
             {
                 logger.LogWarning(
-                    "Duplicate request {InstructionId} for payment {Reference} could not be withdrawn.",
-                    start.ProviderReference, payment.Reference);
+                    "Request {InstructionId} for payment {Reference}, which is no longer pending, could "
+                    + "not be withdrawn.", start.ProviderReference, payment.Reference);
             }
 
-            return StartPaymentResult.AlreadyStarted;
+            return StartPaymentResult.NotPending;
         }
 
         if (payment.BookingId is { } bookingId)
@@ -578,9 +599,10 @@ public sealed class BookingService(
     /// Withdraws the request at the provider, then abandons the payment and releases the place.
     /// </summary>
     /// <remarks>
-    /// If the provider cannot be reached, nothing is cancelled locally either. Cancelling here
-    /// while the request stays open at Swish would let the member pay in the app for a payment
-    /// this site no longer expects; the hold simply runs out instead.
+    /// If the provider cannot be reached, or does not confirm the cancellation, nothing is
+    /// cancelled locally either. Cancelling here while the request stays open at Swish would let
+    /// the member pay in the app for a payment this site no longer expects; the hold simply runs
+    /// out instead.
     /// </remarks>
     public async Task<CancelPaymentResult> CancelPaymentAsync(PaymentRecord payment)
     {
@@ -604,6 +626,17 @@ public sealed class BookingService(
                 return CancelPaymentResult.ProviderUnavailable;
             }
 
+            if (outcome.IsTerminal is false)
+            {
+                // Swish did not cancel it and it is still open: a refusal that was not "already
+                // final", or a status this site does not know. Nothing changed anywhere, and saying
+                // otherwise would tell the member a request they can still pay is over.
+                logger.LogWarning(
+                    "Payment {Reference} could not be cancelled at the provider and is still open.",
+                    payment.Reference);
+                return CancelPaymentResult.ProviderUnavailable;
+            }
+
             if (outcome.Status != ProviderStatus.Cancelled)
             {
                 // Swish had already decided. Whatever it decided is what happened.
@@ -612,8 +645,10 @@ public sealed class BookingService(
             }
         }
 
-        await AbandonPaymentAsync(payment, PaymentStatus.Cancelled);
-        return CancelPaymentResult.Cancelled;
+        // False means a callback or poll settled it a moment ago; the row, not this press, is the truth.
+        return await AbandonPaymentAsync(payment, PaymentStatus.Cancelled)
+            ? CancelPaymentResult.Cancelled
+            : CancelPaymentResult.AlreadyFinal;
     }
 
     private async Task ApplyOutcomeAsync(PaymentRecord payment, PaymentOutcome outcome)
