@@ -11,5 +11,6 @@ internal sealed class BookingMigrationPlan : MigrationPlan
     public BookingMigrationPlan() : base("NDSTK.Booking")
         => From(string.Empty)
             .To<AddBookingTables>("booking-tables-1")
-            .To<AddParticipantTable>("participants-1");
+            .To<AddParticipantTable>("participants-1")
+            .To<AddSwishColumns>("swish-1");
 }

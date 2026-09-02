@@ -17,4 +17,7 @@ internal static class BookingTables
 
     /// <summary>The rule after the backfill: one live booking per child per class.</summary>
     internal const string LivePerParticipantIndex = "IX_ndstkBooking_OneLivePerParticipantClass";
+
+    /// <summary>One row per Swish request; rows that have not started a payment are excluded.</summary>
+    internal const string PaymentProviderReferenceIndex = "IX_ndstkPayment_ProviderReference";
 }

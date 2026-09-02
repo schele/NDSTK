@@ -55,6 +55,55 @@ public sealed class PaymentRecord
     [Length(50)]
     public string Provider { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Swish's identifier for the request: the instruction UUID we chose, 32 upper-case hex digits.
+    /// Null until the member starts the payment. What the callback names.
+    /// </summary>
+    [Column(nameof(ProviderReference))]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    [Length(36)]
+    public string? ProviderReference { get; set; }
+
+    /// <summary>
+    /// The PaymentRequestToken Swish returned. Opens the app and draws the QR, so the page needs
+    /// it again on every reload while the payment is pending. Never logged.
+    /// </summary>
+    [Column(nameof(ProviderToken))]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    [Length(64)]
+    public string? ProviderToken { get; set; }
+
+    /// <summary>
+    /// Sent to Swish and echoed back as a header on the callback. The only way to tell a callback
+    /// from Swish apart from one anybody could POST. Never logged.
+    /// </summary>
+    [Column(nameof(CallbackIdentifier))]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    [Length(36)]
+    public string? CallbackIdentifier { get; set; }
+
+    /// <summary>Swish's paymentReference once PAID: what the bank statement shows.</summary>
+    [Column(nameof(BankReference))]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    [Length(64)]
+    public string? BankReference { get; set; }
+
+    /// <summary>Swish's errorCode when the status is Failed.</summary>
+    [Column(nameof(ErrorCode))]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    [Length(20)]
+    public string? ErrorCode { get; set; }
+
+    /// <summary>When the request was created at Swish. Reconciliation waits a minute from here.</summary>
+    [Column(nameof(StartedUtc))]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public DateTime? StartedUtc { get; set; }
+
+    /// <summary>Last time Swish was asked about this request, so the poll does not ask every second.</summary>
+    [Column(nameof(LastCheckedUtc))]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public DateTime? LastCheckedUtc { get; set; }
+
     [Column(nameof(CreatedUtc))]
     public DateTime CreatedUtc { get; set; }
 
