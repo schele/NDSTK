@@ -6,6 +6,7 @@ using NDSTK.Booking.Data.Migrations;
 using NDSTK.Booking.Jobs;
 using NDSTK.Booking.Notifications;
 using NDSTK.Booking.Payments;
+using NDSTK.Booking.Payments.Swish;
 using NDSTK.Booking.Security;
 using NDSTK.Booking.Services;
 using NDSTK.Booking.Web;
@@ -50,9 +51,13 @@ public sealed class BookingComposer : IComposer
         builder.Services.AddScoped<TestDataReset>();
         builder.Services.AddSingleton<TestDataResetGate>();
 
-        // The mock is registered as THE payment provider. Swapping in a real Swish integration is
-        // this one line plus a new IPaymentProvider implementation.
-        builder.Services.AddSingleton<IPaymentProvider, SwishMockPaymentProvider>();
+        // Swish when enabled and the certificate loads, the mock otherwise. The factory logs which,
+        // and the announcer makes it log at startup.
+        builder.Services.AddOptions<SwishOptions>().Bind(builder.Config.GetSection(SwishOptions.SectionName));
+        builder.AddSwishHttpClients();
+        builder.Services.AddMemoryCache();
+        builder.Services.AddSingleton<IPaymentProvider>(PaymentProviderFactory.Create);
+        builder.AddNotificationHandler<UmbracoApplicationStartedNotification, PaymentProviderAnnouncer>();
 
         // Recurring: sends class reminders and releases abandoned payment holds.
         builder.Services.AddRecurringBackgroundJob<ClassReminderJob>();
