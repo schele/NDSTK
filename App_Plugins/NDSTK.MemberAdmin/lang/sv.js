@@ -62,6 +62,7 @@ export default {
         colClassFee: 'Träningsavgift',
         colTotal: 'Totalt',
         colStatus: 'Status',
+        colSwishReference: 'Swish-referens',
         colClass: 'Träning',
         colTime: 'Tid',
 

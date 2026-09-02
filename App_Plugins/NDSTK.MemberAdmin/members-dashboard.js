@@ -377,6 +377,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                             <uui-table-head-cell>${this.#t('colClassFee')}</uui-table-head-cell>
                             <uui-table-head-cell>${this.#t('colTotal')}</uui-table-head-cell>
                             <uui-table-head-cell>${this.#t('colStatus')}</uui-table-head-cell>
+                            <uui-table-head-cell>${this.#t('colSwishReference')}</uui-table-head-cell>
                         </uui-table-head>
                         ${payments.map((p) => html`
                             <uui-table-row>
@@ -385,7 +386,8 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                                 <uui-table-cell>${p.familyFeeOre ? this.#kr(p.familyFeeOre) : '–'}</uui-table-cell>
                                 <uui-table-cell>${p.classFeeOre ? this.#kr(p.classFeeOre) : '–'}</uui-table-cell>
                                 <uui-table-cell><strong>${this.#kr(p.amountOre)}</strong></uui-table-cell>
-                                <uui-table-cell>${p.status}</uui-table-cell>
+                                <uui-table-cell>${p.status}${p.errorCode ? ` (${p.errorCode})` : ''}</uui-table-cell>
+                                <uui-table-cell><code>${p.bankReference ?? '–'}</code></uui-table-cell>
                             </uui-table-row>
                         `)}
                     </uui-table>

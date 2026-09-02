@@ -74,6 +74,7 @@ export default {
         colClassFee: 'Class fee',
         colTotal: 'Total',
         colStatus: 'Status',
+        colSwishReference: 'Swish reference',
         colClass: 'Class',
         colTime: 'Time',
 
