@@ -315,7 +315,8 @@ abandons through the conditional writes above. It is called from:
 1. **The page's poll**, as described. This is the path that works everywhere, including
    locally against the simulator, and including production before the IIS binding is fixed.
 2. **The callback.** `SwishCallbackController`, an anonymous `[ApiController]` at
-   `POST /api/swish/callback`, mapped with `MapControllers()` inside `WithEndpoints`. It
+   `POST /api/swish/callback`. Attribute-routed controllers are already mapped on this site,
+   which `MemberAdminController` proves, so no routing change is needed. It
    reads the JSON body only for `id`, loads the row by `ProviderReference`, and compares the
    `callbackIdentifier` header with the stored value in constant time. On a match it calls
    `ReconcileAsync`. It answers 200 in every case that is not a malformed body, including
