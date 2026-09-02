@@ -71,6 +71,32 @@ public static class BookingSchemaSql
             $"{(dialect is SqlDialect.SqlServer ? "int" : "INTEGER")} NOT NULL DEFAULT {defaultValue}");
 
     /// <summary>
+    /// A nullable text column of bounded length. SQL Server gets the length; SQLite has no
+    /// bounded text type and takes TEXT, which is also what NPoco reads a string back from.
+    /// </summary>
+    public static string AddNullableStringColumn(SqlDialect dialect, string table, string column, int length)
+        => AddColumn(dialect, table, column,
+            dialect is SqlDialect.SqlServer ? $"nvarchar({length}) NULL" : "TEXT NULL");
+
+    /// <summary>
+    /// A nullable datetime. Umbraco's own syntax providers created the existing date columns as
+    /// datetime on SQL Server and TEXT on SQLite, and NPoco formats every value it writes the
+    /// same way for both, so the new columns sort and compare like the old ones.
+    /// </summary>
+    public static string AddNullableDateTimeColumn(SqlDialect dialect, string table, string column)
+        => AddColumn(dialect, table, column,
+            dialect is SqlDialect.SqlServer ? "datetime NULL" : "TEXT NULL");
+
+    /// <summary>
+    /// Unique among the rows that have a value. Without the filter SQL Server treats every NULL
+    /// as the same value and refuses the second payment that has not started; SQLite would
+    /// accept it, and the two engines would enforce different rules. Both accept this statement
+    /// verbatim. No IF NOT EXISTS, for the reason <see cref="CreateLiveBookingIndex"/> gives.
+    /// </summary>
+    public static string CreateFilteredUniqueIndex(string indexName, string table, string column)
+        => $"CREATE UNIQUE INDEX {indexName} ON {table} ({column}) WHERE {column} IS NOT NULL";
+
+    /// <summary>
     /// Points every booking that predates participants at the oldest participant on its account.
     /// Each such booking belonged to an account that had exactly one participant a moment earlier,
     /// so the oldest is unambiguously the right one.
