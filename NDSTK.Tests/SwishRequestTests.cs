@@ -84,7 +84,7 @@ public class SwishRequestTests
     {
         var message = SwishRequest.Message("Tävling – 6–8 år & mer", new DateTime(2026, 9, 12, 18, 0, 0));
 
-        Assert.Matches("^[a-zA-ZåäöÅÄÖ0-9 :;.,?!()\"]", message);
+        Assert.Matches("^[a-zA-ZåäöÅÄÖ0-9 :;.,?!()\"]*$", message);
         Assert.DoesNotContain("–", message);
         Assert.DoesNotContain("&", message);
     }
