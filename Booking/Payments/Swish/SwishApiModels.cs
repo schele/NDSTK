@@ -19,7 +19,7 @@ internal sealed record SwishPaymentRequest(
     [property: JsonPropertyName("paymentReference")] string? PaymentReference,
     [property: JsonPropertyName("errorCode")] string? ErrorCode,
     [property: JsonPropertyName("errorMessage")] string? ErrorMessage,
-    [property: JsonPropertyName("datePaid")] DateTime? DatePaid);
+    [property: JsonPropertyName("datePaid")] DateTimeOffset? DatePaid);
 
 /// <summary>One element of the array a 422 carries.</summary>
 internal sealed record SwishError(

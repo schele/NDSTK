@@ -72,10 +72,10 @@ public sealed class SwishPaymentProvider(
             }
 
             var token = response.Headers.TryGetValues("PaymentRequestToken", out IEnumerable<string>? values)
-                ? values.FirstOrDefault()
+                ? values.FirstOrDefault()?.Trim()
                 : null;
 
-            if (string.IsNullOrEmpty(token))
+            if (string.IsNullOrWhiteSpace(token))
             {
                 // Swish returns the token only for m-commerce, which is the only kind we send.
                 // Its absence means the request is not what we think it is.
@@ -110,8 +110,7 @@ public sealed class SwishPaymentProvider(
                 throw await RefusalAsync(response, $"retrieve request {providerReference}");
             }
 
-            SwishPaymentRequest? request = await response.Content.ReadFromJsonAsync<SwishPaymentRequest>(Json);
-            return ToOutcome(request, providerReference);
+            return ToOutcome(await ReadPaymentRequestAsync(response, providerReference), providerReference);
         }
     }
 
@@ -148,29 +147,72 @@ public sealed class SwishPaymentProvider(
                 throw await RefusalAsync(response, $"cancel request {providerReference}");
             }
 
-            SwishPaymentRequest? request = await response.Content.ReadFromJsonAsync<SwishPaymentRequest>(Json);
+            SwishPaymentRequest? request = await ReadPaymentRequestAsync(response, providerReference);
             logger.LogInformation("Swish request {InstructionId} cancelled.", providerReference);
             return ToOutcome(request, providerReference);
         }
     }
 
-    private static PaymentOutcome ToOutcome(SwishPaymentRequest? request, string providerReference)
+    /// <summary>
+    /// Reads the payment request object out of a successful response. A body that is not JSON - an
+    /// HTML interstitial from a gateway, a truncated stream - would otherwise surface as a
+    /// serializer exception, which callers do not know how to tell apart from "declined".
+    /// </summary>
+    private async Task<SwishPaymentRequest?> ReadPaymentRequestAsync(
+        HttpResponseMessage response, string providerReference)
+    {
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<SwishPaymentRequest>(Json);
+        }
+        catch (Exception exception) when (exception is JsonException or NotSupportedException)
+        {
+            logger.LogError(
+                exception, "Swish answered about request {InstructionId} with a body that is not a payment request.",
+                providerReference);
+            throw new PaymentProviderException("Swish returned an unreadable response.", inner: exception);
+        }
+    }
+
+    private PaymentOutcome ToOutcome(SwishPaymentRequest? request, string providerReference)
     {
         if (request?.Status is null)
         {
             throw new PaymentProviderException($"Swish returned no status for request {providerReference}.");
         }
 
-        ProviderStatus status = request.Status.ToUpperInvariant() switch
+        ProviderStatus status;
+        switch (request.Status.ToUpperInvariant())
         {
-            SwishOutcome.Paid => ProviderStatus.Paid,
-            SwishOutcome.Declined => ProviderStatus.Declined,
-            SwishOutcome.Error => ProviderStatus.Error,
-            SwishOutcome.Cancelled => ProviderStatus.Cancelled,
-            _ => ProviderStatus.Created,
-        };
+            case SwishOutcome.Created:
+                status = ProviderStatus.Created;
+                break;
+            case SwishOutcome.Paid:
+                status = ProviderStatus.Paid;
+                break;
+            case SwishOutcome.Declined:
+                status = ProviderStatus.Declined;
+                break;
+            case SwishOutcome.Error:
+                status = ProviderStatus.Error;
+                break;
+            case SwishOutcome.Cancelled:
+                status = ProviderStatus.Cancelled;
+                break;
+            default:
+                // Treated as still pending, which is the safe direction: nothing is settled or
+                // released on a value nobody has seen. Logged so it is not mistaken for "still
+                // waiting" when Swish adds a status.
+                logger.LogWarning(
+                    "Swish reported status {Status} for request {InstructionId}, which this site does not know.",
+                    request.Status, providerReference);
+                status = ProviderStatus.Created;
+                break;
+        }
 
-        return new PaymentOutcome(status, request.PaymentReference, request.ErrorCode, request.DatePaid);
+        // Swish sends datePaid with an offset. UtcDateTime is what the PaidUtc parameter promises;
+        // a DateTime parsed from that string would be in the host's local time instead.
+        return new PaymentOutcome(status, request.PaymentReference, request.ErrorCode, request.DatePaid?.UtcDateTime);
     }
 
     /// <summary>
@@ -191,9 +233,9 @@ public sealed class SwishPaymentProvider(
                 code = first?.ErrorCode;
                 detail = first?.ErrorMessage;
             }
-            catch (JsonException)
+            catch (Exception exception) when (exception is JsonException or NotSupportedException)
             {
-                // A body that is not the documented array. The status code is still informative.
+                // A body that is not the documented array, or not JSON at all. The status code is still informative.
             }
         }
 
