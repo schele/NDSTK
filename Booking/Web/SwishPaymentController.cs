@@ -43,10 +43,15 @@ public sealed record SwishPaymentViewModel(
     public bool IsCancelled => Status == PaymentStatus.Cancelled;
 
     /// <summary>
-    /// Paid, but the place was gone by the time the money arrived, so the member holds a credit
-    /// instead. True whenever a paid payment's booking is not confirmed - the only way that
-    /// happens is the late-payment rule in SettlePaymentAsync.
+    /// Paid, but this payment's booking is not confirmed, so what the member holds is a credit
+    /// rather than a place.
     /// </summary>
+    /// <remarks>
+    /// Deliberately says nothing about why. The late-payment rule in SettlePaymentAsync is one
+    /// route here; a member who later cancelled the booking themselves is another, and by then the
+    /// page is only a bookmark they have re-opened. Both leave them holding a credit, which is the
+    /// one thing this page can state truthfully.
+    /// </remarks>
     public bool CreditIssued
         => IsPaid && BookingId is not null && BookingStatus != Domain.BookingStatus.Confirmed;
 
@@ -155,14 +160,19 @@ public sealed class SwishPaymentController(
             ? SwishRequest.AppLink(payment.ProviderToken, absolutePageUrl)
             : null;
 
-        var query = $"?reference={Uri.EscapeDataString(payment.Reference.ToString())}";
-
         string? outcomeMessage = payment.Status switch
         {
             PaymentStatus.Failed => SwishOutcome.Resolve(SwishOutcome.Error, payment.ErrorCode).MemberMessage,
             PaymentStatus.Cancelled => SwishOutcome.Resolve(SwishOutcome.Cancelled, null).MemberMessage,
             _ => null,
         };
+
+        // The reference goes INSIDE the encrypted route string. Url.SurfaceAction returns
+        // "<this page's path>?ufprt=<encrypted c/a/ar…>", so appending "?reference=" would produce a
+        // second question mark, fold the reference into the ufprt value and stop it decrypting -
+        // which silently broke both the poll and the QR image.
+        var controller = ControllerExtensions.GetControllerName<SwishPaymentSurfaceController>();
+        object routeValues = new { reference = payment.Reference };
 
         return new SwishPaymentViewModel(
             payment.Reference,
@@ -180,14 +190,10 @@ public sealed class SwishPaymentController(
             isStarted,
             appLink,
             QrUrl: isStarted && !isMock
-                ? Url.SurfaceAction(
-                    nameof(SwishPaymentSurfaceController.Qr),
-                    ControllerExtensions.GetControllerName<SwishPaymentSurfaceController>()) + query
+                ? Url.SurfaceAction(nameof(SwishPaymentSurfaceController.Qr), controller, routeValues)
                 : null,
             StatusUrl: isStarted
-                ? Url.SurfaceAction(
-                    nameof(SwishPaymentSurfaceController.Status),
-                    ControllerExtensions.GetControllerName<SwishPaymentSurfaceController>()) + query
+                ? Url.SurfaceAction(nameof(SwishPaymentSurfaceController.Status), controller, routeValues)
                 : null,
             outcomeMessage);
     }

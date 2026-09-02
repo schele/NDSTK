@@ -8,7 +8,7 @@
 (function () {
     'use strict';
 
-    var root = document.querySelector('[data-swish-started]');
+    var root = document.querySelector('[data-swish-started="true"]');
     if (!root) {
         return;
     }
@@ -73,6 +73,19 @@
             .catch(function () {
                 // Back off, but never give up while the page is open: the member may be mid-BankID.
                 failures++;
+
+                // After about a minute of failures, stop implying that all is well. The payment may
+                // still complete - Swish decides that, not this page - so the wording says what is
+                // and is not known rather than declaring a failure.
+                if (failures === 6) {
+                    var waiting = root.querySelector('.swish__waiting');
+                    if (waiting) {
+                        waiting.textContent =
+                            'Vi når inte Swish just nu. Har du godkänt betalningen i appen är den på väg '
+                            + 'in - ladda om sidan om en stund, eller kontakta oss på info@ndstk.se.';
+                    }
+                }
+
                 window.setTimeout(poll, Math.min(interval * (failures + 1), 15000));
             });
     }

@@ -45,8 +45,8 @@
             @if (pay.CreditIssued)
             {
                 <p class="form-notice form-notice--ok" role="status">
-                    Betalningen är genomförd. Platsen hann ta slut medan betalningen genomfördes, så du
-                    har fått en tillgodoträning att boka en annan träning med.
+                    Betalningen är genomförd. Den här träningen är inte bokad, så du har en
+                    tillgodoträning att boka en annan träning med.
                 </p>
             }
             else if (pay.BookingId is null)
@@ -149,10 +149,13 @@
                     @* State 2: on a phone, open the app; on a desktop, scan. The script hides the
                        one that does not apply and offers a link to swap. Without JavaScript both
                        show, which is correct if unpolished. *@
-                    <div class="swish__device" data-device="mobile">
-                        <a href="@pay.AppLink" class="btn-primary swish__app-link">Öppna Swish</a>
-                        <p class="swish__hint">Godkänn betalningen i Swish. Du kommer tillbaka hit när det är klart.</p>
-                    </div>
+                    @if (pay.AppLink is { Length: > 0 } appLink)
+                    {
+                        <div class="swish__device" data-device="mobile">
+                            <a href="@appLink" class="btn-primary swish__app-link">Öppna Swish</a>
+                            <p class="swish__hint">Godkänn betalningen i Swish. Du kommer tillbaka hit när det är klart.</p>
+                        </div>
+                    }
                     <div class="swish__device" data-device="desktop">
                         <img src="@pay.QrUrl" alt="QR-kod för Swish" class="swish__qr-image" width="220" height="220" />
                         <p class="swish__hint">Öppna Swish på din telefon, välj Skanna QR-kod och godkänn betalningen.</p>
