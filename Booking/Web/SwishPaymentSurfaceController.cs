@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using NDSTK.Booking.Data;
+using NDSTK.Booking.Domain;
 using NDSTK.Booking.Services;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Cache;
