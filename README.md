@@ -65,7 +65,7 @@ is already live.
 ## Member booking
 
 Register → confirm the emailed link → sign in → book a class for one of your children → pay
-through the mocked Swish page.
+through Swish, or through the mocked Swish page when no certificate is configured.
 
 **The account holder is a guardian; the people who attend are participants.** Even a solo account
 names one child, with a birth date — there is no such thing as an account that books for itself
@@ -236,13 +236,95 @@ booking starting within the configured window, and releases payment holds nobody
 Locally, `appsettings.Development.json` sets the `NDSTK` namespace to `Debug`, so a run that finds
 nothing still logs — otherwise "ran and found nothing" is indistinguishable from "never ran".
 
-## Swish is mocked
+## Swish
 
-`SwishMockPaymentProvider` behind `IPaymentProvider`. The payment page is marked **Demoläge** and its
-two buttons stand in for the callback a real integration would receive. Replacing it is a second
-`IPaymentProvider` and one line in `BookingComposer`.
+Two `IPaymentProvider`s. `SwishPaymentProvider` speaks Swish Commerce v2 over mTLS;
+`SwishMockPaymentProvider` is the page with the two simulate buttons. `PaymentProviderFactory`
+picks one at startup from `NDSTK:Swish`: Swish when `Enabled` is true, `PayeeAlias` is set and the
+certificate loads, the mock otherwise. **The boot log says which**, at warning level for the mock,
+so a site that is not taking money says so on its first page.
 
-Both buttons are POSTs with antiforgery, and both verify the payment belongs to the signed-in member.
+```json
+{ "NDSTK": { "Swish": {
+    "Enabled": true,
+    "PayeeAlias": "123XXXXXXX",
+    "CertificatePath": "D:\\secrets\\swish.p12",
+    "CertificatePassword": "…" } } }
+```
+
+Those four belong in `appsettings.Secrets.json` or environment variables
+(`NDSTK__Swish__CertificatePassword`), never in a committed file. `ApiBaseUrl` is production in
+`appsettings.json` and the Merchant Swish Simulator in `appsettings.Development.json`.
+`CertificateThumbprint` is the alternative to a file: a certificate in `LocalMachine\My`.
+
+### How a payment runs
+
+Booking writes a Pending payment and sends the member to the payment page, which shows the
+breakdown and *Betala med Swish*. Nothing exists at Swish until they press it. `Start` then PUTs
+the request, stores Swish's identifiers on the row and **restarts the hold at the configured
+minutes**, so the reservation outlives Swish's own 5.5-minute timeout however long they looked
+at the page first. On a phone the page offers *Öppna Swish*; on a desktop, a QR code from Swish's
+generator. Either way the page polls `Status` every three seconds.
+
+**The truth about a payment is what Swish says when asked over mTLS**, never what arrives in a
+callback. `BookingService.ReconcileAsync` asks and applies the answer, and three things call it:
+
+- the page's poll, at most every five seconds per payment;
+- `SwishCallbackController` at `/api/swish/callback`, once the `callbackIdentifier` header
+  matches the value stored for that request - a mismatch is logged and ignored;
+- `ClassReminderJob`, for every pending payment older than a minute, **before** it sweeps holds.
+
+So a lost callback costs nothing but a few seconds, and the integration works even where the
+callback cannot arrive at all.
+
+**Settlement is one conditional write.** `TryCompletePaymentAsync` moves a payment out of Pending
+only if it is still there; the side effects - confirming the booking, extending the membership,
+stamping the welcome price, setting the family flag - run only for the caller whose write changed
+a row. Swish retries callbacks ten times, and the poll and the job race them; exactly one wins.
+Settlement also runs inside one ambient Umbraco scope, so the winning write and every side effect
+commit together: an exception after the win rolls the payment back to Pending and the next callback,
+poll or job run tries again, rather than leaving a paid member with no place and nothing that would
+ever repair it.
+
+**Money that arrives after the hold lapsed** re-confirms the booking if the class still has room
+(the capacity test is in the `UPDATE`'s `WHERE`, like the reservation's) and otherwise issues a
+credit, exactly as a cancellation would. No refunds, as everywhere else in the model.
+
+That applies to a class paid for **with money**. A class covered by a credit needs neither: releasing
+the hold already handed the credit back, so the member holds what they are owed, and re-confirming
+would give them the place *and* the credit while minting a second one would pay them twice. The
+guard is `ClassFeeOre > 0`, and it is the whole difference between the two cases.
+
+Message text, amount format, instruction id and the Swedish sentence for each Swish error code are
+pure functions in `NDSTK.Domain` (`SwishRequest`, `SwishOutcome`), tested. The message is built
+from the class, never typed, so no title can carry a character Swish rejects.
+
+### Against the simulator
+
+Point `ApiBaseUrl` at `https://mss.cpc.getswish.net/swish-cpcapi/` with the simulator's test
+certificate (`Swish_Merchant_TestCertificate_1234679304.p12`, password `swish`, payee alias
+`1234679304`). The simulator answers PAID about four seconds after create; its callback never
+reaches a developer machine, and the poll settles the payment anyway. Set
+`NDSTK:Swish:SimulateErrorCode` to `RF07`, `TM01`, `DS24` or `BANKIDCL` to see each failure
+sentence. That setting is read only in the Development environment.
+
+### Before go-live
+
+1. The club signs **Swish Handel** with its bank and names a certificate contact.
+2. The contact generates a 4096-bit RSA key and CSR, obtains the certificate at portal.swish.nu,
+   and exports key and chain as a password-protected PKCS#12 outside the web root.
+3. **The IIS binding for ndstk.se must not require SNI.** Swish's callback client does not send
+   a server name, and the binding as of September 2026 drops such handshakes with no
+   certificate. Untick *Require Server Name Indication*, or add a binding on the IP with the same
+   certificate. Verify with `openssl s_client -connect ndstk.se:443 -noservername`. Until then,
+   payments still settle through the poll and the job; only the callback is lost.
+4. Set `Enabled`, `PayeeAlias`, `CertificatePath` and `CertificatePassword` on the server. The
+   boot log reads `Payment provider: Swish`.
+5. Optionally restrict `/api/swish/callback` to Swish's address, 213.132.115.94, in IIS.
+6. One real payment of the smallest class price, and a bank reference on the row in Medlemmar.
+
+The certificate is loaded with `MachineKeySet`, not `EphemeralKeySet`: SChannel cannot present an
+ephemeral key as a TLS client certificate.
 
 ## Security
 
