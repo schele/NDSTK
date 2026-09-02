@@ -193,7 +193,9 @@ public sealed class BookingRepository(
                 ]);
         }
         catch (DbException exception)
-            when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase))
+            when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase)
+                || exception.Message.Contains(BookingTables.LivePerParticipantIndex, StringComparison.OrdinalIgnoreCase)
+                || exception.Message.Contains(BookingTables.LivePerMemberIndex, StringComparison.OrdinalIgnoreCase))
         {
             // The one-live-booking-per-class index fired. With the stale-hold cleanup above this
             // should only happen when the same member submits twice at once - a double-click, or a
@@ -203,6 +205,9 @@ public sealed class BookingRepository(
             // Caught deliberately: a database constraint is a backstop, and a backstop that reaches
             // the member as a 500 has failed at its job. Logged at warning so a genuine divergence
             // between the index and the C# rule is still visible rather than silently swallowed.
+            //
+            // Matched on both index names as well as the English word, for the same reason as
+            // TryReconfirmBookingAsync: SQL Server localises the message but not the index name.
             logger.LogWarning(
                 "A duplicate booking for participant {ParticipantKey} on class {ClassKey} was "
                 + "rejected by the one-live-booking index.", participantKey, classKey);
@@ -441,10 +446,12 @@ public sealed class BookingRepository(
         }
         catch (DbException exception)
             when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase)
-                || exception.Message.Contains(BookingTables.LivePerParticipantIndex, StringComparison.OrdinalIgnoreCase))
+                || exception.Message.Contains(BookingTables.LivePerParticipantIndex, StringComparison.OrdinalIgnoreCase)
+                || exception.Message.Contains(BookingTables.LivePerMemberIndex, StringComparison.OrdinalIgnoreCase))
         {
-            // Matched on the index name as well as the English word: SQL Server localises this
-            // message, and the index name is the part it never translates.
+            // Matched on both index names as well as the English word: SQL Server localises this
+            // message and never translates the index name, and the live index is the member-scoped
+            // one on any database where the participant backfill has not been able to swap it.
             //
             // The child took another live place on this class while the payment was in flight,
             // and the one-live-booking index refuses a second. The caller credits them instead.

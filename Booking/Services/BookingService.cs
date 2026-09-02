@@ -362,8 +362,8 @@ public sealed class BookingService(
 
                 // Something moved the booking between the read above and this write: the sweep
                 // expired it, or an editor withdrew the class. Re-read and decide again on what it
-                // actually is now - once, because the second read is inside the settlement's own
-                // transaction and cannot keep changing under us.
+                // actually is now - once. The bound is what makes this safe, not the transaction:
+                // the row can still change under a second read, so a loop here could spin.
                 if (retry && await repository.GetBookingAsync(booking.Id) is { } current)
                 {
                     logger.LogInformation(
@@ -373,8 +373,10 @@ public sealed class BookingService(
                     return await PlaceForPaidBookingAsync(payment, current, nowUtc, retry: false);
                 }
 
-                logger.LogWarning(
-                    "Booking {BookingId} could not be confirmed and could not be re-read.", booking.Id);
+                logger.LogError(
+                    "Booking {BookingId} was paid for, could not be confirmed, and could not be "
+                    + "re-read. The payment is recorded as paid and the place was not granted.",
+                    booking.Id);
                 return SettlementResult.Unresolved;
 
             case BookingStatus.Confirmed:
@@ -614,11 +616,17 @@ public sealed class BookingService(
             return payment;
         }
 
-        // The row was started under a different provider than the one now taking money - a mock
-        // payment on a site that has since been given a certificate, or the reverse after Swish was
-        // switched off. There is no request at the active provider that could ever settle it, and
-        // asking would earn an error per row per run, so it is abandoned locally instead.
-        if (payment.Provider != paymentProvider.Name)
+        // The row was started by the mock on a site that has since been given a certificate. The
+        // mock creates no request anywhere, so nothing will ever settle it and asking the real Swish
+        // would earn an error per row per run; it is abandoned locally instead.
+        //
+        // Deliberately only this direction. A row started under real Swish must NOT be abandoned
+        // just because the site has fallen back to the mock - the factory does that for a missing
+        // certificate or a typo'd thumbprint, and the request at Swish is still live and may already
+        // be paid. Those rows stay Pending until the configuration is fixed, which is the whole
+        // reason settlement is driven by what Swish says rather than by what this site last thought.
+        if (payment.Provider == SwishMockPaymentProvider.ProviderName
+            && paymentProvider.Name != SwishMockPaymentProvider.ProviderName)
         {
             logger.LogWarning(
                 "Payment {Reference} was started under provider {StartedWith} but {Active} is active "

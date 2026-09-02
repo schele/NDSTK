@@ -321,16 +321,18 @@ sentence. That setting is read only in the Development environment.
    certificate. Untick *Require Server Name Indication*, or add a binding on the IP with the same
    certificate. Verify with `openssl s_client -connect ndstk.se:443 -noservername`. Until then,
    payments still settle through the poll and the job; only the callback is lost.
-4. Set `Enabled`, `PayeeAlias`, `CertificatePath` and `CertificatePassword` on the server. The
-   boot log reads `Payment provider: Swish`.
+4. Set `Enabled`, `PayeeAlias` and either `CertificateThumbprint` (the store route from step 2)
+   or `CertificatePath` and `CertificatePassword` on the server. The boot log reads
+   `Payment provider: Swish` and states the certificate's expiry date.
 5. Check **Betalningsreservation (minuter)** on the Settings node. A value an editor typed before
    this change - 5, following the old field description - is kept in preference to the new
    default, and anything under 7 is shorter than Swish's own backend timeout.
 6. Optionally restrict `/api/swish/callback` to Swish's address, 213.132.115.94, in IIS.
 7. One real payment of the smallest class price, and a bank reference on the row in Medlemmar.
 
-The certificate is loaded with `MachineKeySet`, not `EphemeralKeySet`: SChannel cannot present an
-ephemeral key as a TLS client certificate.
+The file route loads the PKCS#12 with `MachineKeySet`, not `EphemeralKeySet`: SChannel cannot
+present an ephemeral key as a TLS client certificate. That is also why the store route is
+preferred — a file loaded this way leaves a key blob behind on every application start.
 
 ## Security
 

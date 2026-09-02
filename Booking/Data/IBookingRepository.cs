@@ -123,8 +123,9 @@ public interface IBookingRepository
     /// <remarks>
     /// The NOT EXISTS clause is the one-live-booking index expressed as a precondition, so a child
     /// who re-booked the class after their hold lapsed makes this update decline rather than trip
-    /// the constraint. The catch below is a backstop for the null-participant rows the participant
-    /// backfill created, which the index treats differently on each engine.
+    /// the constraint. That leaves the null-participant rows the participant
+    /// backfill created, which the two engines treat differently, so the implementation keeps a
+    /// constraint-violation backstop behind it.
     /// </remarks>
     Task<bool> TryReconfirmBookingAsync(int bookingId, int capacity, DateTime nowUtc);
 

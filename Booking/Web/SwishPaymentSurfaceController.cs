@@ -96,8 +96,8 @@ public sealed class SwishPaymentSurfaceController(
             // Reachable when a previous Start reached Swish but died before the row was updated.
             // Without a word here the member presses a button that appears to do nothing.
             TempData["PaymentError"] =
-                "Betalningen är redan startad. Öppna Swish och godkänn den, eller vänta någon minut "
-                + "och boka om.";
+                "Betalningen är redan startad. Öppna Swish och godkänn den. Vill du börja om får du "
+                + "vänta tills reservationen gått ut, vilket tar några minuter.";
         }
 
         return Redirect(PaymentPageUrl.For(contentQuery, PublishedUrlProvider, reference) ?? PortalUrl());
