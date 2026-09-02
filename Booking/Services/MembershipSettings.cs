@@ -27,9 +27,12 @@ public sealed record MembershipSettings(
             FirstClassPriceOre: 100 * 100,
             ClassPriceOre: 200 * 100),
         ReminderHoursBefore: 24,
-        // Long enough to open Swish and confirm, short enough that a place is not held for somebody
-        // who wandered off. The hold blocks a real member from booking, so erring long is not free.
-        PaymentHoldMinutes: 5,
+        // Long enough to outlive Swish's own request timeout - five and a half minutes from the
+        // moment the payment starts, plus the seconds a callback takes to arrive - so the normal
+        // course of events never has a paid booking whose hold has already been swept. The clock
+        // is restarted when the payment starts, so however long the member looks at the page
+        // first does not eat into it. Not longer: the hold blocks a real member from booking.
+        PaymentHoldMinutes: 7,
         // A place given up an hour before the class cannot realistically be filled by anybody
         // else, so it costs the club a coached slot and the member nothing. Twelve hours means a
         // class the following evening can still be given up the night before.

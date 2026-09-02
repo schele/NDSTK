@@ -81,7 +81,7 @@ Prices live on the **Settings** node under *Medlemskap*, in kronor:
 | Pris första klassen | 100 |
 | Pris per klass | 200 |
 | Påminnelse (timmar innan) | 24 |
-| Betalningsreservation (minuter) | 5 |
+| Betalningsreservation (minuter) | 7 |
 
 Money is stored as **integer öre** throughout; the ×100 happens once, in
 `MembershipSettingsService`. SQLite maps `decimal` to `REAL`, and floating point has no place in a
