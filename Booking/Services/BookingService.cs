@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NDSTK.Booking.Data;
 using NDSTK.Booking.Domain;
 using NDSTK.Booking.Payments;
+using Umbraco.Cms.Core.Scoping;
 
 namespace NDSTK.Booking.Services;
 
@@ -74,6 +75,12 @@ public enum SettlementResult
 
     /// <summary>A purchase with no booking attached: the family upgrade.</summary>
     NoBooking,
+
+    /// <summary>
+    /// Paid, but the booking carried a status settlement does not know. Nothing else was done, and
+    /// the log says so at Error level: guessing here would mean minting credits on a guess.
+    /// </summary>
+    Unresolved,
 }
 
 /// <summary>
@@ -86,6 +93,7 @@ public sealed class BookingService(
     MemberProfileService profiles,
     MembershipSettingsService settings,
     IPaymentProvider paymentProvider,
+    ICoreScopeProvider scopeProvider,
     ILogger<BookingService> logger)
 {
     public async Task<BookingAttempt> BookAsync(
@@ -233,11 +241,19 @@ public sealed class BookingService(
     /// Idempotent. The first statement moves the payment out of Pending conditionally, and every
     /// side effect below runs only when that statement changed a row. Swish's callback, the
     /// page's poll and the reminder job can all arrive with the same PAID; one of them wins.
+    ///
+    /// Atomic, too. One ambient scope wraps the winning write and every side effect; the
+    /// repository's own scopes and the member service's join it, and only this scope's Complete
+    /// commits. So an exception after the win - a transient database error while confirming the
+    /// booking, say - rolls the payment back to Pending, and the next trigger tries again. Without
+    /// that, a paid payment could be left with no place and nothing that would ever repair it.
     /// </remarks>
     public async Task<SettlementResult> SettlePaymentAsync(PaymentRecord payment, string? bankReference = null)
     {
         DateTime nowUtc = DateTime.UtcNow;
         DateOnly today = DateOnly.FromDateTime(SwedishTime.ToSwedish(nowUtc));
+
+        using ICoreScope scope = scopeProvider.CreateCoreScope();
 
         var won = await repository.TryCompletePaymentAsync(
             payment.Id, PaymentStatus.Paid, nowUtc, bankReference, errorCode: null);
@@ -245,6 +261,7 @@ public sealed class BookingService(
         if (won is false)
         {
             logger.LogInformation("Payment {Reference} was already settled; nothing to do.", payment.Reference);
+            scope.Complete();
             return SettlementResult.AlreadySettled;
         }
 
@@ -254,7 +271,7 @@ public sealed class BookingService(
 
         SettlementResult result = booking is null
             ? SettlementResult.NoBooking
-            : await PlaceForPaidBookingAsync(booking, payment.MemberKey, nowUtc);
+            : await PlaceForPaidBookingAsync(payment, booking, nowUtc);
 
         if (payment.MembershipFeeOre > 0)
         {
@@ -268,8 +285,10 @@ public sealed class BookingService(
         // still null, so a class fee charged to a child whose stamp is null *was* the welcome
         // price, whatever the numbers now say.
         //
-        // Stamped even when the place became a credit: the welcome price was paid, and the credit
-        // is worth a class.
+        // The stamp is per child, reached through the booking, and conditional on still being null -
+        // so two classes booked for the same child at the same moment cannot both claim to have
+        // been the first, and a sibling's stamp is never touched. Stamped even when the place
+        // became a credit: the welcome price was paid, and the credit is worth a class.
         if (payment.ClassFeeOre > 0 && booking?.ParticipantKey is { } participantKey)
         {
             await participants.TryStampFirstClassUsedAsync(participantKey, nowUtc);
@@ -284,6 +303,8 @@ public sealed class BookingService(
             await profiles.SetFamilyAccountAsync(payment.MemberKey);
         }
 
+        scope.Complete();
+
         logger.LogInformation("Payment {Reference} settled: {Result}.", payment.Reference, result);
         return result;
     }
@@ -294,7 +315,7 @@ public sealed class BookingService(
     /// otherwise the member receives a credit, exactly as a cancellation would give them.
     /// </summary>
     private async Task<SettlementResult> PlaceForPaidBookingAsync(
-        BookingRecord booking, Guid memberKey, DateTime nowUtc)
+        PaymentRecord payment, BookingRecord booking, DateTime nowUtc)
     {
         switch (booking.Status)
         {
@@ -306,6 +327,20 @@ public sealed class BookingService(
                 return SettlementResult.Confirmed;
 
             case BookingStatus.Expired:
+                // Expiring the hold already gave back any credit spent on this booking. When a
+                // credit paid for the class, the payment carried only the annual fee or the
+                // supplement, and the member already holds what they are owed for the place: the
+                // returned credit. Taking the place back would hand them class and credit both;
+                // minting another would pay them twice. So only a class paid for with money is
+                // re-confirmed or compensated here.
+                if (payment.ClassFeeOre == 0)
+                {
+                    logger.LogInformation(
+                        "Booking {BookingId} was paid after its hold lapsed; the credit that covered "
+                        + "the class was already returned when the hold expired.", booking.Id);
+                    return SettlementResult.Credited;
+                }
+
                 TrainingClass? trainingClass = classes.Find(booking.ClassKey);
 
                 if (trainingClass is not null
@@ -318,20 +353,27 @@ public sealed class BookingService(
                     return SettlementResult.Reconfirmed;
                 }
 
-                await repository.IssueCreditAsync(memberKey, booking.Id, nowUtc);
+                await repository.IssueCreditAsync(payment.MemberKey, booking.Id, nowUtc);
                 logger.LogWarning(
                     "Booking {BookingId} was paid after its hold lapsed and the class had filled; "
                     + "a credit was issued instead.", booking.Id);
                 return SettlementResult.Credited;
 
-            default:
-                // Cancelled while pending: an editor withdrew the class. CancelAllForClassAsync
-                // credits only confirmed bookings, so this one got nothing - until now, when it
-                // turns out to have been paid for.
-                await repository.IssueCreditAsync(memberKey, booking.Id, nowUtc);
+            case BookingStatus.Cancelled:
+                // An editor withdrew the class while the booking was pending. CancelAllForClassAsync
+                // credits only confirmed bookings and returns no spent credit, so whether the class
+                // was paid with money or with a credit, the member is owed one credit and has none.
+                await repository.IssueCreditAsync(payment.MemberKey, booking.Id, nowUtc);
                 logger.LogWarning(
                     "Booking {BookingId} was paid after being cancelled; a credit was issued.", booking.Id);
                 return SettlementResult.Credited;
+
+            default:
+                logger.LogError(
+                    "Booking {BookingId} has status {Status}, which settlement does not know. The "
+                    + "payment is recorded as paid and nothing else was done.",
+                    booking.Id, booking.Status);
+                return SettlementResult.Unresolved;
         }
     }
 
@@ -387,9 +429,15 @@ public sealed class BookingService(
     /// Abandons a payment and releases the place it was holding. Returns false when the payment
     /// had already left Pending, in which case nothing changed.
     /// </summary>
+    /// <remarks>
+    /// One ambient scope, for the same reason as <see cref="SettlePaymentAsync"/>: the payment must
+    /// not be recorded as abandoned while the place it held stays reserved.
+    /// </remarks>
     public async Task<bool> AbandonPaymentAsync(PaymentRecord payment, string status, string? errorCode = null)
     {
         DateTime nowUtc = DateTime.UtcNow;
+
+        using ICoreScope scope = scopeProvider.CreateCoreScope();
 
         var won = await repository.TryCompletePaymentAsync(
             payment.Id, status, nowUtc, bankReference: null, errorCode);
@@ -398,6 +446,7 @@ public sealed class BookingService(
         {
             logger.LogInformation(
                 "Payment {Reference} was already settled; not abandoning it.", payment.Reference);
+            scope.Complete();
             return false;
         }
 
@@ -406,9 +455,11 @@ public sealed class BookingService(
             await repository.ExpireBookingAsync(bookingId, nowUtc);
         }
 
+        scope.Complete();
+
         logger.LogInformation(
-            "Payment {Reference} abandoned with status {Status}{Code}.",
-            payment.Reference, status, errorCode is null ? string.Empty : $" ({errorCode})");
+            "Payment {Reference} abandoned with status {Status} {ErrorCode}.",
+            payment.Reference, status, errorCode ?? "-");
         return true;
     }
 }
