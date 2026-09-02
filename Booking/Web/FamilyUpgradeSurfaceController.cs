@@ -141,7 +141,7 @@ public sealed class FamilyUpgradeSurfaceController(
 
         await repository.CreatePaymentAsync(payment);
 
-        var paymentUrl = PaymentPageUrl(payment.Reference);
+        var paymentUrl = PaymentPageUrl.For(contentQuery, PublishedUrlProvider, payment.Reference);
         if (paymentUrl is null)
         {
             logger.LogError("The payment page is missing; cannot send the member to pay.");
@@ -154,17 +154,5 @@ public sealed class FamilyUpgradeSurfaceController(
             "Family upgrade payment {Reference} created for {MemberKey}.", payment.Reference, user.Key);
 
         return Redirect(paymentUrl);
-    }
-
-    private string? PaymentPageUrl(Guid reference)
-    {
-        IPublishedContent? page = contentQuery
-            .ContentAtRoot()
-            .SelectMany(root => root.DescendantsOrSelfOfType("swishPayment"))
-            .FirstOrDefault();
-
-        return page is null
-            ? null
-            : $"{page.Url(PublishedUrlProvider)}?ref={Uri.EscapeDataString(reference.ToString())}";
     }
 }

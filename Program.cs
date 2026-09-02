@@ -51,6 +51,26 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
         }));
 
+    options.AddPolicy(BookingRateLimits.PaymentStatus, context =>
+        RateLimitPartition.GetFixedWindowLimiter(Caller(context), _ => new FixedWindowRateLimiterOptions
+        {
+            // A poll every three seconds from two tabs is forty a minute; a family sharing a
+            // connection while two of them pay is twice that.
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+
+    options.AddPolicy(BookingRateLimits.Callback, context =>
+        RateLimitPartition.GetFixedWindowLimiter(Caller(context), _ => new FixedWindowRateLimiterOptions
+        {
+            // Swish retries a failed callback up to ten times, and every payment made in the same
+            // minute arrives from the same address.
+            PermitLimit = 300,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+
     // Without this the browser shows its own "This page isn't working" for a bare 429, which reads
     // as the site having crashed rather than as being asked to slow down.
     options.OnRejected = async (context, cancellationToken) =>

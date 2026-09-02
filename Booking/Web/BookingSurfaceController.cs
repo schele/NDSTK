@@ -57,7 +57,7 @@ public sealed class BookingSurfaceController(
 
         if (attempt.NeedsPayment)
         {
-            var paymentUrl = PaymentPageUrl(attempt.PaymentReference!.Value);
+            var paymentUrl = PaymentPageUrl.For(contentQuery, PublishedUrlProvider, attempt.PaymentReference!.Value);
             if (paymentUrl is null)
             {
                 // Rather than leave the member holding an unpayable reservation, release it.
@@ -129,16 +129,4 @@ public sealed class BookingSurfaceController(
         BookingFailure.ParticipantIncomplete => "Fyll i barnets födelsedatum under Mina barn innan du bokar.",
         _ => "Något gick fel. Försök igen om en liten stund.",
     };
-
-    private string? PaymentPageUrl(Guid reference)
-    {
-        IPublishedContent? page = contentQuery
-            .ContentAtRoot()
-            .SelectMany(root => root.DescendantsOrSelfOfType("swishPayment"))
-            .FirstOrDefault();
-
-        return page is null
-            ? null
-            : $"{page.Url(PublishedUrlProvider)}?ref={Uri.EscapeDataString(reference.ToString())}";
-    }
 }

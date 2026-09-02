@@ -59,6 +59,9 @@ public sealed class BookingComposer : IComposer
         builder.Services.AddSingleton<IPaymentProvider>(PaymentProviderFactory.Create);
         builder.AddNotificationHandler<UmbracoApplicationStartedNotification, PaymentProviderAnnouncer>();
 
+        builder.Services.AddSingleton<SwishCallbackUrl>();
+        builder.Services.AddSingleton<SwishQrService>();
+
         // Recurring: sends class reminders and releases abandoned payment holds.
         builder.Services.AddRecurringBackgroundJob<ClassReminderJob>();
 
