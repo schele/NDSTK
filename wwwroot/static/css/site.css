@@ -965,6 +965,56 @@ footer {
     padding-top: 0.8rem;
 }
 
+/* The started state: one hand-over block per device, the script hides the other. */
+.swish__device {
+    margin: 0 0 0.5rem;
+}
+
+.swish__app-link {
+    display: block;
+    width: 100%;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.swish__qr-image {
+    display: block;
+    width: 220px;
+    height: 220px;
+    margin: 0 auto 0.75rem;
+    border: 3px solid var(--primary);
+    border-radius: 6px;
+    background: #fff;
+}
+
+.swish__hint {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin: 0 0 0.75rem;
+}
+
+.swish__waiting {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.swish__waiting::before {
+    content: "";
+    display: inline-block;
+    width: 0.7em;
+    height: 0.7em;
+    margin-right: 0.5em;
+    border: 2px solid var(--primary);
+    border-right-color: transparent;
+    border-radius: 50%;
+    vertical-align: -0.1em;
+    animation: swish-spin 0.9s linear infinite;
+}
+
+@keyframes swish-spin {
+    to { transform: rotate(360deg); }
+}
+
 /* Member area, narrow screens.
    Placed after the existing 900px block deliberately: same specificity, so these have to be
    declared later to win. */
