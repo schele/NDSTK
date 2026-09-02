@@ -312,7 +312,10 @@ sentence. That setting is read only in the Development environment.
 
 1. The club signs **Swish Handel** with its bank and names a certificate contact.
 2. The contact generates a 4096-bit RSA key and CSR, obtains the certificate at portal.swish.nu,
-   and exports key and chain as a password-protected PKCS#12 outside the web root.
+   and exports key and chain as a password-protected PKCS#12 outside the web root. Prefer
+   installing the certificate in `LocalMachine\My` and setting `CertificateThumbprint`: a PKCS#12
+   loaded from a file with `MachineKeySet` leaves a key blob in `MachineKeys` on every application
+   start, which accumulates across app-pool recycles.
 3. **The IIS binding for ndstk.se must not require SNI.** Swish's callback client does not send
    a server name, and the binding as of September 2026 drops such handshakes with no
    certificate. Untick *Require Server Name Indication*, or add a binding on the IP with the same
@@ -320,8 +323,11 @@ sentence. That setting is read only in the Development environment.
    payments still settle through the poll and the job; only the callback is lost.
 4. Set `Enabled`, `PayeeAlias`, `CertificatePath` and `CertificatePassword` on the server. The
    boot log reads `Payment provider: Swish`.
-5. Optionally restrict `/api/swish/callback` to Swish's address, 213.132.115.94, in IIS.
-6. One real payment of the smallest class price, and a bank reference on the row in Medlemmar.
+5. Check **Betalningsreservation (minuter)** on the Settings node. A value an editor typed before
+   this change - 5, following the old field description - is kept in preference to the new
+   default, and anything under 7 is shorter than Swish's own backend timeout.
+6. Optionally restrict `/api/swish/callback` to Swish's address, 213.132.115.94, in IIS.
+7. One real payment of the smallest class price, and a bank reference on the row in Medlemmar.
 
 The certificate is loaded with `MachineKeySet`, not `EphemeralKeySet`: SChannel cannot present an
 ephemeral key as a TLS client certificate.

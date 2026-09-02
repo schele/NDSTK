@@ -62,9 +62,29 @@ public sealed class ClassReminderJob(
 
         DateTime nowUtc = DateTime.UtcNow;
 
-        await ReconcilePaymentsAsync(repository, bookings, nowUtc);
-        await SweepExpiredHoldsAsync(repository, nowUtc);
-        await SendRemindersAsync(repository, mail, classes, settings, nowUtc);
+        // Each step is independent. The reconciliation is new, touches the network and performs
+        // settlements, and it runs first - so without this a single failure in it would cost the
+        // run its hold sweep and its reminder emails, which have nothing to do with Swish.
+        await RunStepAsync("reconciling payments", () => ReconcilePaymentsAsync(repository, bookings, nowUtc));
+        await RunStepAsync("sweeping expired holds", () => SweepExpiredHoldsAsync(repository, nowUtc));
+        await RunStepAsync("sending reminders", () => SendRemindersAsync(repository, mail, classes, settings, nowUtc));
+    }
+
+    /// <summary>
+    /// Runs one step of the job, logging and swallowing anything it throws. A job that dies part-way
+    /// through leaves the rest of its work undone until the next period, and the steps here are
+    /// unrelated to each other.
+    /// </summary>
+    private async Task RunStepAsync(string what, Func<Task> step)
+    {
+        try
+        {
+            await step();
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "The reminder run failed while {What}.", what);
+        }
     }
 
     /// <summary>
@@ -103,6 +123,14 @@ public sealed class ClassReminderJob(
             {
                 // One unreachable call must not stop the rest, or the sweep and the reminders.
                 logger.LogWarning(exception, "Reconciling payment {Reference} failed; next run.", payment.Reference);
+            }
+            catch (Exception exception)
+            {
+                // Anything else - a transient database error, a deadlock victim, a failed scope
+                // commit - is this payment's problem and not the run's. Logged at Error because,
+                // unlike an unreachable provider, it means something here is wrong. The settlement
+                // is atomic, so a failure mid-way left the payment Pending for the next run.
+                logger.LogError(exception, "Reconciling payment {Reference} threw.", payment.Reference);
             }
         }
 

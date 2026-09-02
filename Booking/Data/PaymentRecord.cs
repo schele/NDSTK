@@ -1,6 +1,6 @@
+using NDSTK.Booking.Domain;
 using NPoco;
 using Umbraco.Cms.Infrastructure.Persistence.DatabaseAnnotations;
-using NDSTK.Booking.Domain;
 
 namespace NDSTK.Booking.Data;
 

@@ -79,8 +79,12 @@ public interface IBookingRepository
 
     Task<BookingRecord?> GetBookingAsync(int bookingId);
 
-    /// <summary>Marks the booking confirmed and clears its payment hold.</summary>
-    Task ConfirmBookingAsync(int bookingId, DateTime nowUtc);
+    /// <summary>
+    /// Marks a pending booking confirmed and clears its payment hold. Returns false when the booking
+    /// is no longer pending - swept, or cancelled with its class - so the caller can decide again
+    /// rather than granting a place the rest of the rules had already taken away.
+    /// </summary>
+    Task<bool> TryConfirmBookingAsync(int bookingId, DateTime nowUtc);
 
     /// <summary>
     /// Moves a payment out of Pending, and only out of Pending. Returns false when it already
@@ -116,6 +120,12 @@ public interface IBookingRepository
     /// test is in the WHERE clause, like the reservation's, so it cannot overbook. False when
     /// the class is full, or the child has since taken another live place on it.
     /// </summary>
+    /// <remarks>
+    /// The NOT EXISTS clause is the one-live-booking index expressed as a precondition, so a child
+    /// who re-booked the class after their hold lapsed makes this update decline rather than trip
+    /// the constraint. The catch below is a backstop for the null-participant rows the participant
+    /// backfill created, which the index treats differently on each engine.
+    /// </remarks>
     Task<bool> TryReconfirmBookingAsync(int bookingId, int capacity, DateTime nowUtc);
 
     /// <summary>One credit, as a cancellation would issue it.</summary>

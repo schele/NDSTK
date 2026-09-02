@@ -137,7 +137,8 @@ public sealed class SwishPaymentController(
         // rather than "forbidden" so a reference cannot be probed for existence.
         if (payment is null || payment.MemberKey != user.Key)
         {
-            logger.LogWarning("A payment reference was requested by someone who does not own it.");
+            logger.LogWarning(
+                "Payment {Reference} was requested by someone who does not own it.", reference);
             return null;
         }
 

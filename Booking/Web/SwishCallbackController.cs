@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -30,7 +31,7 @@ namespace NDSTK.Booking.Web;
 [ApiController]
 [AllowAnonymous]
 [Route(SwishCallbackUrl.Path)]
-public sealed class SwishCallbackController(
+public sealed partial class SwishCallbackController(
     IBookingRepository repository,
     BookingService bookings,
     ILogger<SwishCallbackController> logger) : ControllerBase
@@ -39,35 +40,40 @@ public sealed class SwishCallbackController(
     public sealed record CallbackBody([property: JsonPropertyName("id")] string? Id);
 
     [HttpPost]
+    [Consumes("application/json")]
     [EnableRateLimiting(BookingRateLimits.Callback)]
     public async Task<IActionResult> Receive([FromBody] CallbackBody body)
     {
-        if (string.IsNullOrWhiteSpace(body.Id) || body.Id.Length > 36)
+        // Swish's instruction id is 32 hexadecimal digits and nothing else. Checking the shape here
+        // means an anonymous caller cannot put newlines - or anything else - into a log line, and
+        // turns scanner traffic into a refusal rather than a database round trip.
+        var id = body.Id?.Trim();
+        if (id is null || InstructionId().IsMatch(id) is false)
         {
             return BadRequest();
         }
 
-        PaymentRecord? payment = await repository.GetPaymentByProviderReferenceAsync(body.Id.Trim());
+        PaymentRecord? payment = await repository.GetPaymentByProviderReferenceAsync(id);
         var presented = Request.Headers["callbackIdentifier"].FirstOrDefault();
 
         if (payment is null || Matches(payment.CallbackIdentifier, presented) is false)
         {
             logger.LogWarning(
                 "A Swish callback for request {InstructionId} was not accepted: {Reason}.",
-                body.Id, payment is null ? "unknown request" : "callback identifier mismatch");
+                id, payment is null ? "unknown request" : "callback identifier mismatch");
             return Ok();
         }
 
         try
         {
             await bookings.ReconcileAsync(payment, DateTime.UtcNow);
-            logger.LogInformation("Swish callback for request {InstructionId} reconciled.", body.Id);
+            logger.LogInformation("Swish callback for request {InstructionId} reconciled.", id);
         }
         catch (PaymentProviderException exception)
         {
             // Swish just told us something and now cannot be asked about it. The page's poll or
             // the job will ask again; a 500 here would only make Swish repeat the callback.
-            logger.LogWarning(exception, "Reconciling after the callback for {InstructionId} failed.", body.Id);
+            logger.LogWarning(exception, "Reconciling after the callback for {InstructionId} failed.", id);
         }
 
         return Ok();
@@ -85,4 +91,7 @@ public sealed class SwishCallbackController(
         var b = Encoding.UTF8.GetBytes(presented);
         return a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);
     }
+
+    [GeneratedRegex("^[0-9A-Fa-f]{32}$")]
+    private static partial Regex InstructionId();
 }

@@ -5,9 +5,9 @@ using Microsoft.Extensions.Logging;
 namespace NDSTK.Booking.Payments.Swish;
 
 /// <summary>
-/// Turns a payment request token into the QR image Swish's own generator draws for it. Cached per
-/// payment for ten minutes, which outlives any request Swish will still honour, so a page that
-/// polls and reloads does not fetch the same image again and again.
+/// Turns a payment request token into the QR image Swish's own generator draws for it, as a PNG.
+/// Cached per payment for ten minutes, which outlives any request Swish will still honour, so a
+/// page that polls and reloads does not fetch the same image again and again.
 /// </summary>
 public sealed class SwishQrService(
     IHttpClientFactory httpClientFactory,
@@ -16,7 +16,7 @@ public sealed class SwishQrService(
 {
     private sealed record QrRequest(string Token, string Format, int Size);
 
-    public async Task<byte[]?> GetSvgAsync(Guid paymentReference, string token)
+    public async Task<byte[]?> GetImageAsync(Guid paymentReference, string token)
     {
         var key = $"swish-qr:{paymentReference:N}";
         if (cache.TryGetValue(key, out byte[]? cached) && cached is not null)
@@ -29,7 +29,7 @@ public sealed class SwishQrService(
         try
         {
             using HttpResponseMessage response = await client.PostAsJsonAsync(
-                "api/v1/commerce", new QrRequest(token, "svg", 300));
+                "api/v1/commerce", new QrRequest(token, "png", 300));
 
             if (response.IsSuccessStatusCode is false)
             {
@@ -39,9 +39,9 @@ public sealed class SwishQrService(
                 return null;
             }
 
-            var svg = await response.Content.ReadAsByteArrayAsync();
-            cache.Set(key, svg, TimeSpan.FromMinutes(10));
-            return svg;
+            var image = await response.Content.ReadAsByteArrayAsync();
+            cache.Set(key, image, TimeSpan.FromMinutes(10));
+            return image;
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {

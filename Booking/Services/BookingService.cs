@@ -231,7 +231,15 @@ public sealed class BookingService(
         if (quote.RequiresPayment is false)
         {
             // A paid-up member spending a credit owes nothing, so there is no Swish step at all.
-            await repository.ConfirmBookingAsync(bookingId.Value, nowUtc);
+            if (await repository.TryConfirmBookingAsync(bookingId.Value, nowUtc) is false)
+            {
+                // Only reachable if something expired the booking in the moment since it was
+                // reserved. The credit was spent, so the member is not out of pocket, and the
+                // portal will show the booking as it really is.
+                logger.LogWarning(
+                    "Booking {BookingId} could not be confirmed straight after being reserved.", bookingId);
+            }
+
             logger.LogInformation("Booking {BookingId} confirmed with no payment due.", bookingId);
             return new BookingAttempt(BookingFailure.None, bookingId, null, quote);
         }
@@ -342,13 +350,32 @@ public sealed class BookingService(
     /// otherwise the member receives a credit, exactly as a cancellation would give them.
     /// </summary>
     private async Task<SettlementResult> PlaceForPaidBookingAsync(
-        PaymentRecord payment, BookingRecord booking, DateTime nowUtc)
+        PaymentRecord payment, BookingRecord booking, DateTime nowUtc, bool retry = true)
     {
         switch (booking.Status)
         {
             case BookingStatus.Pending:
-                await repository.ConfirmBookingAsync(booking.Id, nowUtc);
-                return SettlementResult.Confirmed;
+                if (await repository.TryConfirmBookingAsync(booking.Id, nowUtc))
+                {
+                    return SettlementResult.Confirmed;
+                }
+
+                // Something moved the booking between the read above and this write: the sweep
+                // expired it, or an editor withdrew the class. Re-read and decide again on what it
+                // actually is now - once, because the second read is inside the settlement's own
+                // transaction and cannot keep changing under us.
+                if (retry && await repository.GetBookingAsync(booking.Id) is { } current)
+                {
+                    logger.LogInformation(
+                        "Booking {BookingId} left Pending while its payment was being settled; "
+                        + "deciding again on status {Status}.", booking.Id, current.Status);
+
+                    return await PlaceForPaidBookingAsync(payment, current, nowUtc, retry: false);
+                }
+
+                logger.LogWarning(
+                    "Booking {BookingId} could not be confirmed and could not be re-read.", booking.Id);
+                return SettlementResult.Unresolved;
 
             case BookingStatus.Confirmed:
                 return SettlementResult.Confirmed;
@@ -587,6 +614,21 @@ public sealed class BookingService(
             return payment;
         }
 
+        // The row was started under a different provider than the one now taking money - a mock
+        // payment on a site that has since been given a certificate, or the reverse after Swish was
+        // switched off. There is no request at the active provider that could ever settle it, and
+        // asking would earn an error per row per run, so it is abandoned locally instead.
+        if (payment.Provider != paymentProvider.Name)
+        {
+            logger.LogWarning(
+                "Payment {Reference} was started under provider {StartedWith} but {Active} is active "
+                + "now; abandoning it rather than asking about a request that does not exist.",
+                payment.Reference, payment.Provider, paymentProvider.Name);
+
+            await AbandonPaymentAsync(payment, PaymentStatus.Cancelled);
+            return await repository.GetPaymentByReferenceAsync(payment.Reference) ?? payment;
+        }
+
         await repository.StampPaymentCheckedAsync(payment.Id, nowUtc);
 
         PaymentOutcome outcome = await paymentProvider.RetrieveAsync(payment.ProviderReference);
@@ -611,7 +653,8 @@ public sealed class BookingService(
             return CancelPaymentResult.AlreadyFinal;
         }
 
-        if (payment.ProviderReference is not null)
+        // Only ask the provider about a request the provider actually holds. See ReconcileAsync.
+        if (payment.ProviderReference is not null && payment.Provider == paymentProvider.Name)
         {
             PaymentOutcome outcome;
             try

@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -13,7 +14,7 @@ namespace NDSTK.Booking.Payments.Swish;
 /// certificate, and both development and production are Windows. MachineKeySet puts the key in
 /// the machine container, which the IIS application pool identity can read.
 /// </remarks>
-public sealed class SwishCertificateLoader(
+public sealed partial class SwishCertificateLoader(
     IOptions<SwishOptions> options,
     ILogger<SwishCertificateLoader> logger)
 {
@@ -27,16 +28,24 @@ public sealed class SwishCertificateLoader(
         {
             if (!string.IsNullOrWhiteSpace(swish.CertificateThumbprint))
             {
+                // The Windows certificate dialog prepends a left-to-right mark and separates byte
+                // pairs with spaces when a thumbprint is copied from it. Neither is whitespace, so
+                // Trim does not help, and the lookup silently finds nothing.
+                var thumbprint = NonHex().Replace(swish.CertificateThumbprint, string.Empty);
+
                 using var store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
                 store.Open(OpenFlags.ReadOnly);
 
                 X509Certificate2? found = store.Certificates
-                    .Find(X509FindType.FindByThumbprint, swish.CertificateThumbprint.Trim(), validOnly: false)
+                    .Find(X509FindType.FindByThumbprint, thumbprint, validOnly: false)
                     .FirstOrDefault();
 
                 if (found is null)
                 {
-                    logger.LogError("No certificate with the configured thumbprint is in LocalMachine\\My.");
+                    // The thumbprint is not a secret, and naming it is the difference between a
+                    // five-minute fix and an afternoon.
+                    logger.LogError(
+                        "No certificate with thumbprint {Thumbprint} is in LocalMachine\\My.", thumbprint);
                     return null;
                 }
 
@@ -46,6 +55,7 @@ public sealed class SwishCertificateLoader(
                     return null;
                 }
 
+                WarnIfExpiring(found, logger);
                 return found;
             }
 
@@ -62,6 +72,7 @@ public sealed class SwishCertificateLoader(
                     return null;
                 }
 
+                WarnIfExpiring(loaded, logger);
                 return loaded;
             }
 
@@ -74,4 +85,35 @@ public sealed class SwishCertificateLoader(
             return null;
         }
     }
+
+    /// <summary>
+    /// A Swish merchant certificate is valid two years. When it lapses the TLS handshake simply
+    /// fails, members are told Swish cannot be reached, and nothing in the log names the cause - so
+    /// the expiry is stated at every boot and shouted about while there is still time to renew it.
+    /// </summary>
+    private static void WarnIfExpiring(X509Certificate2 certificate, ILogger logger)
+    {
+        DateTime expires = certificate.NotAfter.ToUniversalTime();
+        var daysLeft = (int)(expires - DateTime.UtcNow).TotalDays;
+
+        if (daysLeft <= 0)
+        {
+            logger.LogError(
+                "The Swish certificate expired on {Expires:u}. Payments will fail until it is renewed.",
+                expires);
+        }
+        else if (daysLeft <= 30)
+        {
+            logger.LogWarning(
+                "The Swish certificate expires on {Expires:u}, in {DaysLeft} day(s). Renew it at "
+                + "portal.swish.nu before then.", expires, daysLeft);
+        }
+        else
+        {
+            logger.LogInformation("The Swish certificate is valid until {Expires:u}.", expires);
+        }
+    }
+
+    [GeneratedRegex("[^0-9a-fA-F]")]
+    private static partial Regex NonHex();
 }

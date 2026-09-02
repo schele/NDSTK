@@ -69,11 +69,35 @@ public sealed class SwishPaymentSurfaceController(
             return NotFound();
         }
 
-        StartPaymentResult result = await bookings.StartPaymentAsync(payment, callbackUrl.Build());
+        string callback;
+        try
+        {
+            callback = callbackUrl.Build();
+        }
+        catch (InvalidOperationException exception)
+        {
+            // Umbraco:CMS:WebRouting:UmbracoApplicationUrl is not set. Every environment in this
+            // repository sets it, so this is a deployment that dropped it - which must not surface
+            // as a 500 on the pay button.
+            logger.LogError(exception, "The Swish callback URL cannot be built.");
+            TempData["PaymentError"] = ProviderUnavailableMessage;
+            return Redirect(PaymentPageUrl.For(contentQuery, PublishedUrlProvider, reference) ?? PortalUrl());
+        }
+
+        StartPaymentResult result = await bookings.StartPaymentAsync(payment, callback);
 
         if (result == StartPaymentResult.ProviderUnavailable)
         {
             TempData["PaymentError"] = ProviderUnavailableMessage;
+        }
+
+        if (result == StartPaymentResult.AlreadyStarted)
+        {
+            // Reachable when a previous Start reached Swish but died before the row was updated.
+            // Without a word here the member presses a button that appears to do nothing.
+            TempData["PaymentError"] =
+                "Betalningen är redan startad. Öppna Swish och godkänn den, eller vänta någon minut "
+                + "och boka om.";
         }
 
         return Redirect(PaymentPageUrl.For(contentQuery, PublishedUrlProvider, reference) ?? PortalUrl());
@@ -126,14 +150,20 @@ public sealed class SwishPaymentSurfaceController(
             return NotFound();
         }
 
-        var svg = await qr.GetSvgAsync(payment.Reference, payment.ProviderToken);
-        if (svg is null)
+        var image = await qr.GetImageAsync(payment.Reference, payment.ProviderToken);
+        if (image is null)
         {
             return NotFound();
         }
 
         Response.Headers.CacheControl = "private, max-age=600";
-        return File(svg, "image/svg+xml");
+
+        // A defence in depth for an image this site did not draw: nosniff stops a content type being
+        // guessed, and the policy makes the response inert if it is ever navigated to directly.
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Content-Security-Policy"] = "default-src 'none'";
+
+        return File(image, "image/png");
     }
 
     [HttpPost]
@@ -151,7 +181,9 @@ public sealed class SwishPaymentSurfaceController(
         switch (await bookings.CancelPaymentAsync(payment))
         {
             case CancelPaymentResult.Cancelled:
-                TempData["BookingError"] = "Betalningen avbröts, så platsen är inte bokad.";
+                TempData["BookingError"] = payment.BookingId is null
+                    ? "Betalningen avbröts. Kontot är oförändrat."
+                    : "Betalningen avbröts, så platsen är inte bokad.";
                 return Redirect(PortalUrl());
 
             case CancelPaymentResult.ProviderUnavailable:
@@ -191,6 +223,8 @@ public sealed class SwishPaymentSurfaceController(
                 "Betalningen är genomförd. Platsen hann ta slut, så du har fått en tillgodoträning i stället.",
             SettlementResult.NoBooking => "Betalningen är genomförd. Kontot är nu ett familjekonto.",
             SettlementResult.AlreadySettled => "Betalningen var redan genomförd.",
+            SettlementResult.Unresolved =>
+                "Betalningen är genomförd. Vi ser över bokningen och hör av oss.",
             _ => "Betalningen är genomförd och din träning är bokad.",
         };
         return Redirect(PortalUrl());
@@ -216,7 +250,9 @@ public sealed class SwishPaymentSurfaceController(
 
         await bookings.AbandonPaymentAsync(payment, PaymentStatus.Cancelled);
 
-        TempData["BookingError"] = "Betalningen avbröts, så platsen är inte bokad.";
+        TempData["BookingError"] = payment.BookingId is null
+            ? "Betalningen avbröts. Kontot är oförändrat."
+            : "Betalningen avbröts, så platsen är inte bokad.";
         return Redirect(PortalUrl());
     }
 
@@ -236,7 +272,8 @@ public sealed class SwishPaymentSurfaceController(
 
         if (payment is null || payment.MemberKey != user.Key)
         {
-            logger.LogWarning("A payment action was attempted by someone who does not own it.");
+            logger.LogWarning(
+                "Payment {Reference} was requested by someone who does not own it.", reference);
             return null;
         }
 

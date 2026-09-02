@@ -287,21 +287,27 @@ public sealed class BookingRepository(
         return await scope.Database.SingleOrDefaultByIdAsync<BookingRecord>(bookingId);
     }
 
-    public async Task ConfirmBookingAsync(int bookingId, DateTime nowUtc)
+    public async Task<bool> TryConfirmBookingAsync(int bookingId, DateTime nowUtc)
     {
         using IScope scope = scopeProvider.CreateScope();
 
         // The hold is cleared as the booking is confirmed: a confirmed booking holds its place
         // outright, and leaving a stale expiry behind would let the sweeper release a paid place.
-        await scope.Database.ExecuteAsync(
+        //
+        // Conditional on still being pending, like every other precondition in this class. Without
+        // it, a sweep that expired this booking a millisecond earlier - or an editor who withdrew
+        // the class - would be silently overwritten, and the place granted without the capacity
+        // test the reconfirm path applies.
+        var updated = await scope.Database.ExecuteAsync(
             $"""
             UPDATE {BookingTables.Booking}
             SET Status = @0, ConfirmedUtc = @1, HoldExpiresUtc = NULL
-            WHERE Id = @2
+            WHERE Id = @2 AND Status = @3
             """,
-            Domain.BookingStatus.Confirmed, nowUtc, bookingId);
+            Domain.BookingStatus.Confirmed, nowUtc, bookingId, Domain.BookingStatus.Pending);
 
         scope.Complete();
+        return updated == 1;
     }
 
     public async Task<bool> TryCompletePaymentAsync(
@@ -419,6 +425,13 @@ public sealed class BookingRepository(
                     WHERE b.ClassKey = (SELECT ClassKey FROM {BookingTables.Booking} WHERE Id = @2)
                       AND (b.Status = @0 OR (b.Status = @4 AND b.HoldExpiresUtc > @1))
                   ) < @5
+                  AND NOT EXISTS (
+                    SELECT 1 FROM {BookingTables.Booking} o
+                    WHERE o.ParticipantKey = (SELECT ParticipantKey FROM {BookingTables.Booking} WHERE Id = @2)
+                      AND o.ClassKey = (SELECT ClassKey FROM {BookingTables.Booking} WHERE Id = @2)
+                      AND o.Id <> @2
+                      AND o.Status IN (@0, @4)
+                  )
                 """,
                 Domain.BookingStatus.Confirmed, nowUtc, bookingId, Domain.BookingStatus.Expired,
                 Domain.BookingStatus.Pending, capacity);
@@ -427,8 +440,12 @@ public sealed class BookingRepository(
             return updated == 1;
         }
         catch (DbException exception)
-            when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase))
+            when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase)
+                || exception.Message.Contains(BookingTables.LivePerParticipantIndex, StringComparison.OrdinalIgnoreCase))
         {
+            // Matched on the index name as well as the English word: SQL Server localises this
+            // message, and the index name is the part it never translates.
+            //
             // The child took another live place on this class while the payment was in flight,
             // and the one-live-booking index refuses a second. The caller credits them instead.
             logger.LogWarning(
@@ -476,17 +493,22 @@ public sealed class BookingRepository(
             """,
             bookingId);
 
-        // A payment nobody started at the provider has nowhere to go once its hold is gone. Marked
-        // Cancelled so it stops lingering as Pending in the backoffice. A payment that HAS a
-        // request at Swish is left alone: reconciliation must still be able to settle it if the
-        // member paid and the callback was lost.
+        // A payment nobody started at the provider has nowhere to go once its hold is gone, and
+        // neither has a mock payment: the mock creates no request anywhere, so nothing will ever
+        // settle it. Both are marked Cancelled so they stop lingering as Pending in the backoffice.
+        //
+        // A payment that has a request at a REAL provider is left alone: reconciliation must still
+        // be able to settle it if the member paid and the callback was lost. That is the whole
+        // reason this update is conditional rather than unconditional.
         await scope.Database.ExecuteAsync(
             $"""
             UPDATE {BookingTables.Payment}
             SET Status = @0, CompletedUtc = @1
-            WHERE BookingId = @2 AND Status = @3 AND ProviderReference IS NULL
+            WHERE BookingId = @2 AND Status = @3
+              AND (ProviderReference IS NULL OR Provider = @4)
             """,
-            PaymentStatus.Cancelled, nowUtc, bookingId, PaymentStatus.Pending);
+            PaymentStatus.Cancelled, nowUtc, bookingId, PaymentStatus.Pending,
+            Payments.SwishMockPaymentProvider.ProviderName);
 
         scope.Complete();
     }
