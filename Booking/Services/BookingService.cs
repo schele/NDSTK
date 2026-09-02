@@ -83,6 +83,33 @@ public enum SettlementResult
     Unresolved,
 }
 
+/// <summary>What pressing "Betala med Swish" did.</summary>
+public enum StartPaymentResult
+{
+    Started,
+
+    /// <summary>A request already exists: a second tab, or a refresh. The page shows it.</summary>
+    AlreadyStarted,
+
+    /// <summary>The payment is no longer pending. The page shows the outcome.</summary>
+    NotPending,
+
+    /// <summary>Swish refused or could not be reached. Nothing changed; the member can retry.</summary>
+    ProviderUnavailable,
+}
+
+/// <summary>What pressing "Avbryt" did.</summary>
+public enum CancelPaymentResult
+{
+    Cancelled,
+
+    /// <summary>Swish had already decided - typically PAID, a second after the press. Applied.</summary>
+    AlreadyFinal,
+
+    /// <summary>Swish could not be reached, so nothing was cancelled anywhere. The hold stands.</summary>
+    ProviderUnavailable,
+}
+
 /// <summary>
 /// Turns "I want that class" into a reserved place and, where money is owed, a pending payment.
 /// </summary>
@@ -461,5 +488,169 @@ public sealed class BookingService(
             "Payment {Reference} abandoned with status {Status} {ErrorCode}.",
             payment.Reference, status, errorCode ?? "-");
         return true;
+    }
+
+    /// <summary>
+    /// Creates the request at the provider and records it. Restarts the hold, so the reservation
+    /// outlives Swish's own timeout however long the member looked at the page first.
+    /// </summary>
+    public async Task<StartPaymentResult> StartPaymentAsync(PaymentRecord payment, string callbackUrl)
+    {
+        if (payment.Status != PaymentStatus.Pending)
+        {
+            return StartPaymentResult.NotPending;
+        }
+
+        if (payment.ProviderReference is not null)
+        {
+            return StartPaymentResult.AlreadyStarted;
+        }
+
+        DateTime nowUtc = DateTime.UtcNow;
+        var context = new PaymentStartContext(callbackUrl, await MessageForAsync(payment));
+
+        PaymentStart start;
+        try
+        {
+            start = await paymentProvider.StartAsync(payment, context);
+        }
+        catch (PaymentProviderException exception)
+        {
+            logger.LogWarning(
+                "Payment {Reference} could not be started at the provider{Code}.",
+                payment.Reference, exception.ErrorCode is null ? string.Empty : $" ({exception.ErrorCode})");
+            return StartPaymentResult.ProviderUnavailable;
+        }
+
+        var recorded = await repository.TryStartPaymentAsync(
+            payment.Id, start.ProviderReference, start.Token, start.CallbackIdentifier, nowUtc);
+
+        if (recorded is false)
+        {
+            // Two tabs pressed Betala at once and the other one won. Swish now holds two requests
+            // for one payment; withdraw ours so the member's app shows one.
+            try
+            {
+                await paymentProvider.CancelAsync(start.ProviderReference);
+            }
+            catch (PaymentProviderException)
+            {
+                logger.LogWarning(
+                    "Duplicate request {InstructionId} for payment {Reference} could not be withdrawn.",
+                    start.ProviderReference, payment.Reference);
+            }
+
+            return StartPaymentResult.AlreadyStarted;
+        }
+
+        if (payment.BookingId is { } bookingId)
+        {
+            await repository.TryRestartHoldAsync(
+                bookingId, nowUtc.AddMinutes(settings.Get().PaymentHoldMinutes));
+        }
+
+        logger.LogInformation("Payment {Reference} started as {InstructionId}.", payment.Reference, start.ProviderReference);
+        return StartPaymentResult.Started;
+    }
+
+    /// <summary>
+    /// Asks the provider where the payment stands and applies the answer. The one routine behind
+    /// the page's poll, Swish's callback and the reminder job. Throws
+    /// <see cref="PaymentProviderException"/> when the provider cannot be reached; callers decide
+    /// whether that is worth more than a log line.
+    /// </summary>
+    public async Task<PaymentRecord> ReconcileAsync(PaymentRecord payment, DateTime nowUtc)
+    {
+        if (payment.Status != PaymentStatus.Pending || payment.ProviderReference is null)
+        {
+            return payment;
+        }
+
+        await repository.StampPaymentCheckedAsync(payment.Id, nowUtc);
+
+        PaymentOutcome outcome = await paymentProvider.RetrieveAsync(payment.ProviderReference);
+        await ApplyOutcomeAsync(payment, outcome);
+
+        return await repository.GetPaymentByReferenceAsync(payment.Reference) ?? payment;
+    }
+
+    /// <summary>
+    /// Withdraws the request at the provider, then abandons the payment and releases the place.
+    /// </summary>
+    /// <remarks>
+    /// If the provider cannot be reached, nothing is cancelled locally either. Cancelling here
+    /// while the request stays open at Swish would let the member pay in the app for a payment
+    /// this site no longer expects; the hold simply runs out instead.
+    /// </remarks>
+    public async Task<CancelPaymentResult> CancelPaymentAsync(PaymentRecord payment)
+    {
+        if (payment.Status != PaymentStatus.Pending)
+        {
+            return CancelPaymentResult.AlreadyFinal;
+        }
+
+        if (payment.ProviderReference is not null)
+        {
+            PaymentOutcome outcome;
+            try
+            {
+                outcome = await paymentProvider.CancelAsync(payment.ProviderReference);
+            }
+            catch (PaymentProviderException)
+            {
+                logger.LogWarning(
+                    "Payment {Reference} could not be cancelled at the provider; leaving it pending.",
+                    payment.Reference);
+                return CancelPaymentResult.ProviderUnavailable;
+            }
+
+            if (outcome.Status != ProviderStatus.Cancelled)
+            {
+                // Swish had already decided. Whatever it decided is what happened.
+                await ApplyOutcomeAsync(payment, outcome);
+                return CancelPaymentResult.AlreadyFinal;
+            }
+        }
+
+        await AbandonPaymentAsync(payment, PaymentStatus.Cancelled);
+        return CancelPaymentResult.Cancelled;
+    }
+
+    private async Task ApplyOutcomeAsync(PaymentRecord payment, PaymentOutcome outcome)
+    {
+        switch (outcome.Status)
+        {
+            case ProviderStatus.Paid:
+                await SettlePaymentAsync(payment, outcome.BankReference);
+                break;
+
+            case ProviderStatus.Declined:
+            case ProviderStatus.Cancelled:
+                await AbandonPaymentAsync(payment, PaymentStatus.Cancelled);
+                break;
+
+            case ProviderStatus.Error:
+                await AbandonPaymentAsync(payment, PaymentStatus.Failed, outcome.ErrorCode);
+                break;
+
+            case ProviderStatus.Created:
+                break;
+        }
+    }
+
+    /// <summary>The text in the member's Swish history, built from the class so it always validates.</summary>
+    private async Task<string> MessageForAsync(PaymentRecord payment)
+    {
+        if (payment.BookingId is null)
+        {
+            return SwishRequest.Message(null, null);
+        }
+
+        BookingRecord? booking = await repository.GetBookingAsync(payment.BookingId.Value);
+        TrainingClass? trainingClass = booking is null ? null : classes.Find(booking.ClassKey);
+
+        return SwishRequest.Message(
+            trainingClass?.Title ?? "Träning",
+            booking is null ? null : SwedishTime.ToSwedish(booking.ClassStartUtc));
     }
 }
