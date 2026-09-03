@@ -27,9 +27,13 @@
 
         if (toggle) {
             toggle.hidden = false;
+
+            // "den här enheten", not "den här telefonen". This label is only ever shown while the
+            // QR code is, which is the desktop case - so it was offering to open Swish on a phone
+            // to somebody sitting at a computer.
             toggle.textContent = mode === 'mobile'
                 ? 'Visa QR-kod istället'
-                : 'Öppna Swish på den här telefonen istället';
+                : 'Öppna Swish på den här enheten istället';
         }
     }
 
