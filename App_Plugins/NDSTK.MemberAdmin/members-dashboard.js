@@ -386,8 +386,8 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
     /// What sits under an open row.
     ///
     /// No name and no email at the top: both are in the row directly above, and repeating them is
-    /// the kind of noise that made the old separate box hard to place. Payments come first because
-    /// they are what the club opens an account to look at.
+    /// the kind of noise that made the old separate box hard to place. Children come first because
+    /// they are who the account is for, and the two tables below both refer to them by name.
     #renderPanel() {
         if (!this._detail) {
             return html`<div class="panel panel--loading"><uui-loader></uui-loader></div>`;
@@ -404,6 +404,11 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                             <strong>${this.#t('familyAccount')}</strong>` : ''}
                     </p>
                 ` : ''}
+
+                <h4>${this.#t('colChildren')}</h4>
+                ${(summary.childNames ?? []).length === 0
+                    ? html`<p>${this.#t('noParticipants')}</p>`
+                    : html`<p>${summary.childNames.join(', ')}</p>`}
 
                 <h4>${this.#t('payments')}</h4>
                 ${payments.length === 0 ? html`<p>${this.#t('noPayments')}</p>` : html`
@@ -430,11 +435,6 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                         `)}
                     </uui-table>
                 `}
-
-                <h4>${this.#t('colChildren')}</h4>
-                ${(summary.childNames ?? []).length === 0
-                    ? html`<p>${this.#t('noParticipants')}</p>`
-                    : html`<p>${summary.childNames.join(', ')}</p>`}
 
                 <h4>${this.#t('bookings')}</h4>
                 ${bookings.length === 0 ? html`<p>${this.#t('noBookings')}</p>` : html`

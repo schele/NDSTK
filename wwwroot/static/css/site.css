@@ -865,6 +865,9 @@ footer {
        uses it: a 3px frame around a QR code and a 2.4rem amount. Scoped to this page rather than
        changed globally, because --primary is the club's colour in forty other places. */
     --swish-blue: #0A2E7A;
+
+    /* The tint behind the QR code. Pale on purpose - see .swish__qr-image. */
+    --swish-qr-ground: #EAF1FB;
 }
 
 .swish__head {
@@ -982,14 +985,21 @@ footer {
     font-size: 1.1rem;
 }
 
+/* The code itself arrives transparent, so this is the ground it is read against - and that ground
+   is a contrast requirement before it is a decoration. Swish's palest module is #E93F2D, which
+   gives 4.0:1 on white and 3.5:1 on this tint; a mid blue drops to 2.7:1 and a scanner starts to
+   struggle. Measured, not guessed. Anything darker than this belongs nowhere near a QR code.
+
+   No border either: the code carries its own quiet zone, so a frame around a tinted tile was a
+   third rectangle around the same square. */
 .swish__qr-image {
     display: block;
     width: 220px;
     height: 220px;
     margin: 0 auto 0.75rem;
-    border: 3px solid var(--swish-blue);
-    border-radius: 6px;
-    background: #fff;
+    padding: 0.5rem;
+    border-radius: 8px;
+    background: var(--swish-qr-ground);
 }
 
 .swish__hint {

@@ -14,7 +14,13 @@ public sealed class SwishQrService(
     IMemoryCache cache,
     ILogger<SwishQrService> logger)
 {
-    private sealed record QrRequest(string Token, string Format, int Size);
+    /// <summary>
+    /// Swish's generator takes only these four. It accepts a colour parameter and silently ignores
+    /// it - their design specification fixes the code as a 45 degree purple-to-red gradient, and
+    /// allows only black and white as an alternative - so the page tints the ground behind it
+    /// instead, which is what <c>transparent</c> is for.
+    /// </summary>
+    private sealed record QrRequest(string Token, string Format, int Size, bool Transparent);
 
     public async Task<byte[]?> GetImageAsync(Guid paymentReference, string token)
     {
@@ -29,7 +35,7 @@ public sealed class SwishQrService(
         try
         {
             using HttpResponseMessage response = await client.PostAsJsonAsync(
-                "api/v1/commerce", new QrRequest(token, "png", 300));
+                "api/v1/commerce", new QrRequest(token, "png", 300, Transparent: true));
 
             if (response.IsSuccessStatusCode is false)
             {
