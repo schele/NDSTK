@@ -49,7 +49,7 @@ public sealed class BookingSurfaceController(
 
         if (attempt.Succeeded is false)
         {
-            TempData["BookingError"] = MessageFor(attempt.Failure);
+            TempData["BookingError"] = MessageFor(attempt);
             return RedirectToCurrentUmbracoPage();
         }
 
@@ -116,12 +116,20 @@ public sealed class BookingSurfaceController(
     /// Swedish, member-facing, and deliberately specific: "det gick inte" tells someone nothing
     /// about whether to try a different class or wait.
     /// </summary>
-    private static string MessageFor(BookingFailure failure) => failure switch
+    /// <remarks>
+    /// Takes the whole attempt rather than the failure, because one of these names the child. A
+    /// family account books for several children and the parent needs to know which one is already
+    /// on the class - "barnet" makes them go and look. Note the agreement shifts with the subject:
+    /// a name is a person and is "bokad", while "barnet" is neuter and is "bokat".
+    /// </remarks>
+    private static string MessageFor(BookingAttempt attempt) => attempt.Failure switch
     {
         BookingFailure.ClassNotFound => "Träningen finns inte längre.",
         BookingFailure.ClassHasStarted => "Träningen har redan börjat.",
         BookingFailure.ClassIsFull => "Någon hann före – träningen är fullbokad.",
-        BookingFailure.AlreadyBooked => "Barnet är redan bokat på den träningen.",
+        BookingFailure.AlreadyBooked => attempt.ChildName is { Length: > 0 } name
+            ? $"{name} är redan bokad på den träningen."
+            : "Barnet är redan bokat på den träningen.",
         BookingFailure.NoCreditAvailable => "Du har ingen tillgodoträning att använda.",
         BookingFailure.ParticipantNotFound => "Välj vilket barn bokningen gäller.",
         BookingFailure.ParticipantIncomplete => "Fyll i barnets födelsedatum under Mina barn innan du bokar.",

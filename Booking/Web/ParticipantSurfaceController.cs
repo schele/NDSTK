@@ -172,7 +172,14 @@ public sealed class ParticipantSurfaceController(
         (var cancelled, var credited) = await bookings.CancelFutureBookingsForParticipantAsync(
             key, user.Key, DateTime.UtcNow);
 
-        var message = "Barnet togs bort. Tidigare bokningar finns kvar.";
+        // The name comes from the list fetched above, which is this account's own children, so it
+        // cannot surface somebody else's - and it is read before the removal because afterwards the
+        // row is soft-deleted and GetForMemberAsync no longer returns it.
+        var removedName = existing.FirstOrDefault(child => child.Key == key)?.FirstName;
+
+        var message = removedName is { Length: > 0 } name
+            ? $"{name} togs bort. Tidigare bokningar finns kvar."
+            : "Barnet togs bort. Tidigare bokningar finns kvar.";
 
         if (cancelled > 0)
         {
