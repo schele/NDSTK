@@ -463,6 +463,11 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
         :host {
             display: block;
             padding: var(--uui-size-layout-1);
+
+            /* The backoffice menu's own blue. --uui-color-header-surface is the semantic name for
+               it, so the accent tracks the chrome rather than drifting from it if the theme
+               changes; the palette token behind it, space cadet, is the fallback. */
+            --ndstk-accent: var(--uui-color-header-surface, var(--uui-palette-space-cadet, #1b264f));
         }
 
         .toolbar {
@@ -516,6 +521,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
             outline-offset: -2px;
         }
 
+
         /* The open row and its panel are one object, so the line between them goes. */
         .row--open > td {
             background: var(--uui-color-surface-alt);
@@ -552,7 +558,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
            rather than as another row of the table. */
         .panel {
             background: var(--uui-color-surface);
-            border-left: 3px solid var(--uui-color-focus, #3544b1);
+            border-left: 3px solid var(--ndstk-accent);
             padding: var(--uui-size-space-2) var(--uui-size-space-5) var(--uui-size-space-4);
         }
 
