@@ -62,6 +62,7 @@ export default {
             + 'appears in none of the columns.',
 
         // Member detail panel
+        toggleDetails: 'Show or hide details',
         familyAccount: 'Family account',
         noParticipants: 'No participants.',
         payments: 'Payments',

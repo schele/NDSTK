@@ -50,6 +50,7 @@ export default {
             'Frånvaro registreras inte, så en deltagare som var bokad men inte kom syns inte i '
             + 'någon av kolumnerna.',
 
+        toggleDetails: 'Visa eller dölj detaljer',
         familyAccount: 'Familjekonto',
         noParticipants: 'Inga deltagare.',
         payments: 'Betalningar',

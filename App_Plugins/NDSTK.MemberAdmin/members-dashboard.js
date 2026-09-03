@@ -268,73 +268,48 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                     ? html`<uui-loader></uui-loader>`
                     : this.#renderTable()}
             </uui-box>
-
-            ${this._selected ? this.#renderDetail() : ''}
         `;
     }
 
+    /// A real table element rather than uui-table, and that is not a preference.
+    ///
+    /// The account's detail expands underneath the row it belongs to, as one cell spanning every
+    /// column. That needs colspan, which is an attribute of a real td - uui-table lays out with CSS
+    /// display:table on custom elements, and CSS has no colspan property, so a panel inserted there
+    /// is squeezed into the first column whatever it is styled with. The three tables inside the
+    /// panel are still uui-tables: nothing in them has to span anything.
     #renderTable() {
         if (this._rows.length === 0) {
             return html`<p>${this.#t('noMembers')}</p>`;
         }
 
-        return html`
-            <uui-table>
-                <uui-table-head>
-                    <uui-table-head-cell>${this.#t('colName')}</uui-table-head-cell>
-                    <uui-table-head-cell>${this.#t('colEmail')}</uui-table-head-cell>
-                    <uui-table-head-cell title=${this.#t('colFamily')}>${this.#t('colFamilyShort')}</uui-table-head-cell>
-                    <uui-table-head-cell>${this.#t('colVerified')}</uui-table-head-cell>
-                    <uui-table-head-cell>${this.#t('colMemberSince')}</uui-table-head-cell>
-                    <uui-table-head-cell>${this.#t('colExpires')}</uui-table-head-cell>
-                    <uui-table-head-cell>${this.#t('colLeft')}</uui-table-head-cell>
-                    <uui-table-head-cell>${this.#t('colChildren')}</uui-table-head-cell>
-                    <uui-table-head-cell>${this.#t('colPaid')}</uui-table-head-cell>
-                    <uui-table-head-cell>${this.#t('colBooked')}</uui-table-head-cell>
-                    <uui-table-head-cell title=${this.#t('colCancelled')}>${this.#t('colCancelledShort')}</uui-table-head-cell>
-                    <uui-table-head-cell title=${this.#t('colCredits')}>${this.#t('colCreditsShort')}</uui-table-head-cell>
-                    ${this._resetAvailable ? html`<uui-table-head-cell></uui-table-head-cell>` : ''}
-                </uui-table-head>
+        // The chevron, the twelve data columns, and the reset button where it is available.
+        const columns = 13 + (this._resetAvailable ? 1 : 0);
 
-                ${this.#filtered.map((row) => html`
-                    <uui-table-row
-                        class="row ${this._selected === row.memberKey ? 'row--open' : ''}"
-                        @click=${() => this.#select(row)}>
-                        <uui-table-cell><strong>${row.name}</strong></uui-table-cell>
-                        <uui-table-cell>${row.email}</uui-table-cell>
-                        <uui-table-cell>${row.isFamilyAccount ? '✓' : '–'}</uui-table-cell>
-                        <uui-table-cell>${this.#date(row.verifiedUtc)}</uui-table-cell>
-                        <uui-table-cell>${this.#date(row.memberSinceUtc)}</uui-table-cell>
-                        <uui-table-cell>${row.paidUntil ?? '—'}</uui-table-cell>
-                        <uui-table-cell class=${row.daysLeft < 0 ? 'lapsed' : ''}>
-                            ${this.#daysLeft(row)}
-                        </uui-table-cell>
-                        <uui-table-cell title=${(row.childNames ?? []).join(', ')}>
-                            ${row.participantCount}
-                        </uui-table-cell>
-                        <uui-table-cell>${this.#kr(row.totalPaidOre)}</uui-table-cell>
-                        <uui-table-cell>${row.confirmedBookings}</uui-table-cell>
-                        <uui-table-cell>${row.cancelledBookings}</uui-table-cell>
-                        <uui-table-cell>${row.unspentCredits}</uui-table-cell>
-                        ${/* The row itself opens the detail panel, so this click stops here. */
-                          this._resetAvailable ? html`
-                            <uui-table-cell>
-                                <uui-button
-                                    look="outline"
-                                    color="danger"
-                                    compact
-                                    label=${this.#t('resetOne')}
-                                    title=${this.#t('resetOneTitle')}
-                                    ?disabled=${this._busy}
-                                    @click=${(e) => {
-                                        e.stopPropagation();
-                                        this.#reset(row.memberKey, row.email);
-                                    }}></uui-button>
-                            </uui-table-cell>
-                        ` : ''}
-                    </uui-table-row>
-                `)}
-            </uui-table>
+        return html`
+            <table class="members">
+                <thead>
+                    <tr>
+                        <th class="chevron-col"><span class="sr-only">${this.#t('toggleDetails')}</span></th>
+                        <th>${this.#t('colName')}</th>
+                        <th>${this.#t('colEmail')}</th>
+                        <th title=${this.#t('colFamily')}>${this.#t('colFamilyShort')}</th>
+                        <th>${this.#t('colVerified')}</th>
+                        <th>${this.#t('colMemberSince')}</th>
+                        <th>${this.#t('colExpires')}</th>
+                        <th>${this.#t('colLeft')}</th>
+                        <th>${this.#t('colChildren')}</th>
+                        <th>${this.#t('colPaid')}</th>
+                        <th>${this.#t('colBooked')}</th>
+                        <th title=${this.#t('colCancelled')}>${this.#t('colCancelledShort')}</th>
+                        <th title=${this.#t('colCredits')}>${this.#t('colCreditsShort')}</th>
+                        ${this._resetAvailable ? html`<th></th>` : ''}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${this.#filtered.map((row) => this.#renderRow(row, columns))}
+                </tbody>
+            </table>
 
             ${/* The column heading is repeated in bold to introduce the sentence, which is why the
                   note is two terms and not one - markup does not belong inside a translation. */''}
@@ -345,27 +320,90 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
         `;
     }
 
-    #renderDetail() {
+    /// One account: its row, and underneath it the panel when the row is open.
+    #renderRow(row, columns) {
+        const open = this._selected === row.memberKey;
+
+        return html`
+            <tr class="row ${open ? 'row--open' : ''}"
+                tabindex="0"
+                aria-expanded=${open ? 'true' : 'false'}
+                title=${this.#t('toggleDetails')}
+                @click=${() => this.#select(row)}
+                @keydown=${(e) => this.#rowKey(e, row)}>
+                <td class="chevron-col">
+                    <span class="chevron ${open ? 'chevron--open' : ''}" aria-hidden="true">▸</span>
+                </td>
+                <td><strong>${row.name}</strong></td>
+                <td>${row.email}</td>
+                <td>${row.isFamilyAccount ? '✓' : '–'}</td>
+                <td>${this.#date(row.verifiedUtc)}</td>
+                <td>${this.#date(row.memberSinceUtc)}</td>
+                <td>${row.paidUntil ?? '—'}</td>
+                <td class=${row.daysLeft < 0 ? 'lapsed' : ''}>${this.#daysLeft(row)}</td>
+                <td title=${(row.childNames ?? []).join(', ')}>${row.participantCount}</td>
+                <td>${this.#kr(row.totalPaidOre)}</td>
+                <td>${row.confirmedBookings}</td>
+                <td>${row.cancelledBookings}</td>
+                <td>${row.unspentCredits}</td>
+                ${/* The row itself opens the panel, so this click stops here. */
+                  this._resetAvailable ? html`
+                    <td>
+                        <uui-button
+                            look="outline"
+                            color="danger"
+                            compact
+                            label=${this.#t('resetOne')}
+                            title=${this.#t('resetOneTitle')}
+                            ?disabled=${this._busy}
+                            @click=${(e) => {
+                                e.stopPropagation();
+                                this.#reset(row.memberKey, row.email);
+                            }}></uui-button>
+                    </td>
+                ` : ''}
+            </tr>
+
+            ${open ? html`
+                <tr class="panel-row">
+                    <td class="panel-cell" colspan=${columns}>${this.#renderPanel()}</td>
+                </tr>
+            ` : ''}
+        `;
+    }
+
+    /// A row that behaves like a button has to answer the keyboard like one. Space is also the
+    /// page-scroll key, which is why it is stopped rather than only acted on.
+    #rowKey(event, row) {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+            return;
+        }
+
+        event.preventDefault();
+        this.#select(row);
+    }
+
+    /// What sits under an open row.
+    ///
+    /// No name and no email at the top: both are in the row directly above, and repeating them is
+    /// the kind of noise that made the old separate box hard to place. Payments come first because
+    /// they are what the club opens an account to look at.
+    #renderPanel() {
         if (!this._detail) {
-            return html`
-                <uui-box headline=${this.#t('loading')}><uui-loader></uui-loader></uui-box>`;
+            return html`<div class="panel panel--loading"><uui-loader></uui-loader></div>`;
         }
 
         const { summary, payments, bookings } = this._detail;
 
         return html`
-            <uui-box headline="${summary.name}">
-                <p class="detail-head">
-                    ${summary.email}
-                    ${summary.phone ? html` · ${summary.phone}` : ''}
-                    ${summary.isFamilyAccount
-                        ? html` · <strong>${this.#t('familyAccount')}</strong>` : ''}
-                </p>
-
-                <h4>${this.#t('colChildren')}</h4>
-                ${(summary.childNames ?? []).length === 0
-                    ? html`<p>${this.#t('noParticipants')}</p>`
-                    : html`<p>${summary.childNames.join(', ')}</p>`}
+            <div class="panel">
+                ${summary.phone || summary.isFamilyAccount ? html`
+                    <p class="detail-head">
+                        ${summary.phone ?? ''}
+                        ${summary.isFamilyAccount ? html`${summary.phone ? ' · ' : ''}
+                            <strong>${this.#t('familyAccount')}</strong>` : ''}
+                    </p>
+                ` : ''}
 
                 <h4>${this.#t('payments')}</h4>
                 ${payments.length === 0 ? html`<p>${this.#t('noPayments')}</p>` : html`
@@ -393,6 +431,11 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                     </uui-table>
                 `}
 
+                <h4>${this.#t('colChildren')}</h4>
+                ${(summary.childNames ?? []).length === 0
+                    ? html`<p>${this.#t('noParticipants')}</p>`
+                    : html`<p>${summary.childNames.join(', ')}</p>`}
+
                 <h4>${this.#t('bookings')}</h4>
                 ${bookings.length === 0 ? html`<p>${this.#t('noBookings')}</p>` : html`
                     <uui-table>
@@ -412,7 +455,7 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                         `)}
                     </uui-table>
                 `}
-            </uui-box>
+            </div>
         `;
     }
 
@@ -439,18 +482,99 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
             font-size: 0.9em;
         }
 
+        /* Hand-rolled because the list has to be a real table - see #renderTable. The tokens are
+           uui's own, so this sits beside other backoffice tables rather than beside nothing. */
+        table.members {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table.members th,
+        table.members td {
+            text-align: left;
+            padding: var(--uui-size-space-3) var(--uui-size-space-4);
+            border-bottom: 1px solid var(--uui-color-border);
+            vertical-align: top;
+        }
+
+        table.members th {
+            font-weight: 700;
+            white-space: nowrap;
+            border-bottom-width: 2px;
+        }
+
         .row {
             cursor: pointer;
         }
 
-        .row--open {
+        .row:hover > td {
             background: var(--uui-color-surface-alt);
+        }
+
+        .row:focus-visible {
+            outline: 2px solid var(--uui-color-focus, #3544b1);
+            outline-offset: -2px;
+        }
+
+        /* The open row and its panel are one object, so the line between them goes. */
+        .row--open > td {
+            background: var(--uui-color-surface-alt);
+            border-bottom-color: transparent;
+        }
+
+        .chevron-col {
+            width: 1rem;
+            padding-right: 0;
+        }
+
+        .chevron {
+            display: inline-block;
+            color: var(--uui-color-text-alt);
+            transition: transform 120ms ease;
+        }
+
+        .chevron--open {
+            transform: rotate(90deg);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .chevron {
+                transition: none;
+            }
+        }
+
+        .panel-cell {
+            padding: 0 var(--uui-size-space-4) var(--uui-size-space-4);
+            background: var(--uui-color-surface-alt);
+        }
+
+        /* Inset, with the accent down its left edge, so it reads as belonging to the row above
+           rather than as another row of the table. */
+        .panel {
+            background: var(--uui-color-surface);
+            border-left: 3px solid var(--uui-color-focus, #3544b1);
+            padding: var(--uui-size-space-2) var(--uui-size-space-5) var(--uui-size-space-4);
+        }
+
+        .panel--loading {
+            padding: var(--uui-size-space-4) var(--uui-size-space-5);
         }
 
         /* An expired membership is the one thing on this table worth spotting without reading. */
         .lapsed {
             color: var(--uui-color-danger);
             font-weight: 700;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
         }
 
         .note {
