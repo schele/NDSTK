@@ -46,11 +46,19 @@ public enum CancelOutcome
 /// The outcome of asking to book a class. Exactly one of <see cref="Failure"/> and a booking is
 /// meaningful, and <see cref="PaymentReference"/> is set only when the member owes money.
 /// </summary>
+/// <remarks>
+/// <paramref name="ChildName"/> is carried back only on the outcomes that name the child to the
+/// member, and it comes from the participant <see cref="BookingService.BookAsync"/> has already
+/// loaded and confirmed belongs to the signed-in account. That is the point of passing it rather
+/// than looking it up in the controller: the participant key arrives on a form, so a controller
+/// resolving a name from it would let a forged key fish for another family's child.
+/// </remarks>
 public sealed record BookingAttempt(
     BookingFailure Failure,
     int? BookingId = null,
     Guid? PaymentReference = null,
-    BookingQuote? Quote = null)
+    BookingQuote? Quote = null,
+    string? ChildName = null)
 {
     public bool Succeeded => Failure == BookingFailure.None;
 
@@ -168,7 +176,7 @@ public sealed class BookingService(
 
         if (Capacity.HasLiveBooking(forClass, participantKey, nowUtc))
         {
-            return new BookingAttempt(BookingFailure.AlreadyBooked);
+            return new BookingAttempt(BookingFailure.AlreadyBooked, ChildName: participant.FirstName);
         }
 
         // The credit is chosen before the place is reserved, but only spent after, so a member who
@@ -212,7 +220,7 @@ public sealed class BookingService(
                 afterwards.TryGetValue(classKey, out IReadOnlyList<BookingSnapshot>? rows) ? rows : [];
 
             return Capacity.HasLiveBooking(current, participantKey, nowUtc)
-                ? new BookingAttempt(BookingFailure.AlreadyBooked)
+                ? new BookingAttempt(BookingFailure.AlreadyBooked, ChildName: participant.FirstName)
                 : new BookingAttempt(BookingFailure.ClassIsFull);
         }
 
