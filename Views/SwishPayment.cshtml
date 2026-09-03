@@ -21,6 +21,11 @@
 
 <div class="content-blocks">
     <article class="post">
+        @if (TempData["PaymentError"] is string paymentError)
+        {
+            <p class="form-notice form-notice--error" role="alert">@paymentError</p>
+        }
+
         @if (pay is null)
         {
             @* Also what an unowned or unknown reference gets: saying "not yours" would let a
@@ -34,12 +39,33 @@
                 <p><a href="@portalPage.Url()" class="btn-primary">Till mina sidor</a></p>
             }
         }
+        else if (pay.IsPaid)
+        {
+            <h1>Klart!</h1>
+            @if (pay.CreditIssued)
+            {
+                <p class="form-notice form-notice--ok" role="status">
+                    Betalningen är genomförd. Den här träningen är inte bokad, så du har en
+                    tillgodoträning att boka en annan träning med.
+                </p>
+            }
+            else if (pay.BookingId is null)
+            {
+                <p class="form-notice form-notice--ok" role="status">Betalningen är genomförd. Kontot är nu ett familjekonto.</p>
+            }
+            else
+            {
+                <p class="form-notice form-notice--ok" role="status">Betalningen är genomförd och din träning är bokad.</p>
+            }
+            @if (portalPage is not null)
+            {
+                <p><a href="@portalPage.Url()" class="btn-primary">Till mina sidor</a></p>
+            }
+        }
         else if (pay.IsPending is false)
         {
-            <h1>Betalningen är avslutad</h1>
-            <p class="form-notice form-notice--ok" role="status">
-                Den här betalningen är redan @(pay.IsPaid ? "genomförd" : "avslutad").
-            </p>
+            <h1>Betalningen genomfördes inte</h1>
+            <p class="form-notice form-notice--error" role="alert">@pay.OutcomeMessage</p>
             @if (portalPage is not null)
             {
                 <p><a href="@portalPage.Url()" class="btn-primary">Till mina sidor</a></p>
@@ -47,10 +73,13 @@
         }
         else
         {
-            <div class="swish">
+            <div class="swish" data-swish-started="@(pay.IsStarted ? "true" : null)" data-status-url="@pay.StatusUrl" data-poll-interval="3000">
                 <div class="swish__head">
                     <img src="~/static/img/swish-logo.png" alt="Swish" class="swish__logo" />
-                    <span class="swish__demo">Demoläge</span>
+                    @if (pay.IsMock)
+                    {
+                        <span class="swish__demo">Demoläge</span>
+                    }
                 </div>
 
                 <h1 class="swish__amount">@Kr(pay.AmountOre) kr</h1>
@@ -96,10 +125,46 @@
                     </p>
                 }
 
-                @* Stand-in for the real Swish QR code. Deliberately obviously fake. *@
-                <div class="swish__qr" aria-hidden="true">
-                    <div class="swish__qr-inner">DEMO</div>
-                </div>
+                @if (pay.IsStarted is false)
+                {
+                    @* State 1: nothing exists at Swish yet. The member decides when it does. *@
+                    <div class="swish__actions">
+                        @using (Html.BeginUmbracoForm<SwishPaymentSurfaceController>(
+                            nameof(SwishPaymentSurfaceController.Start)))
+                        {
+                            <input type="hidden" name="reference" value="@pay.Reference" />
+                            <button type="submit" class="btn-primary">Betala med Swish</button>
+                        }
+                    </div>
+                }
+                else if (pay.IsMock)
+                {
+                    @* Stand-in for the real Swish QR code. Deliberately obviously fake. *@
+                    <div class="swish__qr" aria-hidden="true">
+                        <div class="swish__qr-inner">DEMO</div>
+                    </div>
+                }
+                else
+                {
+                    @* State 2: on a phone, open the app; on a desktop, scan. The script hides the
+                       one that does not apply and offers a link to swap. Without JavaScript both
+                       show, which is correct if unpolished. *@
+                    @if (pay.AppLink is { Length: > 0 } appLink)
+                    {
+                        <div class="swish__device" data-device="mobile">
+                            <a href="@appLink" class="btn-primary swish__app-link">Öppna Swish</a>
+                            <p class="swish__hint">Godkänn betalningen i Swish. Du kommer tillbaka hit när det är klart.</p>
+                        </div>
+                    }
+                    <div class="swish__device" data-device="desktop">
+                        <img src="@pay.QrUrl" alt="QR-kod för Swish" class="swish__qr-image" width="220" height="220" />
+                        <p class="swish__hint">Öppna Swish på din telefon, välj Skanna QR-kod och godkänn betalningen.</p>
+                    </div>
+                    <p>
+                        <button type="button" class="consent-btn consent-btn--link" data-device-toggle hidden></button>
+                    </p>
+                    <p class="swish__waiting" role="status">Väntar på att du godkänner i Swish …</p>
+                }
 
                 <p class="swish__reference">
                     Referens<br /><code>@pay.Reference</code>
@@ -110,12 +175,7 @@
                    A family upgrade holds nothing - it buys a capability, not a seat - so it has no
                    HoldExpiresUtc, and MinutesLeft falls out as zero. Rendering it anyway put
                    "Platsen är reserverad i 0 minuter till" on the page, describing a reservation
-                   that does not exist and implying a deadline that is not there. The countdown
-                   script could not correct it either: with no date to parse it bails out and leaves
-                   the server-rendered sentence exactly as it is.
-
-                   Conditioned on the hold rather than on "is this an upgrade", so any future
-                   payment that holds no place is covered by the same rule.
+                   that does not exist and implying a deadline that is not there.
 
                    Rendered server-side so it reads correctly with no JavaScript; the script below
                    then keeps it ticking rather than leaving a snapshot from page load. *@
@@ -128,32 +188,49 @@
                 }
 
                 <div class="swish__actions" data-hold-actions>
-                    @using (Html.BeginUmbracoForm<SwishPaymentSurfaceController>(
-                        nameof(SwishPaymentSurfaceController.SimulatePaid)))
+                    @if (pay.IsStarted && pay.IsMock)
                     {
-                        <input type="hidden" name="reference" value="@pay.Reference" />
-                        <button type="submit" class="btn-primary">Simulera betalning</button>
-                    }
+                        @using (Html.BeginUmbracoForm<SwishPaymentSurfaceController>(
+                            nameof(SwishPaymentSurfaceController.SimulatePaid)))
+                        {
+                            <input type="hidden" name="reference" value="@pay.Reference" />
+                            <button type="submit" class="btn-primary">Simulera betalning</button>
+                        }
 
-                    @using (Html.BeginUmbracoForm<SwishPaymentSurfaceController>(
-                        nameof(SwishPaymentSurfaceController.SimulateCancelled)))
+                        @using (Html.BeginUmbracoForm<SwishPaymentSurfaceController>(
+                            nameof(SwishPaymentSurfaceController.SimulateCancelled)))
+                        {
+                            <input type="hidden" name="reference" value="@pay.Reference" />
+                            <button type="submit" class="consent-btn consent-btn--link">Simulera avbrott</button>
+                        }
+                    }
+                    else
                     {
-                        <input type="hidden" name="reference" value="@pay.Reference" />
-                        <button type="submit" class="consent-btn consent-btn--link">Simulera avbrott</button>
+                        @using (Html.BeginUmbracoForm<SwishPaymentSurfaceController>(
+                            nameof(SwishPaymentSurfaceController.Cancel)))
+                        {
+                            <input type="hidden" name="reference" value="@pay.Reference" />
+                            <button type="submit" class="consent-btn consent-btn--link">Avbryt</button>
+                        }
                     }
                 </div>
 
-                <p class="swish__note">
-                    Swish är inte kopplat än. Knapparna ovan står för det svar appen skulle ha
-                    skickat tillbaka.
-                </p>
+                @if (pay.IsMock)
+                {
+                    <p class="swish__note">
+                        Swish är inte kopplat. Knapparna ovan står för det svar appen skulle ha
+                        skickat tillbaka.
+                    </p>
+                }
             </div>
 
-            @* Nothing to count down without a hold, and the script would only find no element and
-               return. Not loading it at all is one fewer request on a page that has no clock. *@
             @if (pay.HoldExpiresUtc is not null)
             {
                 <script src="~/static/js/payment-countdown.js" defer></script>
+            }
+            @if (pay.IsStarted && pay.IsMock is false)
+            {
+                <script src="~/static/js/swish-payment.js" defer></script>
             }
         }
     </article>

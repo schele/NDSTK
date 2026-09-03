@@ -855,11 +855,19 @@ footer {
     cursor: not-allowed;
 }
 
-/* Mocked Swish payment */
+/* The Swish payment page */
 .swish {
     max-width: 380px;
     margin: 0 auto;
     text-align: center;
+
+    /* A lighter navy than the site's --primary, which reads as near-black at the sizes this page
+       uses it: a 3px frame around a QR code and a 2.4rem amount. Scoped to this page rather than
+       changed globally, because --primary is the club's colour in forty other places. */
+    --swish-blue: #0A2E7A;
+
+    /* The tint behind the QR code. Pale on purpose - see .swish__qr-image. */
+    --swish-qr-ground: #EAF1FB;
 }
 
 .swish__head {
@@ -881,7 +889,7 @@ footer {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     background: var(--accent);
-    color: var(--primary);
+    color: var(--swish-blue);
     padding: 0.2rem 0.5rem;
     border-radius: 3px;
     font-weight: 700;
@@ -890,7 +898,7 @@ footer {
 .swish__amount {
     font-size: 2.4rem;
     margin: 0.25rem 0 1rem;
-    color: var(--primary);
+    color: var(--swish-blue);
 }
 
 .swish__lines {
@@ -917,13 +925,13 @@ footer {
     width: 160px;
     height: 160px;
     margin: 0 auto 1rem;
-    border: 3px solid var(--primary);
+    border: 3px solid var(--swish-blue);
     border-radius: 6px;
     display: grid;
     place-items: center;
     background:
-        repeating-linear-gradient(90deg, var(--primary) 0 8px, transparent 8px 16px),
-        repeating-linear-gradient(0deg, var(--primary) 0 8px, transparent 8px 16px);
+        repeating-linear-gradient(90deg, var(--swish-blue) 0 8px, transparent 8px 16px),
+        repeating-linear-gradient(0deg, var(--swish-blue) 0 8px, transparent 8px 16px);
     background-color: #fff;
 }
 
@@ -932,7 +940,7 @@ footer {
     padding: 0.4rem 0.7rem;
     font-weight: 700;
     letter-spacing: 0.1em;
-    color: var(--primary);
+    color: var(--swish-blue);
 }
 
 .swish__reference {
@@ -963,6 +971,63 @@ footer {
     color: var(--muted);
     border-top: 1px solid #ddd;
     padding-top: 0.8rem;
+}
+
+/* The started state: one hand-over block per device, the script hides the other. */
+.swish__device {
+    margin: 0 0 0.5rem;
+}
+
+.swish__app-link {
+    display: block;
+    width: 100%;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+/* The code itself arrives transparent, so this is the ground it is read against - and that ground
+   is a contrast requirement before it is a decoration. Swish's palest module is #E93F2D, which
+   gives 4.0:1 on white and 3.5:1 on this tint; a mid blue drops to 2.7:1 and a scanner starts to
+   struggle. Measured, not guessed. Anything darker than this belongs nowhere near a QR code.
+
+   No border either: the code carries its own quiet zone, so a frame around a tinted tile was a
+   third rectangle around the same square. */
+.swish__qr-image {
+    display: block;
+    width: 220px;
+    height: 220px;
+    margin: 0 auto 0.75rem;
+    padding: 0.5rem;
+    border-radius: 8px;
+    background: var(--swish-qr-ground);
+}
+
+.swish__hint {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin: 0 0 0.75rem;
+}
+
+.swish__waiting {
+    font-weight: 600;
+    color: var(--swish-blue);
+}
+
+.swish__waiting::before {
+    content: "";
+    display: inline-block;
+    width: 0.7em;
+    height: 0.7em;
+    margin-right: 0.5em;
+    border: 2px solid var(--swish-blue);
+    border-right-color: transparent;
+    border-radius: 50%;
+    vertical-align: -0.1em;
+    animation: swish-spin 0.9s linear infinite;
+}
+
+@keyframes swish-spin {
+    to { transform: rotate(360deg); }
 }
 
 /* Member area, narrow screens.

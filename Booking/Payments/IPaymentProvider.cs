@@ -1,8 +1,10 @@
+using NDSTK.Booking.Data;
+
 namespace NDSTK.Booking.Payments;
 
 /// <summary>
-/// How the club takes money. One interface so the mocked Swish flow can be replaced by the real
-/// one without touching the booking logic: a second implementation and one DI line.
+/// How the club takes money. The booking logic talks to this and nothing else, so the mock and
+/// Swish are interchangeable: <c>BookingComposer</c> picks one from configuration.
 /// </summary>
 public interface IPaymentProvider
 {
@@ -10,8 +12,21 @@ public interface IPaymentProvider
     string Name { get; }
 
     /// <summary>
-    /// True when the member has to be sent somewhere to pay. A real provider would return a
-    /// redirect or a QR payload here; the mock sends them to a page on this site.
+    /// Creates the request at the provider. Returns what the page needs to hand the member over.
+    /// Throws <see cref="PaymentProviderException"/> when the provider refuses or cannot be reached;
+    /// the caller leaves the payment untouched so the member can try again.
     /// </summary>
-    bool RequiresRedirect { get; }
+    Task<PaymentStart> StartAsync(PaymentRecord payment, PaymentStartContext context);
+
+    /// <summary>
+    /// Asks the provider what happened. A terminal answer is returned, never thrown. Throws only
+    /// when the provider cannot be reached, so a caller can tell "declined" from "unknown".
+    /// </summary>
+    Task<PaymentOutcome> RetrieveAsync(string providerReference);
+
+    /// <summary>
+    /// Withdraws a request the member has not answered. A request that is already final is
+    /// reported as its final state rather than as a failure.
+    /// </summary>
+    Task<PaymentOutcome> CancelAsync(string providerReference);
 }

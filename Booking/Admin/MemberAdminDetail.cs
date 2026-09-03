@@ -18,7 +18,11 @@ public sealed record AdminPaymentRow(
     int FamilyFeeOre,
     int ClassFeeOre,
     string Status,
-    string Provider);
+    string Provider,
+    /// <summary>Swish's payment reference once paid: what the bank statement shows. Null for the mock.</summary>
+    string? BankReference,
+    /// <summary>Swish's error code for a failed payment.</summary>
+    string? ErrorCode);
 
 /// <summary>One booking, named by the child it belongs to.</summary>
 public sealed record AdminBookingRow(

@@ -97,7 +97,7 @@ public sealed class MemberAdminQueries(
         List<AdminPaymentRow> payments = await scope.Database.FetchAsync<AdminPaymentRow>(
             $"""
             SELECT CreatedUtc, CompletedUtc, AmountOre, MembershipFeeOre, FamilyFeeOre,
-                   ClassFeeOre, Status, Provider
+                   ClassFeeOre, Status, Provider, BankReference, ErrorCode
             FROM {BookingTables.Payment}
             WHERE MemberKey = @0
             ORDER BY Id DESC

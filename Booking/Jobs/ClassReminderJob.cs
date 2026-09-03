@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NDSTK.Booking.Data;
 using NDSTK.Booking.Domain;
+using NDSTK.Booking.Payments;
 using NDSTK.Booking.Services;
 using Umbraco.Cms.Core.Sync;
 using Umbraco.Cms.Infrastructure.BackgroundJobs;
@@ -57,11 +58,85 @@ public sealed class ClassReminderJob(
         var settings = scope.ServiceProvider.GetRequiredService<MembershipSettingsService>();
         var mail = scope.ServiceProvider.GetRequiredService<BookingMailService>();
         var classes = scope.ServiceProvider.GetRequiredService<TrainingClassService>();
+        var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
 
         DateTime nowUtc = DateTime.UtcNow;
 
-        await SweepExpiredHoldsAsync(repository, nowUtc);
-        await SendRemindersAsync(repository, mail, classes, settings, nowUtc);
+        // Each step is independent. The reconciliation is new, touches the network and performs
+        // settlements, and it runs first - so without this a single failure in it would cost the
+        // run its hold sweep and its reminder emails, which have nothing to do with Swish.
+        await RunStepAsync("reconciling payments", () => ReconcilePaymentsAsync(repository, bookings, nowUtc));
+        await RunStepAsync("sweeping expired holds", () => SweepExpiredHoldsAsync(repository, nowUtc));
+        await RunStepAsync("sending reminders", () => SendRemindersAsync(repository, mail, classes, settings, nowUtc));
+    }
+
+    /// <summary>
+    /// Runs one step of the job, logging and swallowing anything it throws. A job that dies part-way
+    /// through leaves the rest of its work undone until the next period, and the steps here are
+    /// unrelated to each other.
+    /// </summary>
+    private async Task RunStepAsync(string what, Func<Task> step)
+    {
+        try
+        {
+            await step();
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "The reminder run failed while {What}.", what);
+        }
+    }
+
+    /// <summary>
+    /// Asks Swish about every pending payment that has a request and is older than a minute. This
+    /// is what catches a lost callback for a member who closed the tab after paying.
+    /// </summary>
+    /// <remarks>
+    /// Before the sweep, deliberately. Sweeping first would expire the booking of a payment that
+    /// turns out to be PAID a moment later; the late-payment rule would still recover it, but only
+    /// by re-checking capacity or issuing a credit, when simply confirming was available.
+    /// </remarks>
+    private async Task ReconcilePaymentsAsync(
+        IBookingRepository repository, BookingService bookings, DateTime nowUtc)
+    {
+        IReadOnlyList<PaymentRecord> awaiting =
+            await repository.GetPaymentsAwaitingReconciliationAsync(nowUtc.AddMinutes(-1));
+
+        if (awaiting.Count == 0)
+        {
+            return;
+        }
+
+        var settled = 0;
+
+        foreach (PaymentRecord payment in awaiting)
+        {
+            try
+            {
+                PaymentRecord after = await bookings.ReconcileAsync(payment, nowUtc);
+                if (after.Status != PaymentStatus.Pending)
+                {
+                    settled++;
+                }
+            }
+            catch (PaymentProviderException exception)
+            {
+                // One unreachable call must not stop the rest, or the sweep and the reminders.
+                logger.LogWarning(exception, "Reconciling payment {Reference} failed; next run.", payment.Reference);
+            }
+            catch (Exception exception)
+            {
+                // Anything else - a transient database error, a deadlock victim, a failed scope
+                // commit - is this payment's problem and not the run's. Logged at Error because,
+                // unlike an unreachable provider, it means something here is wrong. The settlement
+                // is atomic, so a failure mid-way left the payment Pending for the next run.
+                logger.LogError(exception, "Reconciling payment {Reference} threw.", payment.Reference);
+            }
+        }
+
+        logger.LogInformation(
+            "Reconciled {Count} pending Swish payment(s); {Settled} reached a final state.",
+            awaiting.Count, settled);
     }
 
     /// <summary>

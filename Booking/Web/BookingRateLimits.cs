@@ -24,4 +24,16 @@ public static class BookingRateLimits
     /// broken. The limit here exists to stop a runaway loop, not to police members.
     /// </remarks>
     public const string MemberActions = "ndstk-member-actions";
+
+    /// <summary>
+    /// The payment page's status poll and QR image. Every three seconds from a member who may have
+    /// two tabs open, so it gets its own budget rather than eating into <see cref="MemberActions"/>.
+    /// </summary>
+    public const string PaymentStatus = "ndstk-payment-status";
+
+    /// <summary>
+    /// Swish's callback. Sized for its retry schedule - ten attempts per payment - times however
+    /// many members pay in the same minute, all from one address. Not a budget people reach.
+    /// </summary>
+    public const string Callback = "ndstk-swish-callback";
 }

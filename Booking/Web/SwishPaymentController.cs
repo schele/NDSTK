@@ -3,9 +3,13 @@ using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Logging;
 using NDSTK.Booking.Data;
 using NDSTK.Booking.Domain;
+using NDSTK.Booking.Payments;
+using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Security;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
+using Umbraco.Extensions;
 
 namespace NDSTK.Booking.Web;
 
@@ -21,10 +25,35 @@ public sealed record SwishPaymentViewModel(
     string? ClassTitle,
     DateTime? ClassStartUtc,
     string Status,
-    DateTime? HoldExpiresUtc)
+    string? BookingStatus,
+    DateTime? HoldExpiresUtc,
+    /// <summary>The mock is active: Demoläge and the simulate buttons.</summary>
+    bool IsMock,
+    /// <summary>A request exists at the provider: show the app link and QR, and poll.</summary>
+    bool IsStarted,
+    string? AppLink,
+    string? QrUrl,
+    string? StatusUrl,
+    /// <summary>The sentence for a failed or cancelled payment, from SwishOutcome.</summary>
+    string? OutcomeMessage)
 {
     public bool IsPending => Status == PaymentStatus.Pending;
     public bool IsPaid => Status == PaymentStatus.Paid;
+    public bool IsFailed => Status == PaymentStatus.Failed;
+    public bool IsCancelled => Status == PaymentStatus.Cancelled;
+
+    /// <summary>
+    /// Paid, but this payment's booking is not confirmed, so what the member holds is a credit
+    /// rather than a place.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately says nothing about why. The late-payment rule in SettlePaymentAsync is one
+    /// route here; a member who later cancelled the booking themselves is another, and by then the
+    /// page is only a bookmark they have re-opened. Both leave them holding a credit, which is the
+    /// one thing this page can state truthfully.
+    /// </remarks>
+    public bool CreditIssued
+        => IsPaid && BookingId is not null && BookingStatus != Domain.BookingStatus.Confirmed;
 
     /// <summary>
     /// Minutes left on the reservation, rounded up, never below zero.
@@ -68,7 +97,10 @@ public sealed class SwishPaymentController(
     IMemberManager memberManager,
     IBookingRepository repository,
     Services.TrainingClassService classes,
-    MemberBookingsProvider bookingsProvider)
+    MemberBookingsProvider bookingsProvider,
+    IPaymentProvider paymentProvider,
+    IPublishedContentQuery contentQuery,
+    IPublishedUrlProvider publishedUrlProvider)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     public async Task<IActionResult> SwishPayment([FromQuery(Name = "ref")] Guid? reference)
@@ -105,7 +137,8 @@ public sealed class SwishPaymentController(
         // rather than "forbidden" so a reference cannot be probed for existence.
         if (payment is null || payment.MemberKey != user.Key)
         {
-            logger.LogWarning("A payment reference was requested by someone who does not own it.");
+            logger.LogWarning(
+                "Payment {Reference} was requested by someone who does not own it.", reference);
             return null;
         }
 
@@ -114,6 +147,33 @@ public sealed class SwishPaymentController(
             : null;
 
         TrainingClass? trainingClass = booking is null ? null : classes.Find(booking.ClassKey);
+
+        var isMock = paymentProvider.Name == SwishMockPaymentProvider.ProviderName;
+        var isStarted = payment.ProviderReference is not null;
+
+        // The page itself is where the Swish app sends the member back to, so it is the return URL.
+        var pageUrl = PaymentPageUrl.For(contentQuery, publishedUrlProvider, payment.Reference);
+        var absolutePageUrl = pageUrl is null
+            ? null
+            : new Uri(new Uri($"{Request.Scheme}://{Request.Host}"), pageUrl).ToString();
+
+        var appLink = isStarted && !isMock && payment.ProviderToken is not null && absolutePageUrl is not null
+            ? SwishRequest.AppLink(payment.ProviderToken, absolutePageUrl)
+            : null;
+
+        string? outcomeMessage = payment.Status switch
+        {
+            PaymentStatus.Failed => SwishOutcome.Resolve(SwishOutcome.Error, payment.ErrorCode).MemberMessage,
+            PaymentStatus.Cancelled => SwishOutcome.Resolve(SwishOutcome.Cancelled, null).MemberMessage,
+            _ => null,
+        };
+
+        // The reference goes INSIDE the encrypted route string. Url.SurfaceAction returns
+        // "<this page's path>?ufprt=<encrypted c/a/ar…>", so appending "?reference=" would produce a
+        // second question mark, fold the reference into the ufprt value and stop it decrypting -
+        // which silently broke both the poll and the QR image.
+        var controller = ControllerExtensions.GetControllerName<SwishPaymentSurfaceController>();
+        object routeValues = new { reference = payment.Reference };
 
         return new SwishPaymentViewModel(
             payment.Reference,
@@ -125,6 +185,17 @@ public sealed class SwishPaymentController(
             trainingClass?.Title,
             booking?.ClassStartUtc,
             payment.Status,
-            booking?.HoldExpiresUtc);
+            booking?.Status,
+            booking?.HoldExpiresUtc,
+            isMock,
+            isStarted,
+            appLink,
+            QrUrl: isStarted && !isMock
+                ? Url.SurfaceAction(nameof(SwishPaymentSurfaceController.Qr), controller, routeValues)
+                : null,
+            StatusUrl: isStarted
+                ? Url.SurfaceAction(nameof(SwishPaymentSurfaceController.Status), controller, routeValues)
+                : null,
+            outcomeMessage);
     }
 }

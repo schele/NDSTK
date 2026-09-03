@@ -78,6 +78,64 @@ public class BookingSchemaSqlTests
     }
 
     [Fact]
+    public void A_nullable_string_column_uses_nvarchar_on_sql_server_and_text_on_sqlite()
+    {
+        Assert.Equal(
+            $"ALTER TABLE {Payment} ADD ProviderReference nvarchar(36) NULL",
+            BookingSchemaSql.AddNullableStringColumn(SqlDialect.SqlServer, Payment, "ProviderReference", 36));
+
+        Assert.Equal(
+            $"ALTER TABLE {Payment} ADD COLUMN ProviderReference TEXT NULL",
+            BookingSchemaSql.AddNullableStringColumn(SqlDialect.Sqlite, Payment, "ProviderReference", 36));
+    }
+
+    [Fact]
+    public void A_nullable_datetime_column_matches_the_types_umbraco_already_used()
+    {
+        Assert.Equal(
+            $"ALTER TABLE {Payment} ADD StartedUtc datetime NULL",
+            BookingSchemaSql.AddNullableDateTimeColumn(SqlDialect.SqlServer, Payment, "StartedUtc"));
+
+        Assert.Equal(
+            $"ALTER TABLE {Payment} ADD COLUMN StartedUtc TEXT NULL",
+            BookingSchemaSql.AddNullableDateTimeColumn(SqlDialect.Sqlite, Payment, "StartedUtc"));
+    }
+
+    [Fact]
+    public void The_filtered_unique_index_excludes_nulls_and_never_says_IF_NOT_EXISTS()
+    {
+        var sql = BookingSchemaSql.CreateFilteredUniqueIndex(
+            "IX_ndstkPayment_ProviderReference", Payment, "ProviderReference");
+
+        Assert.Equal(
+            $"CREATE UNIQUE INDEX IX_ndstkPayment_ProviderReference ON {Payment} (ProviderReference) "
+            + "WHERE ProviderReference IS NOT NULL",
+            sql);
+        Assert.DoesNotContain("IF NOT EXISTS", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void The_filtered_unique_index_lets_many_unstarted_payments_coexist_but_not_two_of_one_request()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+
+        Execute(connection,
+            $"CREATE TABLE {Payment} (Id INTEGER PRIMARY KEY AUTOINCREMENT, ProviderReference TEXT NULL)");
+        Execute(connection, BookingSchemaSql.CreateFilteredUniqueIndex(
+            "IX_ndstkPayment_ProviderReference", Payment, "ProviderReference"));
+
+        Execute(connection, $"INSERT INTO {Payment} (ProviderReference) VALUES (NULL)");
+        Execute(connection, $"INSERT INTO {Payment} (ProviderReference) VALUES (NULL)");
+        Execute(connection, $"INSERT INTO {Payment} (ProviderReference) VALUES ('ABC')");
+
+        SqliteException failure = Assert.Throws<SqliteException>(
+            () => Execute(connection, $"INSERT INTO {Payment} (ProviderReference) VALUES ('ABC')"));
+
+        Assert.Contains("UNIQUE", failure.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Each_engine_is_asked_about_indexes_in_the_catalogue_it_actually_has()
     {
         Assert.Contains("sqlite_master", BookingSchemaSql.IndexExistsQuery(SqlDialect.Sqlite));

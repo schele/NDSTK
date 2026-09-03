@@ -79,10 +79,58 @@ public interface IBookingRepository
 
     Task<BookingRecord?> GetBookingAsync(int bookingId);
 
-    /// <summary>Marks the booking confirmed and clears its payment hold.</summary>
-    Task ConfirmBookingAsync(int bookingId, DateTime nowUtc);
+    /// <summary>
+    /// Marks a pending booking confirmed and clears its payment hold. Returns false when the booking
+    /// is no longer pending - swept, or cancelled with its class - so the caller can decide again
+    /// rather than granting a place the rest of the rules had already taken away.
+    /// </summary>
+    Task<bool> TryConfirmBookingAsync(int bookingId, DateTime nowUtc);
 
-    Task CompletePaymentAsync(int paymentId, string status, DateTime nowUtc);
+    /// <summary>
+    /// Moves a payment out of Pending, and only out of Pending. Returns false when it already
+    /// left, which is how the callback, the page's poll and the job agree on exactly one winner.
+    /// </summary>
+    Task<bool> TryCompletePaymentAsync(
+        int paymentId, string status, DateTime nowUtc, string? bankReference, string? errorCode);
+
+    /// <summary>The payment a Swish callback names. Null for a reference nobody started.</summary>
+    Task<PaymentRecord?> GetPaymentByProviderReferenceAsync(string providerReference);
+
+    /// <summary>
+    /// Records that a request exists at the provider. Conditional on none existing yet, so two
+    /// tabs pressing Betala at once create one request, not two.
+    /// </summary>
+    Task<bool> TryStartPaymentAsync(
+        int paymentId, string providerReference, string? token, string callbackIdentifier, DateTime nowUtc);
+
+    /// <summary>
+    /// Restarts the reservation clock when the payment starts, so the hold outlives Swish's own
+    /// timeout however long the member looked at the page first. Pending bookings only.
+    /// </summary>
+    Task<bool> TryRestartHoldAsync(int bookingId, DateTime holdExpiresUtc);
+
+    /// <summary>Notes that Swish was just asked, so the next poll waits its turn.</summary>
+    Task StampPaymentCheckedAsync(int paymentId, DateTime nowUtc);
+
+    /// <summary>Pending payments with a request at the provider, started before the given time.</summary>
+    Task<IReadOnlyList<PaymentRecord>> GetPaymentsAwaitingReconciliationAsync(DateTime startedBeforeUtc);
+
+    /// <summary>
+    /// Gives an expired booking its place back, if the class still has room for it. The capacity
+    /// test is in the WHERE clause, like the reservation's, so it cannot overbook. False when
+    /// the class is full, or the child has since taken another live place on it.
+    /// </summary>
+    /// <remarks>
+    /// The NOT EXISTS clause is the one-live-booking index expressed as a precondition, so a child
+    /// who re-booked the class after their hold lapsed makes this update decline rather than trip
+    /// the constraint. That leaves the null-participant rows the participant
+    /// backfill created, which the two engines treat differently, so the implementation keeps a
+    /// constraint-violation backstop behind it.
+    /// </remarks>
+    Task<bool> TryReconfirmBookingAsync(int bookingId, int capacity, DateTime nowUtc);
+
+    /// <summary>One credit, as a cancellation would issue it.</summary>
+    Task IssueCreditAsync(Guid memberKey, int sourceBookingId, DateTime nowUtc);
 
     /// <summary>
     /// Releases an abandoned or failed booking, and returns any credit spent on it so the member is
