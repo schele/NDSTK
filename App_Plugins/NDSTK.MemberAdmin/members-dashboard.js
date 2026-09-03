@@ -499,7 +499,12 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
             text-align: left;
             padding: var(--uui-size-space-3) var(--uui-size-space-4);
             border-bottom: 1px solid var(--uui-color-border);
-            vertical-align: top;
+
+            /* Centred, not top-aligned. There are more columns here than the width comfortably
+               holds, so a date wraps onto a second line and makes the whole row tall; against
+               that, top alignment leaves the name and the chevron hanging at the ceiling with
+               the gap all underneath them. */
+            vertical-align: middle;
         }
 
         table.members th {
