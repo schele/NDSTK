@@ -308,6 +308,26 @@ reaches a developer machine, and the poll settles the payment anyway. Set
 `NDSTK:Swish:SimulateErrorCode` to `RF07`, `TM01`, `DS24` or `BANKIDCL` to see each failure
 sentence. That setting is read only in the Development environment.
 
+**The test bundle is `MSS_test_3.0.zip`**, and it is not linked from a page a crawler can read:
+developer.swish.nu renders from Contentful, so the download lives at
+`https://assets.ctfassets.net/4dca8u8ebqnn/4CgQJUfc6ncjKHooAkqvDx/d27012ce097a5b0f6b151a8ccdfe285d/MSS_test_3.0.zip`.
+The test certificates vendored in various open-source Swish clients are expired or no longer
+registered with the simulator; use the bundle.
+
+These are measured against the simulator, not read off a page, and are what the code above
+expects:
+
+| Call | Answer |
+| --- | --- |
+| `PUT api/v2/paymentrequests/{id}` | `201`, a `Location` header, a 32-character `PaymentRequestToken` |
+| `GET api/v1/paymentrequests/{id}` | `PAID` with `paymentReference` and `datePaid` |
+| `PATCH` with `application/json-patch+json` | `200` and `CANCELLED`, which also sets `errorCode` `RP08` |
+| `message` of `RF07` | `ERROR` with `errorCode` `RF07` |
+| `POST api/v1/commerce` on the QR host | `200`, `image/png`, and no client certificate needed |
+
+`payerAlias` comes back as the simulator's fake `46464646464`, and a Swedish message survives the
+round trip intact.
+
 ### Before go-live
 
 1. The club signs **Swish Handel** with its bank and names a certificate contact.

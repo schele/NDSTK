@@ -1,5 +1,5 @@
+using System.Net.Security;
 using System.Security.Authentication;
-using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.DependencyInjection;
@@ -23,16 +23,27 @@ public static class SwishHttpClients
             })
             .ConfigurePrimaryHttpMessageHandler(services =>
             {
-                var handler = new HttpClientHandler
+                // SocketsHttpHandler rather than HttpClientHandler for one reason: only its
+                // SslOptions can carry a ClientCertificateContext, which is how the certificate's
+                // CA chain reaches the handshake. Schannel will not send a client certificate it
+                // cannot chain, and a Swish leaf on its own is exactly that case - see
+                // SwishCertificate. Verified against the simulator: leaf alone fails with a bare
+                // HandshakeFailure, leaf plus chain succeeds.
+                var handler = new SocketsHttpHandler
                 {
-                    ClientCertificateOptions = ClientCertificateOption.Manual,
-                    SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                    SslOptions = new SslClientAuthenticationOptions
+                    {
+                        EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                    },
                 };
 
-                X509Certificate2? certificate = services.GetRequiredService<SwishCertificateLoader>().Load();
+                SwishCertificate? certificate = services.GetRequiredService<SwishCertificateLoader>().Load();
                 if (certificate is not null)
                 {
-                    handler.ClientCertificates.Add(certificate);
+                    // offline: true so building the context never reaches out to fetch a missing
+                    // issuer over the network while the application is starting.
+                    handler.SslOptions.ClientCertificateContext = SslStreamCertificateContext.Create(
+                        certificate.Leaf, certificate.Intermediates, offline: true);
                 }
 
                 return handler;
