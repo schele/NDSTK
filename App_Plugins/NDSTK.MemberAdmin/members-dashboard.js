@@ -311,12 +311,17 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
                 </tbody>
             </table>
 
-            ${/* The column heading is repeated in bold to introduce the sentence, which is why the
-                  note is two terms and not one - markup does not belong inside a translation. */''}
+            ${/* Two paragraphs, because these are two unrelated facts: one explains an abbreviated
+                  column heading, the other warns about what no column here can show. Together in
+                  one paragraph they ran to 188 characters, which wraps at the note's own 60rem and
+                  left three words orphaned on a second line; apart, each fits a single row.
+
+                  The heading is repeated in bold to introduce the first sentence, which is why that
+                  one is two terms rather than one - markup does not belong inside a translation. */''}
             <p class="note">
                 <strong>${this.#t('colCancelledShort')}</strong> ${this.#t('noteCancelled')}
-                ${this.#t('noteAttendance')}
             </p>
+            <p class="note note--tight">${this.#t('noteAttendance')}</p>
         `;
     }
 
@@ -590,9 +595,15 @@ class NdstkMembersDashboard extends UmbElementMixin(LitElement) {
 
         .note {
             margin-top: var(--uui-size-space-4);
+            margin-bottom: 0;
             color: var(--uui-color-text-alt);
             font-size: 0.9em;
             max-width: 60rem;
+        }
+
+        /* The second note follows the first as a sibling fact, not as a new block. */
+        .note--tight {
+            margin-top: var(--uui-size-space-1, 3px);
         }
 
         .detail-head {
