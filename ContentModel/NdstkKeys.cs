@@ -91,6 +91,19 @@ internal static class NdstkKeys
         internal static readonly Guid DatePicker = new("5046194e-4237-453c-a547-15db3a07c4e1");
         internal static readonly Guid TrueFalse = new("92897bc6-a5f3-4ffe-ae27-f2e7e33dda49");
         internal static readonly Guid ImageMediaPicker = new("ad9f0cf2-bda2-45d5-9ea1-a63cfc873fd3");
+
+        /// <summary>
+        /// One media item of any type, where <see cref="ImageMediaPicker"/> filters to the Image
+        /// type. That difference is the whole reason this exists: Umbraco stores an uploaded SVG as
+        /// a File rather than an Image, so an image-only picker cannot see a vector logo at all.
+        /// </summary>
+        /// <remarks>
+        /// Taken from Umbraco's own constant rather than transcribed, unlike its neighbours here.
+        /// Those predate this line and are left as they are; a literal that turns out to be wrong
+        /// fails at install time with nothing but a missing property to show for it.
+        /// </remarks>
+        internal static readonly Guid MediaPicker =
+            Umbraco.Cms.Core.Constants.DataTypes.Guids.MediaPicker3Guid;
         internal static readonly Guid ContentPicker = new("fd1e0da5-5606-4862-b679-5d0cf3a52a59");
         internal static readonly Guid Numeric = new("2e6d3631-066e-44b8-aec4-96f09099b2b5");
 

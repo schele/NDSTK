@@ -26,6 +26,17 @@ internal sealed class NdstkContentModelInstaller(
     /// <summary>Same reason as above: declared once, used by both the fresh install and the upgrade.</summary>
     private const string SidebarWidgetsHelp = "The boxes shown in the right column, on every page.";
 
+    /// <summary>Likewise declared once for the fresh install and the upgrade.</summary>
+    /// <remarks>
+    /// The size advice is in the help text rather than the README because the person who needs it
+    /// is standing in the backoffice with a file in their hand. It matters: the logo that shipped
+    /// with the site was 1802 pixels wide and 1.6 MB, for a slot 140 pixels tall.
+    /// </remarks>
+    private const string LogoHelp =
+        "Shown in the header, 140 pixels tall. Leave it empty to use the logo built into the site. " +
+        "An SVG is best, because it stays sharp at any size; a PNG should be about 280 pixels tall, " +
+        "which keeps it well under 100 kB.";
+
     /// <summary>
     /// The blocks the sidebar accepts, in the order the "add content" picker offers them. Declared
     /// once because it is used twice: in the data type a fresh install creates, and in the upgrade
@@ -113,6 +124,19 @@ internal sealed class NdstkContentModelInstaller(
                 factory.Property(BuiltInDataTypes.Textstring, "venueAddress", "Adress", VenueAddressHelp, 5)))
         {
             logger.LogInformation("Added the club address to the settings document type.");
+        }
+
+        // The header logo, so the club can change it without a deployment. Any media type rather
+        // than an image, because Umbraco stores an uploaded SVG as a File and an image-only picker
+        // would not show it - see BuiltInDataTypes.MediaPicker.
+        if (await factory.EnsureGroupAsync(
+                DocumentTypes.Settings,
+                DeriveKey(DocumentTypes.Settings, 1),
+                "settings",
+                "Settings",
+                factory.Property(BuiltInDataTypes.MediaPicker, "logo", "Logo", LogoHelp, 3)))
+        {
+            logger.LogInformation("Added the logo picker to the settings document type.");
         }
 
         // The membership facts are administrative: a member may see them, but one who could edit
@@ -445,6 +469,12 @@ internal sealed class NdstkContentModelInstaller(
                     factory.Property(BuiltInDataTypes.Textstring, "siteName", "Site name", sortOrder: 0),
                     factory.Property(DataTypes.MenuPicker, "menu", "Header menu", sortOrder: 1),
                     factory.Property(BuiltInDataTypes.ContentPicker, "loginPage", "Login page", "Target of the Logga in button in the sidebar.", 2),
+
+                    // Sort order 3 was free. The obvious home for a logo is beside the site name at
+                    // 0, but renumbering the fields around it would only reorder them on a fresh
+                    // install - EnsureContentTypeAsync never touches a type that already exists - so
+                    // a new site and this one would disagree about the order for no gain.
+                    factory.Property(BuiltInDataTypes.MediaPicker, "logo", "Logo", LogoHelp, 3),
                     factory.Property(BuiltInDataTypes.Textstring, "footerText", "Footer text", sortOrder: 4),
                     factory.Property(BuiltInDataTypes.Textstring, "venueAddress", "Adress", VenueAddressHelp, 5));
             });

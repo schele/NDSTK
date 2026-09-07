@@ -27,6 +27,15 @@
         .IfNullOrWhiteSpace($"© {DateTime.UtcNow.Year} NDSTK Tennis Club — Serve. Volley. Repeat.");
     var menu = settings?.Value<IEnumerable<IPublishedContent>>("menu") ?? [];
 
+    // The bundled file is the fallback rather than the default: a site with nothing picked looks
+    // exactly as it did before this field existed, and the club can change the logo from the
+    // backoffice instead of through a deployment. Url() is used as-is for whatever was picked,
+    // including an SVG - Umbraco files those as a File, not an Image, and there is nothing to crop
+    // or resize about a vector anyway.
+    var logo = settings?.Value<IPublishedContent>("logo");
+    var logoUrl = logo?.Url().IfNullOrWhiteSpace(null)
+        ?? Url.Content("~/static/img/ndstk-logo.png");
+
     // Off the root, not off Settings. The sidebar is still site-wide - every page reads the same
     // root node - but it is content rather than configuration, so an editor arranges it on the
     // start page, next to the column it sits beside.
@@ -81,7 +90,7 @@
     <header>
         <div class="header-container">
             <div class="logo">
-                <a href="@(root?.Url() ?? "/")"><img src="~/static/img/ndstk-logo.png" alt="@siteName" /></a>
+                <a href="@(root?.Url() ?? "/")"><img src="@logoUrl" alt="@siteName" /></a>
             </div>
             <nav>
                 <ul>
