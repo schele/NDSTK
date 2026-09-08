@@ -992,14 +992,49 @@ footer {
 
    No border either: the code carries its own quiet zone, so a frame around a tinted tile was a
    third rectangle around the same square. */
+/* The badge below is centred on this box, so this box has to be the code and nothing else. The
+   bottom margin moved up here off .swish__qr-image for that reason: a margin on the last child
+   collapses out of its parent or does not depending on what else the parent declares, and either
+   way the badge would end up a few pixels off centre. */
+.swish__qr-frame {
+    position: relative;
+    width: max-content;
+    margin: 0 auto 0.75rem;
+}
+
 .swish__qr-image {
     display: block;
     width: 220px;
     height: 220px;
-    margin: 0 auto 0.75rem;
+    margin: 0;
     padding: 0.5rem;
     border-radius: 8px;
     background: var(--swish-qr-ground);
+}
+
+/* The club's mark where Swish draws its own. Their design specification puts the Swish symbol in
+   the middle "to emphasise the Swish brand no matter where it is applied", so covering it is a
+   deliberate departure from that specification rather than an oversight - worth knowing if Swish
+   ever asks about it.
+
+   The size is the part that matters technically, and it is measured rather than chosen. Swish
+   returns a 300px PNG holding a 53x53 module code, so a module is 4.6px. Their generator clears
+   a 66px square in the middle - about fourteen modules, already erased and already carried by the
+   error correction - and draws its own symbol 54px across inside it. 40px against the 220px the
+   page shows the code at works out at 54.5 source px: the same footprint as the symbol it covers,
+   leaving the same 1.2 modules of clear ground around it. No data module is touched, so the code
+   scans exactly as well as the one Swish ships. Do not grow it without measuring again - at 48px
+   the gap is gone and modules start disappearing.
+
+   The bundled icon, not the logo the club picks in the backoffice. That one is a wide horizontal
+   lockup and there is no square crop of it that would still read at 40 pixels. */
+.swish__qr-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
 }
 
 .swish__hint {

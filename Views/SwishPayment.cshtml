@@ -157,7 +157,14 @@
                         </div>
                     }
                     <div class="swish__device" data-device="desktop">
-                        <img src="@pay.QrUrl" alt="QR-kod för Swish" class="swish__qr-image" width="220" height="220" />
+                        <div class="swish__qr-frame">
+                            <img src="@pay.QrUrl" alt="QR-kod för Swish" class="swish__qr-image" width="220" height="220" />
+                            @* Decorative, and marked so: the code underneath already carries the
+                               whole meaning, and a screen reader announcing the club's name here
+                               would only interrupt the one instruction that matters. *@
+                            <img src="~/static/img/ndstk-icon.png" alt="" aria-hidden="true"
+                                 class="swish__qr-badge" width="40" height="40" />
+                        </div>
                         <p class="swish__hint">Öppna Swish på din telefon, välj Skanna QR-kod och godkänn betalningen.</p>
                     </div>
                     <p>
