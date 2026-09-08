@@ -998,31 +998,45 @@ footer {
     font-size: 1.1rem;
 }
 
-/* The code itself arrives transparent, so this is the ground it is read against - and that ground
-   is a contrast requirement before it is a decoration. Swish's palest module is #E93F2D, which
-   gives 4.0:1 on white and 3.5:1 on this tint; a mid blue drops to 2.7:1 and a scanner starts to
-   struggle. Measured, not guessed. Anything darker than this belongs nowhere near a QR code.
+/* The ground the code is read against, and a contrast requirement before it is a decoration. It
+   lives on the frame rather than on the image because the image is filtered: a filter sees the
+   element it is on, background included, so a ground on the image would be flooded along with the
+   modules and the whole tile would come out one solid colour.
 
-   No border either: the code carries its own quiet zone, so a frame around a tinted tile was a
-   third rectangle around the same square. */
-/* The badge below is centred on this box, so this box has to be the code and nothing else. The
-   bottom margin moved up here off .swish__qr-image for that reason: a margin on the last child
-   collapses out of its parent or does not depending on what else the parent declares, and either
-   way the badge would end up a few pixels off centre. */
+   No border: the code carries its own quiet zone, so a frame around a tinted tile was a third
+   rectangle around the same square.
+
+   The frame is also what the badge is centred on, so it has to be the code and nothing else - the
+   bottom margin sits here rather than on the image for that reason. A margin on a last child
+   collapses out of its parent or does not, depending on what else the parent declares, and either
+   way the badge would end up a few pixels above centre. */
 .swish__qr-frame {
     position: relative;
     width: max-content;
     margin: 0 auto 0.75rem;
+    padding: 0.5rem;
+    border-radius: 8px;
+    background: var(--swish-qr-ground);
 }
 
+/* Swish returns the code as a transparent PNG in a purple-to-red gradient and ignores any colour
+   asked of their generator, so the recolouring happens here instead: the filter floods the club
+   blue and keeps it only where the PNG is opaque, which is the modules and nothing else. Not one
+   module moves, because nothing is redrawn - only repainted.
+
+   Their specification allows the gradient or black and white, so this is a departure from it, and
+   a deliberate one. It costs nothing technically. A scanner reads luminance, and Swish's palest
+   module is #E93F2D at 3.5:1 against this tint where the club blue is 13.9:1 - the code carries
+   four times the contrast it used to. Measured, not guessed.
+
+   A browser too old for SVG filters shows Swish's own colours, which is the right thing to fall
+   back to. */
 .swish__qr-image {
     display: block;
     width: 220px;
     height: 220px;
     margin: 0;
-    padding: 0.5rem;
-    border-radius: 8px;
-    background: var(--swish-qr-ground);
+    filter: url(#swish-qr-blue);
 }
 
 /* The club's mark where Swish draws its own. Their design specification puts the Swish symbol in

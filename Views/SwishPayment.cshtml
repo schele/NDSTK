@@ -157,6 +157,16 @@
                         </div>
                     }
                     <div class="swish__device" data-device="desktop">
+                        @* The recolouring filter .swish__qr-image refers to. It has to be in the
+                           document for url(#...) to resolve, and it renders nothing itself - hence
+                           zero by zero and aria-hidden. Declared here rather than in the layout so
+                           it exists only on the one page that has a code to repaint. *@
+                        <svg width="0" height="0" aria-hidden="true" focusable="false">
+                            <filter id="swish-qr-blue" color-interpolation-filters="sRGB">
+                                <feFlood flood-color="#001F54" />
+                                <feComposite in2="SourceGraphic" operator="in" />
+                            </filter>
+                        </svg>
                         <div class="swish__qr-frame">
                             <img src="@pay.QrUrl" alt="QR-kod för Swish" class="swish__qr-image" width="220" height="220" />
                             @* Decorative, and marked so: the code underneath already carries the
