@@ -713,6 +713,19 @@ footer {
        align-self rather than a padding of its own: the row is as tall as the input, so stretching
        to it matches by construction. Hand-tuning the button's padding to the same visual height
        would need redoing the moment either font size or input padding moved. */
+    /* Every other field on the site states its own focus ring; these three were left to the
+       browser, and Chrome and Edge draw that one black. Same two rules as .form-field input, so
+       the ring here is the site blue and looks like the rest of the forms rather than like a
+       default nobody chose. */
+    .child-list__form input:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 1px;
+    }
+
+    .child-list__form input:focus {
+        border-color: var(--primary);
+    }
+
     .child-list__form button {
         margin-top: 0;
         justify-self: start;
