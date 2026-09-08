@@ -67,6 +67,7 @@ internal sealed class NdstkContentModelInstaller(
             BuiltInDataTypes.DatePicker,
             BuiltInDataTypes.TrueFalse,
             BuiltInDataTypes.ImageMediaPicker,
+            BuiltInDataTypes.MediaPicker,
             BuiltInDataTypes.ContentPicker,
             BuiltInDataTypes.Numeric,
             BuiltInDataTypes.DatePickerWithTime);
