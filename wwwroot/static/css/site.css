@@ -139,11 +139,22 @@ a.email:hover {
     overflow: hidden;
 }
 
+    /* The panel colour. Solid, because on five of the six heroes there is nothing behind it: the
+       member portal, login, register, verify and error pages all render a bare section, so a
+       translucent overlay was only letting the page grey through and washing the navy out to a
+       slate that matched nothing else on the site. */
     .hero::before {
         content: "";
         position: absolute;
         inset: 0;
-        background: rgba(0, 31, 84, 0.75);
+        background: #00154F;
+    }
+
+    /* The sixth is the hero block, where an editor may pick a background image - and there the
+       overlay has to stay translucent or the image it sits on cannot be seen at all. Same blue,
+       three quarters of it. */
+    .hero--image::before {
+        background: rgba(0, 21, 79, 0.75);
     }
 
 .hero-content {
