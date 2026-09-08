@@ -34,7 +34,7 @@
     // or resize about a vector anyway.
     var logo = settings?.Value<IPublishedContent>("logo");
     var logoUrl = logo?.Url().IfNullOrWhiteSpace(null)
-        ?? Url.Content("~/static/img/ndstk-logo.png");
+        ?? Url.Content("~/static/img/ndstk-logo.svg");
 
     // Off the root, not off Settings. The sidebar is still site-wide - every page reads the same
     // root node - but it is content rather than configuration, so an editor arranges it on the
@@ -76,6 +76,14 @@
     <meta name="robots" content="@metaRobots" />
     <meta name="author" content="@metaAuthor" />
     <title>@metaTitle</title>
+    @* Both files sit at the root, where a browser probes for them whether or not anything links
+       to them - so these two lines are belt and braces rather than the thing that makes the icon
+       appear. They earn their place by naming the sizes, which lets a browser choose an entry
+       without decoding the .ico first, and by being the one place to edit if the files ever move
+       out of the root. The .ico carries 16, 32 and 48; iOS ignores an .ico entirely and wants the
+       180-pixel PNG. *@
+    <link rel="icon" href="~/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" href="~/apple-touch-icon.png" />
     <link href="~/static/css/site.css" rel="stylesheet" />
     <consent-head />
     @* After <consent-head /> deliberately. The package themes through --consent-* custom
