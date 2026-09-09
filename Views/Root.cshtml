@@ -34,7 +34,7 @@
     // or resize about a vector anyway.
     var logo = settings?.Value<IPublishedContent>("logo");
     var logoUrl = logo?.Url().IfNullOrWhiteSpace(null)
-        ?? Url.Content("~/static/img/ndstk-logo.svg");
+        ?? Url.Content("~/static/img/ndstk-logo.webp");
 
     // Off the root, not off Settings. The sidebar is still site-wide - every page reads the same
     // root node - but it is content rather than configuration, so an editor arranges it on the
