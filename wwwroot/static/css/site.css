@@ -104,21 +104,6 @@ a.email:hover {
     text-decoration: underline;
 }
 
-/* Language selector */
-.language-selector {
-    font-size: 1em;
-    color: var(--primary);
-    border: 1px solid var(--primary);
-    background-color: white;
-    border-radius: 4px;
-    padding: 0.3rem 0.6rem;
-    cursor: pointer;
-}
-
-    .language-selector:hover {
-        color: var(--primary);
-    }
-
 /* Layout */
 .container {
     max-width: 1200px;
@@ -376,9 +361,6 @@ footer {
         padding: 1rem 0 0.5rem 0;
     }
 
-    .language-selector {
-        font-size: 0.9em;
-    }
 }
 /* Block list wrappers
    The start page and the sidebar are built from Block List blocks, so the

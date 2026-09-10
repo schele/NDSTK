@@ -1,23 +1,12 @@
 ﻿@using Umbraco.Cms.Core.Models.Blocks
-@using Umbraco.Cms.Core.Services
 @using Umbraco.Cms.Core.Web
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 
-@inject ILanguageService LanguageService
 @inject IUmbracoContextAccessor UmbracoContextAccessor
 
 @{
     var umbracoContext = UmbracoContextAccessor.GetRequiredUmbracoContext();
     var currentCulture = umbracoContext.PublishedRequest?.Culture;
-    var currentPage = umbracoContext.PublishedRequest?.PublishedContent;
-
-    // A language only belongs in the switcher once this page can actually be reached in it.
-    // Umbraco hands back "#" for a culture with no route - no domain bound, or invariant content -
-    // and an option pointing at "#" would just be a dead end.
-    var languages = (await LanguageService.GetAllAsync())
-        .Select(language => new { language.IsoCode, Url = currentPage?.Url(language.IsoCode) })
-        .Where(language => string.IsNullOrEmpty(language.Url) is false && language.Url != "#")
-        .ToList();
 
     var root = Model?.Root() ?? Umbraco.ContentAtRoot().FirstOrDefault();
     var settings = root?.ChildrenOfType("settings").FirstOrDefault();
@@ -103,17 +92,6 @@
             <nav>
                 <ul>
                     <li><a href="/umbraco" target="_blank">backoffice</a></li>
-                    @if (languages.Count > 1)
-                    {
-                        <li>
-                            <select class="language-selector" onchange="window.location.href=this.value">
-                                @foreach (var language in languages)
-                                {
-                                    <option value="@language.Url" selected="@(currentCulture == language.IsoCode)">@language.IsoCode.ToUpperInvariant()</option>
-                                }
-                            </select>
-                        </li>
-                    }
                     @foreach (var item in menu)
                     {
                         <li><a href="@item.Url()" title="@item.Name">@item.Name?.ToUpperInvariant()</a></li>

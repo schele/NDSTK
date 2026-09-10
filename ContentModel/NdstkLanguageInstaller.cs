@@ -6,8 +6,8 @@ using Umbraco.Cms.Core.Services;
 namespace NDSTK.ContentModel;
 
 /// <summary>
-/// Brings the site's languages in line with the previous NDSTK build: Swedish as the default,
-/// British English alongside it, and the en-US that the Umbraco installer creates removed.
+/// Swedish, and only Swedish: the default language, with the en-US that the Umbraco installer
+/// creates removed.
 /// </summary>
 /// <remarks>
 /// Unlike the rest of the installer this step deletes something, so it is guarded by a marker in
@@ -20,7 +20,7 @@ internal sealed class NdstkLanguageInstaller(
     ILogger<NdstkLanguageInstaller> logger)
 {
     private const string StateKey = "NDSTK/Languages";
-    private const string StateValue = "sv-default+en-GB";
+    private const string StateValue = "sv-only";
 
     private static readonly Guid UserKey = Constants.Security.SuperUserKey;
 
@@ -34,11 +34,16 @@ internal sealed class NdstkLanguageInstaller(
         // Swedish has to become the default before en-US can go: Umbraco refuses to delete the
         // default language.
         await EnsureAsync("sv", "Swedish", isDefault: true);
-        await EnsureAsync("en-GB", "English (United Kingdom)", isDefault: false);
         await RemoveAsync("en-US");
 
+        // en-GB is deliberately neither created nor removed. Not created, because a fresh install
+        // should come up single-language now that the switcher is gone. Not removed, because a
+        // site that already has it may have dictionary translations against it, and deleting a
+        // language takes its content with it - that is a decision for whoever runs the site, made
+        // in the backoffice where the consequences are visible, not silently on a restart.
+
         keyValueService.SetValue(StateKey, StateValue);
-        logger.LogInformation("NDSTK languages configured: sv (default) and en-GB.");
+        logger.LogInformation("NDSTK languages configured: sv is the default.");
     }
 
     private async Task EnsureAsync(string isoCode, string cultureName, bool isDefault)
