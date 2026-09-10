@@ -303,8 +303,15 @@ aside {
     gap: 0.5rem;
 }
 
+/* The same #001F54BF the logo is drawn in, so a row of tags sits in the same register as the mark
+   above it rather than a register darker.
+
+   Being an alpha, the exact result depends on what is behind the tag: #40577F on a white card,
+   #395179 on the page grey. Both carry the white label well past AA - 7.3:1 and 8.0:1 against the
+   4.5:1 it needs - so the variation is a shade nobody will catch rather than a contrast risk. The
+   solid navy was 15.9:1, which is the headroom being spent here. */
 .tag {
-    background: var(--primary);
+    background: #001F54BF;
     color: white;
     padding: 0.3rem 0.7rem;
     border-radius: 3px;
