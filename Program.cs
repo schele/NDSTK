@@ -5,202 +5,217 @@ using Esatto.Umbraco.Backoffice.CookieScan;
 using NDSTK.Booking.Admin;
 using NDSTK.Booking.Web;
 using Umbraco.Community.BlockPreview.Extensions;
+using NDSTK;
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-
-// Server-only secrets (DB connection string, etc). Never committed, so absent locally and in CI.
-// Environment variables are re-applied afterwards so they still take precedence over the file.
-builder.Configuration
-    .AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: true)
-    .AddEnvironmentVariables();
-
-// Per-IP throttling, in two tiers.
-//
-// Umbraco's member lockout only protects an account that already exists; it does nothing about
-// someone hammering the registration form or guessing verification tokens, which is what the Auth
-// tier is for. Member actions are a different problem entirely - the caller is already
-// authenticated, and booking, cancelling and paying are things a member legitimately does several
-// times in a row - so they get their own, far larger budget. One shared tight limit locked ordinary
-// members out mid-session.
-builder.Services.AddRateLimiter(options =>
+// Everything is inside this, and it is not defensive programming - it is the only way a failure
+// before Umbraco configures Serilog leaves any trace at all. Without it such a failure is a
+// silent process exit: IIS answers 500.30 and the log folder is not even touched, which says
+// nothing about what broke. See StartupFailureLog for what it can and cannot reach.
+try
 {
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-    // Partitioned by caller so one abusive client cannot lock out the whole club. Note that
-    // everyone behind a single office NAT shares a partition, which is the other reason not to set
-    // these tightly.
-    static string Caller(HttpContext context)
-        => context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    // Server-only secrets (DB connection string, etc). Never committed, so absent locally and in CI.
+    // Environment variables are re-applied afterwards so they still take precedence over the file.
+    builder.Configuration
+        .AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: true)
+        .AddEnvironmentVariables();
 
-    options.AddPolicy(BookingRateLimits.Auth, context =>
-        RateLimitPartition.GetFixedWindowLimiter(Caller(context), _ => new FixedWindowRateLimiterOptions
-        {
-            // Room for a few mistyped passwords and the page loads around them, while still making
-            // a guessing attack pointless.
-            PermitLimit = 20,
-            Window = TimeSpan.FromMinutes(5),
-            QueueLimit = 0,
-        }));
-
-    options.AddPolicy(BookingRateLimits.MemberActions, context =>
-        RateLimitPartition.GetFixedWindowLimiter(Caller(context), _ => new FixedWindowRateLimiterOptions
-        {
-            // A backstop against a runaway script, not a budget a person can reach by clicking.
-            PermitLimit = 60,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0,
-        }));
-
-    options.AddPolicy(BookingRateLimits.PaymentStatus, context =>
-        RateLimitPartition.GetFixedWindowLimiter(Caller(context), _ => new FixedWindowRateLimiterOptions
-        {
-            // A poll every three seconds from two tabs is forty a minute; a family sharing a
-            // connection while two of them pay is twice that.
-            PermitLimit = 120,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0,
-        }));
-
-    options.AddPolicy(BookingRateLimits.Callback, context =>
-        RateLimitPartition.GetFixedWindowLimiter(Caller(context), _ => new FixedWindowRateLimiterOptions
-        {
-            // Swish retries a failed callback up to ten times, and every payment made in the same
-            // minute arrives from the same address.
-            PermitLimit = 300,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0,
-        }));
-
-    // Without this the browser shows its own "This page isn't working" for a bare 429, which reads
-    // as the site having crashed rather than as being asked to slow down.
-    options.OnRejected = async (context, cancellationToken) =>
+    // Per-IP throttling, in two tiers.
+    //
+    // Umbraco's member lockout only protects an account that already exists; it does nothing about
+    // someone hammering the registration form or guessing verification tokens, which is what the Auth
+    // tier is for. Member actions are a different problem entirely - the caller is already
+    // authenticated, and booking, cancelling and paying are things a member legitimately does several
+    // times in a row - so they get their own, far larger budget. One shared tight limit locked ordinary
+    // members out mid-session.
+    builder.Services.AddRateLimiter(options =>
     {
-        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        context.HttpContext.Response.Headers.RetryAfter = "60";
-        context.HttpContext.Response.ContentType = "text/html; charset=utf-8";
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-        await context.HttpContext.Response.WriteAsync(
-            """
-            <!doctype html><html lang="sv"><head><meta charset="utf-8">
-            <title>För många försök</title>
-            <link href="/static/css/site.css" rel="stylesheet"></head>
-            <body><main class="container"><article class="post">
-            <h1>Ta det lugnt en stund</h1>
-            <p>Vi har tagit emot många förfrågningar från dig på kort tid. Vänta en minut och
-               försök igen.</p>
-            <p><a href="/" class="btn-primary">Till startsidan</a></p>
-            </article></main></body></html>
-            """,
-            cancellationToken);
-    };
-});
+        // Partitioned by caller so one abusive client cannot lock out the whole club. Note that
+        // everyone behind a single office NAT shares a partition, which is the other reason not to set
+        // these tightly.
+        static string Caller(HttpContext context)
+            => context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
-builder.CreateUmbracoBuilder()
-    .AddBackOffice()
-    .AddWebsite()
-    .AddComposers()
-    // Renders each block in the backoffice through the same Razor partial the site uses, so an
-    // editor sees the hero, the news list and the widgets rather than a row of labels. Configured
-    // here rather than in appsettings.json because these values describe what this site's content
-    // model contains - two Umbraco.BlockList data types, no block grid, no rich text blocks - and
-    // so should change with the content model, not per environment.
-    .AddBlockPreview(options =>
-    {
-        options.BlockList.Enabled = true;
+        options.AddPolicy(BookingRateLimits.Auth, context =>
+            RateLimitPartition.GetFixedWindowLimiter(Caller(context), _ => new FixedWindowRateLimiterOptions
+            {
+                // Room for a few mistyped passwords and the page loads around them, while still making
+                // a guessing attack pointless.
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(5),
+                QueueLimit = 0,
+            }));
 
-        // The site's own stylesheet, so a preview is styled by the same rules as the page. Previews
-        // render into shadow DOM, which is why site.css declares its custom properties on
-        // ":root, :host" - see the comment at the top of that file.
-        options.BlockList.Stylesheets = ["/static/css/site.css"];
+        options.AddPolicy(BookingRateLimits.MemberActions, context =>
+            RateLimitPartition.GetFixedWindowLimiter(Caller(context), _ => new FixedWindowRateLimiterOptions
+            {
+                // A backstop against a runaway script, not a budget a person can reach by clicking.
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
 
-        // One entry per partial in Views/Partials/blocklist/Components - and that is the whole rule
-        // for keeping this list right. Left unset the package previews *every* element type, which
-        // is wrong here: cookieDefinition comes from the CookieBanner package and is structured
-        // data, not a block with a view - the policy page renders those declarations grouped, never
-        // one partial per block - so previewing it put a "view could not be found" panel where the
-        // editor used to see a row per cookie. An allowlist also fails the safe way round. Forget
-        // to add a block here and it keeps the plain label it has today; the alternative,
-        // IgnoredContentTypes, would greet the next data-only element type with that same panel.
-        options.BlockList.ContentTypes =
-        [
-            "heroBlock",
-            "newsListBlock",
-            "postBlock",
-            "textBlock",
-            "ctaWidgetBlock",
-            "contactWidgetBlock",
-            "tagsWidgetBlock",
-            "memberWidgetBlock",
-        ];
+        options.AddPolicy(BookingRateLimits.PaymentStatus, context =>
+            RateLimitPartition.GetFixedWindowLimiter(Caller(context), _ => new FixedWindowRateLimiterOptions
+            {
+                // A poll every three seconds from two tabs is forty a minute; a family sharing a
+                // connection while two of them pay is twice that.
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
 
-        // ViewLocations is left alone - the package's default for a block list is already
-        // /Views/Partials/blocklist/Components/{0}.cshtml, which is where those partials live.
+        options.AddPolicy(BookingRateLimits.Callback, context =>
+            RateLimitPartition.GetFixedWindowLimiter(Caller(context), _ => new FixedWindowRateLimiterOptions
+            {
+                // Swish retries a failed callback up to ten times, and every payment made in the same
+                // minute arrives from the same address.
+                PermitLimit = 300,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
 
-        // Neither editor exists on this site, so nothing would render for them anyway. Stated
-        // rather than left at the default, because it is the line that has to change on the day a
-        // block grid is added and its blocks show up as labels again.
-        options.BlockGrid.Enabled = false;
-        options.RichText.Enabled = false;
-    })
-    .Build();
+        // Without this the browser shows its own "This page isn't working" for a bare 429, which reads
+        // as the site having crashed rather than as being asked to slow down.
+        options.OnRejected = async (context, cancellationToken) =>
+        {
+            context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            context.HttpContext.Response.Headers.RetryAfter = "60";
+            context.HttpContext.Response.ContentType = "text/html; charset=utf-8";
 
-// The cookie scanner's merge endpoint arrives with Esatto.Umbraco.Backoffice.CookieScan and
-// registers itself through that package's composer, so there is nothing to add for it here.
-//
-// This one line is the exception: the package binds its options from Esatto:CookieScan:ApiUser,
-// and this site's settings have lived under NDSTK:CookieScanApiUser since before the package
-// existed - in an untracked appsettings.Secrets.json and, in production, in a User-scope
-// NDSTK__CookieScanApiUser__ClientSecret. Renaming those is a deployment change on a live site;
-// this is a line of code. Configure is additive and runs in registration order, so binding the old
-// section here, after the composer, is what makes it win.
-builder.Services.ConfigureCookieScanApiUser(
-    builder.Configuration.GetSection("NDSTK:CookieScanApiUser"));
-
-WebApplication app = builder.Build();
-
-
-await app.BootUmbracoAsync();
-
-// A live endpoint that empties the member tables should say so out loud. This is the one line that
-// tells whoever is reading the log why a backoffice user can throw every booking away - and, on a
-// site where it was never meant to be on, that it is.
-if (app.Services.GetRequiredService<TestDataResetGate>().IsEnabled)
-{
-    app.Logger.LogWarning(
-        "The test data reset is ENABLED. Backoffice users with access to Members can delete every "
-        + "booking, payment, credit, child and membership. Development only.");
-}
-
-// Creates the cookie scanner's API user when configured to. After BootUmbracoAsync because it needs
-// the user service, and awaited rather than fire-and-forget so a failure is logged in order rather
-// than interleaved with the first request. The async scope this used to open by hand - and the
-// reason it has to be an async one - now lives inside the extension, in the package.
-await app.Services.SeedCookieScanApiUserAsync();
-
-// Maps the endpoint the consent dialog posts decisions to. Must sit after BootUmbracoAsync()
-// and before UseUmbraco(); without it the dialog renders but Accept and Reject do nothing.
-app.UseCookieConsent();
-
-app.UseHttpsRedirection();
-
-app.UseUmbraco()
-    .WithMiddleware(u =>
-    {
-        u.UseBackOffice();
-        u.UseWebsite();
-
-        // Must sit here, not before UseUmbraco(). The rate limiting middleware reads the
-        // [EnableRateLimiting] policy off the matched endpoint's metadata, so it only works once
-        // routing has run - and Umbraco calls UseRouting() from its own
-        // RegisterDefaultRequiredMiddleware, which happens before this callback. Registered any
-        // earlier there is no endpoint yet, no policy is found, and the limiter silently permits
-        // everything: a security control that looks present and does nothing.
-        u.AppBuilder.UseRateLimiter();
-    })
-    .WithEndpoints(u =>
-    {
-        u.UseBackOfficeEndpoints();
-        u.UseWebsiteEndpoints();
+            await context.HttpContext.Response.WriteAsync(
+                """
+                <!doctype html><html lang="sv"><head><meta charset="utf-8">
+                <title>För många försök</title>
+                <link href="/static/css/site.css" rel="stylesheet"></head>
+                <body><main class="container"><article class="post">
+                <h1>Ta det lugnt en stund</h1>
+                <p>Vi har tagit emot många förfrågningar från dig på kort tid. Vänta en minut och
+                   försök igen.</p>
+                <p><a href="/" class="btn-primary">Till startsidan</a></p>
+                </article></main></body></html>
+                """,
+                cancellationToken);
+        };
     });
 
-await app.RunAsync();
+    builder.CreateUmbracoBuilder()
+        .AddBackOffice()
+        .AddWebsite()
+        .AddComposers()
+        // Renders each block in the backoffice through the same Razor partial the site uses, so an
+        // editor sees the hero, the news list and the widgets rather than a row of labels. Configured
+        // here rather than in appsettings.json because these values describe what this site's content
+        // model contains - two Umbraco.BlockList data types, no block grid, no rich text blocks - and
+        // so should change with the content model, not per environment.
+        .AddBlockPreview(options =>
+        {
+            options.BlockList.Enabled = true;
+
+            // The site's own stylesheet, so a preview is styled by the same rules as the page. Previews
+            // render into shadow DOM, which is why site.css declares its custom properties on
+            // ":root, :host" - see the comment at the top of that file.
+            options.BlockList.Stylesheets = ["/static/css/site.css"];
+
+            // One entry per partial in Views/Partials/blocklist/Components - and that is the whole rule
+            // for keeping this list right. Left unset the package previews *every* element type, which
+            // is wrong here: cookieDefinition comes from the CookieBanner package and is structured
+            // data, not a block with a view - the policy page renders those declarations grouped, never
+            // one partial per block - so previewing it put a "view could not be found" panel where the
+            // editor used to see a row per cookie. An allowlist also fails the safe way round. Forget
+            // to add a block here and it keeps the plain label it has today; the alternative,
+            // IgnoredContentTypes, would greet the next data-only element type with that same panel.
+            options.BlockList.ContentTypes =
+            [
+                "heroBlock",
+                "newsListBlock",
+                "postBlock",
+                "textBlock",
+                "ctaWidgetBlock",
+                "contactWidgetBlock",
+                "tagsWidgetBlock",
+                "memberWidgetBlock",
+            ];
+
+            // ViewLocations is left alone - the package's default for a block list is already
+            // /Views/Partials/blocklist/Components/{0}.cshtml, which is where those partials live.
+
+            // Neither editor exists on this site, so nothing would render for them anyway. Stated
+            // rather than left at the default, because it is the line that has to change on the day a
+            // block grid is added and its blocks show up as labels again.
+            options.BlockGrid.Enabled = false;
+            options.RichText.Enabled = false;
+        })
+        .Build();
+
+    // The cookie scanner's merge endpoint arrives with Esatto.Umbraco.Backoffice.CookieScan and
+    // registers itself through that package's composer, so there is nothing to add for it here.
+    //
+    // This one line is the exception: the package binds its options from Esatto:CookieScan:ApiUser,
+    // and this site's settings have lived under NDSTK:CookieScanApiUser since before the package
+    // existed - in an untracked appsettings.Secrets.json and, in production, in a User-scope
+    // NDSTK__CookieScanApiUser__ClientSecret. Renaming those is a deployment change on a live site;
+    // this is a line of code. Configure is additive and runs in registration order, so binding the old
+    // section here, after the composer, is what makes it win.
+    builder.Services.ConfigureCookieScanApiUser(
+        builder.Configuration.GetSection("NDSTK:CookieScanApiUser"));
+
+    WebApplication app = builder.Build();
+
+
+    await app.BootUmbracoAsync();
+
+    // A live endpoint that empties the member tables should say so out loud. This is the one line that
+    // tells whoever is reading the log why a backoffice user can throw every booking away - and, on a
+    // site where it was never meant to be on, that it is.
+    if (app.Services.GetRequiredService<TestDataResetGate>().IsEnabled)
+    {
+        app.Logger.LogWarning(
+            "The test data reset is ENABLED. Backoffice users with access to Members can delete every "
+            + "booking, payment, credit, child and membership. Development only.");
+    }
+
+    // Creates the cookie scanner's API user when configured to. After BootUmbracoAsync because it needs
+    // the user service, and awaited rather than fire-and-forget so a failure is logged in order rather
+    // than interleaved with the first request. The async scope this used to open by hand - and the
+    // reason it has to be an async one - now lives inside the extension, in the package.
+    await app.Services.SeedCookieScanApiUserAsync();
+
+    // Maps the endpoint the consent dialog posts decisions to. Must sit after BootUmbracoAsync()
+    // and before UseUmbraco(); without it the dialog renders but Accept and Reject do nothing.
+    app.UseCookieConsent();
+
+    app.UseHttpsRedirection();
+
+    app.UseUmbraco()
+        .WithMiddleware(u =>
+        {
+            u.UseBackOffice();
+            u.UseWebsite();
+
+            // Must sit here, not before UseUmbraco(). The rate limiting middleware reads the
+            // [EnableRateLimiting] policy off the matched endpoint's metadata, so it only works once
+            // routing has run - and Umbraco calls UseRouting() from its own
+            // RegisterDefaultRequiredMiddleware, which happens before this callback. Registered any
+            // earlier there is no endpoint yet, no policy is found, and the limiter silently permits
+            // everything: a security control that looks present and does nothing.
+            u.AppBuilder.UseRateLimiter();
+        })
+        .WithEndpoints(u =>
+        {
+            u.UseBackOfficeEndpoints();
+            u.UseWebsiteEndpoints();
+        });
+
+    await app.RunAsync();
+}
+catch (Exception exception)
+{
+    // Reported, then rethrown unchanged. Swallowing it would leave IIS believing the process
+    // started, and a half-started host is worse to diagnose than a dead one.
+    StartupFailureLog.Report(exception);
+    throw;
+}
