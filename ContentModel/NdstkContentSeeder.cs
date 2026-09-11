@@ -45,9 +45,12 @@ internal sealed class NdstkContentSeeder(
         IContent[] posts = SeedArticles(articles);
 
         IContent login = Create("Logga in", start.Id, "login", Nodes.Login);
-        login.SetValue("heading", "Logga in med BankID");
-        login.SetValue("description", "Skanna QR-koden med BankID-appen för att logga in som medlem.");
-        login.SetValue("subText", "Väntar på BankID...");
+        // Email and password, not BankID. The original copy here described a design that was never
+        // built, and a fresh site got it seeded only for NdstkMemberContentUpgrade to overwrite it
+        // on the same boot - so the wrong words existed for no reason and outlived the upgrade
+        // wherever that failed to publish. subText is left unset: there is nothing to wait for.
+        login.SetValue("heading", "Logga in");
+        login.SetValue("description", "Logga in med din e-postadress för att boka träningar.");
         contentService.Save(login, UserId);
 
         IContent error = Create("404", start.Id, "error", Nodes.Error);

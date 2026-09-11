@@ -26,8 +26,10 @@ internal sealed class NdstkMemberContentUpgrade(
     private const string StateKey = "NDSTK/MemberAreaContent";
     // Bumped whenever the upgrade learns to do something new, so it runs once more: v2 filled in the
     // portal picker once that page existed, v3 repointed the dead calls to action, v4 removes the
-    // duplicate "Bli medlem" sidebar widget.
-    private const string StateValue = "login-copy+settings-pickers+cta-targets+no-join-widget-v4";
+    // duplicate "Bli medlem" sidebar widget, v5 runs the BankID copy fix again - the live site was
+    // still showing "Väntar på BankID..." long after v4 was meant to have cleared it, so whatever
+    // happened on that run, once was not enough.
+    private const string StateValue = "login-copy+settings-pickers+cta-targets+no-join-widget-v5";
 
     /// <summary>The placeholder the previous design's calls to action pointed at.</summary>
     private const string DeadAnchor = "#members";
@@ -69,13 +71,56 @@ internal sealed class NdstkMemberContentUpgrade(
             return;
         }
 
-        login.SetValue("heading", "Logga in");
-        login.SetValue("description", "Logga in med din e-postadress för att boka träningar.");
-        login.SetValue("subText", string.Empty);
+        var changed = false;
+
+        // Only the fields that still carry the placeholder. This used to overwrite all three
+        // unconditionally, which is fine exactly once and wrong every time after: the marker gets
+        // bumped for unrelated reasons, and an editor who had since rewritten the login page would
+        // find their words replaced by a restart. Checking for the word BankID makes the fix
+        // idempotent, so it can run as often as it likes and still only ever fix what is broken.
+        if (StillSaysBankId(login, "heading"))
+        {
+            login.SetValue("heading", "Logga in");
+            changed = true;
+        }
+
+        if (StillSaysBankId(login, "description"))
+        {
+            login.SetValue("description", "Logga in med din e-postadress för att boka träningar.");
+            changed = true;
+        }
+
+        if (StillSaysBankId(login, "subText"))
+        {
+            login.SetValue("subText", string.Empty);
+            changed = true;
+        }
+
+        if (changed is false)
+        {
+            return;
+        }
 
         contentService.Save(login, UserId);
         Publish(login);
     }
+
+    /// <summary>
+    /// Whether a field still holds copy from the BankID design.
+    /// </summary>
+    /// <remarks>
+    /// The draft and the published value are both checked, because the two disagree in exactly the
+    /// case this method exists for. A previous run that saved the correction and then failed to
+    /// publish it leaves a clean draft sitting over stale published copy - and the published one is
+    /// what the site serves, so reading only the draft would report the page fixed while a visitor
+    /// is still being told to wait for BankID.
+    /// </remarks>
+    private static bool StillSaysBankId(IContent content, string alias)
+        => Mentions(content.GetValue<string>(alias))
+        || Mentions(content.GetValue<string>(alias, published: true));
+
+    private static bool Mentions(string? value)
+        => value?.Contains("BankID", StringComparison.OrdinalIgnoreCase) is true;
 
     /// <summary>
     /// Fills in the Settings pickers so the login redirect and the "Bli medlem" buttons have
