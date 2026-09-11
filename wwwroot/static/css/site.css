@@ -188,9 +188,15 @@ a.email:hover {
         outline-offset: 2px;
     }
 
-/* The brand blue, for actions that should not compete with the yellow primary call to action. */
+/* The brand blue, for actions that should not compete with the yellow primary call to action.
+   #001F54BF rather than the solid --primary, so a button sits in the same register as the logo
+   and the tags instead of a shade darker than both. White on it resolves to 7.3:1 on a white card
+   and 8.0:1 on the page grey, against the 4.5:1 AA asks for.
+
+   The focus ring above deliberately stays solid --primary: a focus indicator wants every bit of
+   contrast it can get, and it is not part of the brand surface. */
 .btn-secondary {
-    background: var(--primary);
+    background: #001F54BF;
     color: white;
 }
 
