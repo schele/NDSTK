@@ -326,8 +326,10 @@ aside {
     }
 
 /* Footer */
+/* #001F54BF, the same blue as the logo, the tags and the secondary button. It sits on the page
+   grey, so the alpha resolves to #395179 and the white text on it holds 8.0:1. */
 footer {
-    background: var(--primary);
+    background: #001F54BF;
     color: white;
     text-align: center;
     padding: 1.5rem;
