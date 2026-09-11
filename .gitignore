@@ -470,6 +470,12 @@ umbraco-package-schema.json
 # Temp folder containing Examine indexes, NuCache, MediaCache, etc.
 /umbraco/Data/TEMP/
 
+# The data protection key ring. This is key material, not configuration: whoever holds it can forge
+# a member login cookie and a verification token, so it must never be committed - and it is
+# per-environment anyway, so a committed one would be wrong on every machine that checked it out.
+# Each site mints its own on first start and keeps it; see Program.cs.
+/umbraco/Data/DataProtection-Keys/
+
 # SQLite database files. The trailing * matters: hand-made backups are named
 # Umbraco.sqlite.db.backup-20260825-004325 and the un-starred patterns miss them, which is how a
 # 1.5 MB database once got committed.
