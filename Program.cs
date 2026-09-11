@@ -1,5 +1,6 @@
 
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
 using Esatto.Umbraco.Backoffice.CookieBanner;
 using Esatto.Umbraco.Backoffice.CookieScan;
 using NDSTK.Booking.Admin;
@@ -20,6 +21,33 @@ try
     builder.Configuration
         .AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: true)
         .AddEnvironmentVariables();
+
+    // Where the data protection key ring lives.
+    //
+    // Without this the live site ran on an ephemeral one: IIS gives the app pool neither a user
+    // profile nor HKLM, ASP.NET Core falls back to keys held in memory, and every recycle throws
+    // them away. Production was restarting about once an hour, so members were being logged out
+    // about once an hour with them - and worse, a verification link protected by those keys is
+    // dead the moment the process that issued it exits. That link lives fifteen minutes, which is
+    // shorter than the gap between recycles only some of the time, so registration failed
+    // intermittently and looked like a mail problem.
+    //
+    // The path is configurable because the default sits inside the deployment folder, and a
+    // wipe-and-redeploy takes it with them - the same care wwwroot/media needs. Point it somewhere
+    // outside the folder and that stops being true.
+    //
+    // SetApplicationName is not decoration either. Left alone, the discriminator is derived from
+    // the content root path, so keys stop matching the day the site moves directory. Naming it
+    // makes the ring portable.
+    var configuredKeyRing = builder.Configuration["NDSTK:DataProtectionKeysPath"];
+    var keyRingPath = string.IsNullOrWhiteSpace(configuredKeyRing)
+        ? Path.Combine(builder.Environment.ContentRootPath, "umbraco", "Data", "DataProtection-Keys")
+        : configuredKeyRing;
+
+    builder.Services
+        .AddDataProtection()
+        .PersistKeysToFileSystem(Directory.CreateDirectory(keyRingPath))
+        .SetApplicationName("NDSTK");
 
     // Per-IP throttling, in two tiers.
     //
