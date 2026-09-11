@@ -29,10 +29,12 @@
                 {
                     <div asp-validation-summary="ModelOnly" class="form-notice form-notice--error"></div>
 
-                    @* Two named groups, because the form now asks for two people's names and
-                       "Förnamn" twice with nothing between them is a form people fill in wrongly. *@
+                    @* Two named groups, because the form asks for two people's names and "Förnamn"
+                       twice with nothing between them is a form people fill in wrongly. "Målsman" and
+                       "Ditt barn" rather than "Du" and "Barnet": the first pair says who each name
+                       belongs to, which is the whole question being answered. *@
                     <fieldset class="form-group">
-                        <legend>Du</legend>
+                        <legend>Målsman</legend>
 
                         <div class="form-field">
                             <label for="FirstName">Förnamn</label>
@@ -68,7 +70,7 @@
                     </fieldset>
 
                     <fieldset class="form-group">
-                        <legend>Barnet</legend>
+                        <legend>Ditt barn</legend>
 
                         <div class="form-field">
                             <label for="ChildFirstName">Förnamn</label>
