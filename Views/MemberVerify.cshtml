@@ -19,18 +19,20 @@
     <article class="post">
         @switch (outcome)
         {
+            @* One message for both, deliberately. The two outcomes differ only in whether this
+               request or an earlier one did the activating, and an earlier one is usually a mail
+               client: Outlook and Gmail fetch the links in a message to scan them, so the member
+               clicks and is told their account was "redan aktiverat" - by something they never
+               saw. That reads as though somebody else opened their link. The member needs to know
+               the account works and where to log in; which request switched it on is ours to know
+               and theirs to be spared. The outcomes stay separate in the controller, where the
+               distinction is real and worth logging. *@
             case VerifyOutcome.Confirmed:
-                <p class="form-notice form-notice--ok" role="status">
-                    Tack! Din e-postadress är bekräftad och ditt konto är aktiverat.
-                </p>
-                <p>Nu kan du logga in och boka träningar.</p>
-                break;
-
             case VerifyOutcome.AlreadyDone:
                 <p class="form-notice form-notice--ok" role="status">
-                    Ditt konto är redan aktiverat.
+                    Tack! Ditt konto är aktiverat.
                 </p>
-                <p>Du kan logga in direkt.</p>
+                <p>Nu kan du logga in och boka träningar.</p>
                 break;
 
             default:
