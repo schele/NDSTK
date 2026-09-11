@@ -1080,11 +1080,44 @@ footer {
     border-right-color: transparent;
     border-radius: 50%;
     vertical-align: -0.1em;
-    animation: swish-spin 0.9s linear infinite;
+    animation: spin 0.9s linear infinite;
 }
 
-@keyframes swish-spin {
+@keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* A submitted form should say so. Every form here posts and waits - registration sends a mail,
+   the Swish buttons talk to Swish - and a page that sits there afterwards reads as a button that
+   did not work, which invites the second click form-busy.js exists to refuse. */
+.is-busy {
+    pointer-events: none;
+    opacity: 0.9;
+}
+
+    /* Before the label rather than instead of it, so the button keeps its width and nothing on
+       the page shifts at the moment of clicking. currentColor, so the same rule works on the
+       yellow primary, the blue secondary and the red danger button without naming any of them. */
+    .is-busy::before {
+        content: "";
+        display: inline-block;
+        width: 0.85em;
+        height: 0.85em;
+        margin-right: 0.5em;
+        vertical-align: -0.1em;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+    }
+
+/* Still a visible change of state, just not a moving one. */
+@media (prefers-reduced-motion: reduce) {
+    .is-busy::before {
+        animation: none;
+        border-top-color: currentColor;
+        opacity: 0.5;
+    }
 }
 
 /* Member area, narrow screens.
