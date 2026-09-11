@@ -77,9 +77,9 @@ internal sealed class NdstkStrandedBookingCleanup(
 
         return await scope.Database.FetchAsync<Stranded>(
             $"""
-            SELECT DISTINCT p.Key AS ParticipantKey, b.MemberKey AS MemberKey
+            SELECT DISTINCT p.[Key] AS ParticipantKey, b.MemberKey AS MemberKey
             FROM {BookingTables.Booking} b
-            JOIN {BookingTables.Participant} p ON p.Key = b.ParticipantKey
+            JOIN {BookingTables.Participant} p ON p.[Key] = b.ParticipantKey
             WHERE p.RemovedUtc IS NOT NULL
               AND b.Status IN (@0, @1)
               AND b.ClassStartUtc > @2

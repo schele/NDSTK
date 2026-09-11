@@ -104,7 +104,7 @@ public sealed class ParticipantRepository(IScopeProvider scopeProvider) : IParti
             $"""
             UPDATE {BookingTables.Participant}
             SET RemovedUtc = NULL
-            WHERE Key = @0 AND MemberKey = @1
+            WHERE [Key] = @0 AND MemberKey = @1
             """,
             match.Key, memberKey);
 
@@ -125,7 +125,7 @@ public sealed class ParticipantRepository(IScopeProvider scopeProvider) : IParti
             $"""
             UPDATE {BookingTables.Participant}
             SET FirstName = @0, LastName = @1, BirthDate = @2
-            WHERE Key = @3 AND MemberKey = @4 AND RemovedUtc IS NULL AND BirthDate IS NULL
+            WHERE [Key] = @3 AND MemberKey = @4 AND RemovedUtc IS NULL AND BirthDate IS NULL
             """,
             firstName, lastName, birthDate.ToDateTime(TimeOnly.MinValue), participantKey, memberKey);
 
@@ -141,7 +141,7 @@ public sealed class ParticipantRepository(IScopeProvider scopeProvider) : IParti
             $"""
             UPDATE {BookingTables.Participant}
             SET RemovedUtc = @0
-            WHERE Key = @1 AND MemberKey = @2 AND RemovedUtc IS NULL
+            WHERE [Key] = @1 AND MemberKey = @2 AND RemovedUtc IS NULL
             """,
             nowUtc, participantKey, memberKey);
 
@@ -157,7 +157,7 @@ public sealed class ParticipantRepository(IScopeProvider scopeProvider) : IParti
             $"""
             UPDATE {BookingTables.Participant}
             SET FirstClassUsedUtc = @0
-            WHERE Key = @1 AND FirstClassUsedUtc IS NULL
+            WHERE [Key] = @1 AND FirstClassUsedUtc IS NULL
             """,
             nowUtc, participantKey);
 

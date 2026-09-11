@@ -108,7 +108,7 @@ public sealed class MemberAdminQueries(
             $"""
             SELECT b.ClassKey, b.ClassStartUtc, b.Status, p.FirstName, p.LastName
             FROM {BookingTables.Booking} b
-            LEFT JOIN {BookingTables.Participant} p ON p.Key = b.ParticipantKey
+            LEFT JOIN {BookingTables.Participant} p ON p.[Key] = b.ParticipantKey
             WHERE b.MemberKey = @0
             ORDER BY b.ClassStartUtc DESC
             """,
@@ -141,7 +141,7 @@ public sealed class MemberAdminQueries(
             SELECT b.Id, b.Status, b.CreatedUtc, b.MemberKey,
                    p.FirstName, p.LastName, p.BirthDate
             FROM {BookingTables.Booking} b
-            JOIN {BookingTables.Participant} p ON p.Key = b.ParticipantKey
+            JOIN {BookingTables.Participant} p ON p.[Key] = b.ParticipantKey
             WHERE b.ClassKey = @0 AND b.Status IN (@1, @2)
             ORDER BY p.FirstName, p.LastName
             """,

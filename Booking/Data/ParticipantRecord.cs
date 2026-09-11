@@ -22,6 +22,13 @@ public sealed class ParticipantRecord
     public int Id { get; set; }
 
     /// <summary>What bookings reference. A key rather than the id, so it is safe to put in a form.</summary>
+    /// <remarks>
+    /// KEY is a reserved word in SQL Server, so every raw query that names this column has to
+    /// bracket it - [Key], or p.[Key] behind an alias. SQLite accepts it bare, which is why this
+    /// passes every test and every local run and then fails on the live site with "Incorrect
+    /// syntax near the keyword 'Key'". Brackets are the portable spelling: SQLite accepts them
+    /// too, for exactly this compatibility.
+    /// </remarks>
     [Column(nameof(Key))]
     [Index(IndexTypes.UniqueNonClustered, Name = "IX_ndstkParticipant_Key")]
     public Guid Key { get; set; }
