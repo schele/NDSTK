@@ -1,6 +1,7 @@
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Core.Models.Blocks.BlockListItem>
 @inject Umbraco.Cms.Core.Security.IMemberManager MemberManager
 @inject NDSTK.Booking.Services.MembershipSettingsService MembershipSettings
+@inject Umbraco.Cms.Core.Web.IUmbracoContextAccessor UmbracoContextAccessor
 @{
     var content = Model.Content;
     var heading = content.Value<string>("heading").IfNullOrWhiteSpace("Medlem");
@@ -22,9 +23,22 @@
         : content.Value<string>("guestLinkLabel").IfNullOrWhiteSpace("Logga in");
 }
 
+@{
+    @* And nothing when the button would point at the page it is already on. This box sits in the
+       sidebar of every page, so on the login page a visitor was offered a "Logga in" button that
+       reloads the login page, beside the login form itself - and a signed-in member would get the
+       same on Mina sidor if that page did not already replace the sidebar.
+
+       Expressed as "is this the page we would send them to" rather than "is this the login page",
+       because the target is whatever Settings points at. A list of page types here would go stale
+       the moment somebody repoints that picker; this cannot. *@
+    var currentPage = UmbracoContextAccessor.GetRequiredUmbracoContext().PublishedRequest?.PublishedContent;
+    var alreadyThere = target is not null && currentPage is not null && target.Key == currentPage.Key;
+}
+
 @* Nothing at all when that page has not been picked. A heading with no button under it is a box
    that invites somebody to do something and then gives them no way to do it. *@
-@if (target is not null)
+@if (target is not null && alreadyThere is false)
 {
     <div class="widget widget--highlight">
         <h3>@heading</h3>
