@@ -43,8 +43,12 @@ a {
     text-decoration: none;
 }
 
+    /* A link in a paragraph is otherwise told apart from the words around it by hue alone, and
+       barely: #001F54 against #222 is 1.00:1, identical in luminance. The underline is the only
+       thing that says "link" to anyone not looking for a slightly bluer black. */
     a:hover {
         color: var(--primary);
+        text-decoration: underline;
     }
 
 /* .post h2 and .widget h3 both take the brand colour, but nothing covered h4 - so a sub-heading
@@ -95,14 +99,7 @@ nav {
         font-weight: 600;
     }
 
-        nav a:hover {
-            color: var(--primary);
-            text-decoration: underline;
-        }
 
-a.email:hover {
-    text-decoration: underline;
-}
 
 /* Layout */
 .container {
